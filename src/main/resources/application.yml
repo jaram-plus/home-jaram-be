@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: jaram-be
+
+server:
+  port: 8080
