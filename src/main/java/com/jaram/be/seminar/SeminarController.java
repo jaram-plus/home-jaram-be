@@ -1,9 +1,12 @@
 package com.jaram.be.seminar;
 
+import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.jaram.be.security.CurrentMember;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -17,4 +20,11 @@ public class SeminarController {
 
     @GetMapping
     public List<SeminarResponse> list() { return service.list(); }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public SeminarResponse create(@Valid @RequestBody SeminarCreateRequest req,
+                                  @AuthenticationPrincipal CurrentMember me) {
+        return service.create(req, me.id());
+    }
 }

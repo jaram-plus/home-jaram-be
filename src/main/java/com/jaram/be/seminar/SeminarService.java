@@ -1,5 +1,6 @@
 package com.jaram.be.seminar;
 
+import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,15 @@ public class SeminarService {
     @Transactional(readOnly = true)
     public List<SeminarResponse> list() {
         return seminars.findAllByOrderByStartsAtDesc().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public SeminarResponse create(SeminarCreateRequest req, String createdById) {
+        Seminar saved = seminars.save(Seminar.create(
+                req.title(), req.speaker(), req.topic(), req.startsAt(),
+                req.place(), req.mode(), req.attendanceCode(),
+                req.materialUrl(), req.capacity(), createdById));
+        return toResponse(saved);
     }
 
     SeminarResponse toResponse(Seminar s) {
