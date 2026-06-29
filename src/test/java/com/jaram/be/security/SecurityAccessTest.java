@@ -3,7 +3,6 @@ package com.jaram.be.security;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,7 +27,6 @@ class SecurityAccessTest extends PostgresTest {
     }
 
     @Test
-    @Disabled("enabled in Task 9")
     void adminEndpointWithMemberTokenReturns403Forbidden() {
         String token = jwt.generate("m1", "n", "e@hanyang.ac.kr", Authority.MEMBER);
         given().header("Authorization", "Bearer " + token)
