@@ -1,5 +1,7 @@
 package com.jaram.be.seminar;
 
+import com.jaram.be.seminar.dto.AttendRequest;
+import com.jaram.be.seminar.dto.AttendResult;
 import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
 import com.jaram.be.security.CurrentMember;
@@ -26,5 +28,12 @@ public class SeminarController {
     public SeminarResponse create(@Valid @RequestBody SeminarCreateRequest req,
                                   @AuthenticationPrincipal CurrentMember me) {
         return service.create(req, me.id());
+    }
+
+    @PostMapping("/{id}/attend")
+    public AttendResult attend(@PathVariable String id,
+                               @Valid @RequestBody AttendRequest req,
+                               @AuthenticationPrincipal CurrentMember me) {
+        return service.attend(id, me.id(), req.code());
     }
 }
