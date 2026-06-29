@@ -93,7 +93,9 @@ public class SeminarService {
         }
 
         boolean ongoing = SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes) == SeminarStatus.ongoing;
-        if (!ongoing || !s.getAttendanceCode().equals(code)) {
+        // code is @NotBlank (never null); compare from it so a code-less seminar yields
+        // INVALID_CODE rather than an NPE/500.
+        if (!ongoing || !code.equals(s.getAttendanceCode())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CODE", "출석 코드가 올바르지 않습니다.");
         }
 

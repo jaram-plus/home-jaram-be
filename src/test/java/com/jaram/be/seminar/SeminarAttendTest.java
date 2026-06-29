@@ -86,6 +86,17 @@ class SeminarAttendTest extends PostgresTest {
     }
 
     @Test
+    void attendOngoingSeminarWithoutAttendanceCodeReturns400() {
+        // code-less ongoing seminar: any attempt must yield 400 INVALID_CODE, not a 500/NPE
+        Seminar s = seminars.save(Seminar.create("nocode", null, null,
+                Instant.now().minus(1, ChronoUnit.MINUTES), null, null, null, null, null, "officer-1"));
+        given().header("Authorization", "Bearer " + memberToken)
+                .contentType("application/json").body(Map.of("code", "ANYTHING"))
+                .when().post("/api/seminars/" + s.getId() + "/attend")
+                .then().statusCode(400).body("code", equalTo("INVALID_CODE"));
+    }
+
+    @Test
     void unknownSeminarReturns404() {
         given().header("Authorization", "Bearer " + memberToken)
                 .contentType("application/json").body(Map.of("code", "JOIN123"))
