@@ -1,9 +1,11 @@
 package com.jaram.be.auth;
 
+import com.jaram.be.member.MemberRepository;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
@@ -16,7 +18,12 @@ import static org.hamcrest.Matchers.equalTo;
 class SignupTest extends PostgresTest {
 
     @LocalServerPort int port;
-    @BeforeEach void setup() { RestAssured.port = port; }
+    @Autowired MemberRepository members;
+
+    @BeforeEach void setup() {
+        RestAssured.port = port;
+        members.deleteAll();
+    }
 
     private Map<String, Object> valid() {
         return Map.of("name", "홍길동", "studentId", "2023012345",
