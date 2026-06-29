@@ -447,6 +447,36 @@ paths:
         '422': { $ref: '#/components/responses/Validation' }
         '5XX': { $ref: '#/components/responses/ServerError' }
 
+  /api/me:
+    get:
+      summary: 내 정보 조회
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 내 정보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+    patch:
+      summary: 내 정보 수정
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeUpdateRequest' }
+      responses:
+        '200':
+          description: 수정된 내 정보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -538,6 +568,25 @@ components:
     Authority:
       type: string
       enum: [MEMBER, OFFICER]
+    MeProfile:
+      type: object
+      required: [id, name, email, authority]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        studentId: { type: string }
+        email: { type: string, format: email }
+        authority: { $ref: '#/components/schemas/Authority' }
+        gen: { type: [string, 'null'], example: '41기' }
+        bio: { type: [string, 'null'] }
+        githubUrl: { type: [string, 'null'], format: uri }
+        blogUrl: { type: [string, 'null'], format: uri }
+    MeUpdateRequest:
+      type: object
+      properties:
+        bio: { type: [string, 'null'], maxLength: 500 }
+        githubUrl: { type: [string, 'null'], format: uri }
+        blogUrl: { type: [string, 'null'], format: uri }
     MemberCategory:
       type: string
       enum: [exec, contrib, grad]
