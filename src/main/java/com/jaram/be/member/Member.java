@@ -66,4 +66,20 @@ public class Member {
     public MemberStatus getStatus() { return status; }
     public void setStatus(MemberStatus s) { this.status = s; }
     public Instant getCreatedAt() { return createdAt; }
+
+    // Profile fields (people tab). Read by PeopleService; mutable as a member edits their profile.
+    public MemberCategory getCategory() { return category; }
+    public void setCategory(MemberCategory c) { this.category = c; }
+    public String getTitle() { return title; }
+    public void setTitle(String t) { this.title = t; }
+    public String getDepartment() { return department; }
+    public void setDepartment(String d) { this.department = d; }
+    public Integer getGen() { return gen; }
+    public void setGen(Integer g) { this.gen = g; }
+    public String getBio() { return bio; }
+    public void setBio(String b) { this.bio = b; }
+    public String getGithubUrl() { return githubUrl; }
+    public void setGithubUrl(String u) { this.githubUrl = u; }
+    public String getBlogUrl() { return blogUrl; }
+    public void setBlogUrl(String u) { this.blogUrl = u; }
 }
