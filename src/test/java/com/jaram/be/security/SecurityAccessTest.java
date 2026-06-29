@@ -33,4 +33,15 @@ class SecurityAccessTest extends PostgresTest {
                 .when().get("/api/admin/members/pending")
                 .then().statusCode(403).body("code", equalTo("FORBIDDEN"));
     }
+
+    @Test
+    void preflightFromFrontendOriginIsAllowed() {
+        given()
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type")
+                .when().options("/api/auth/login")
+                .then().statusCode(200)
+                .header("Access-Control-Allow-Origin", equalTo("http://localhost:5173"));
+    }
 }
