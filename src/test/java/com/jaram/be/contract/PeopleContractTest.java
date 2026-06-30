@@ -3,8 +3,10 @@ package com.jaram.be.contract;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberCategory;
+import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
+import com.jaram.be.member.MemberTitle;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,9 +35,9 @@ class PeopleContractTest extends PostgresTest {
     void peopleResponseMatchesContract() {
         Member m = Member.newPending("김자람", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
-        m.setCategory(MemberCategory.exec);
-        m.setDepartment("회장단");
-        m.setTitle("회장");
+        m.award(MemberCategory.exec);
+        m.setDepartment(MemberDepartment.LEADERSHIP);
+        m.setTitle(MemberTitle.PRESIDENT);
         m.setGen(41);
         members.save(m);
 

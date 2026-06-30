@@ -2,8 +2,10 @@ package com.jaram.be.people;
 
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberCategory;
+import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
+import com.jaram.be.member.MemberTitle;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,10 +29,10 @@ class PeopleTest extends PostgresTest {
     }
 
     private Member active(String name, String studentId, String email,
-                         MemberCategory category, String department, String title, Integer gen) {
+                         MemberCategory category, MemberDepartment department, MemberTitle title, Integer gen) {
         Member m = Member.newPending(name, studentId, email, "hash");
         m.setStatus(MemberStatus.ACTIVE);
-        m.setCategory(category);
+        m.award(category);
         m.setDepartment(department);
         m.setTitle(title);
         m.setGen(gen);
@@ -39,16 +41,16 @@ class PeopleTest extends PostgresTest {
 
     @Test
     void returnsActiveMembersGroupedByTab() {
-        active("김자람", "2023000001", "a@hanyang.ac.kr", MemberCategory.exec, "회장단", "회장", 41);
-        active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, "학술부", "학술부장", 41);
-        active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, "전 회장", 38);
-        active("정졸업", "2023000004", "d@hanyang.ac.kr", MemberCategory.grad, null, "39기 졸업", null);
+        active("김자람", "2023000001", "a@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
+        active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.ACADEMIC, MemberTitle.ACADEMIC_LEAD, 41);
+        active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, MemberTitle.OB, 38);
+        active("정졸업", "2023000004", "d@hanyang.ac.kr", MemberCategory.grad, null, null, null);
 
         // PENDING member must be excluded
         Member pending = Member.newPending("대기", "2023000099", "p@hanyang.ac.kr", "hash");
-        pending.setCategory(MemberCategory.exec);
-        pending.setDepartment("회장단");
-        pending.setTitle("부회장");
+        pending.award(MemberCategory.exec);
+        pending.setDepartment(MemberDepartment.LEADERSHIP);
+        pending.setTitle(MemberTitle.VICE_PRESIDENT);
         members.save(pending);
 
         given().when().get("/api/people").then().statusCode(200)
@@ -66,6 +68,36 @@ class PeopleTest extends PostgresTest {
                 .body("contrib.groups[0].members[0].name", equalTo("박나눔"))
                 .body("contrib.groups[0].members[0].gen", equalTo("38기"))
                 .body("grad.groups[0].members[0].gen", nullValue());
+    }
+
+    @Test
+    void memberWithMultipleAwardsAppearsInEachAwardedTab() {
+        Member m = Member.newPending("멀티", "2023000010", "m@hanyang.ac.kr", "hash");
+        m.setStatus(MemberStatus.ACTIVE);
+        m.award(MemberCategory.exec);
+        m.award(MemberCategory.grad);
+        m.setDepartment(MemberDepartment.LEADERSHIP);
+        m.setTitle(MemberTitle.PRESIDENT);
+        m.setGen(40);
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("exec.groups.flatten().members.flatten().name", hasItem("멀티"))
+                .body("grad.groups.flatten().members.flatten().name", hasItem("멀티"))
+                .body("contrib.groups.flatten().members.flatten().name", not(hasItem("멀티")));
+    }
+
+    @Test
+    void regularMemberAppearsInNoTab() {
+        // newPending default = regular (no award) → excluded from all three tabs
+        Member m = Member.newPending("일반", "2023000011", "r@hanyang.ac.kr", "hash");
+        m.setStatus(MemberStatus.ACTIVE);
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("exec.groups.flatten().members.flatten().name", not(hasItem("일반")))
+                .body("contrib.groups.flatten().members.flatten().name", not(hasItem("일반")))
+                .body("grad.groups.flatten().members.flatten().name", not(hasItem("일반")));
     }
 
     @Test

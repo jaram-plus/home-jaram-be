@@ -2,6 +2,9 @@ package com.jaram.be.member;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -23,11 +26,20 @@ public class Member {
     @Enumerated(EnumType.STRING)
     private Authority authority = Authority.MEMBER;
 
-    private String title;        // 직책 표시 텍스트
-    private String department;    // 부서 (exec 그룹용)
-
     @Enumerated(EnumType.STRING)
-    private MemberCategory category = MemberCategory.contrib;
+    private MemberTitle title;            // 직책 (nullable)
+    @Enumerated(EnumType.STRING)
+    private MemberDepartment department;  // 부서 (exec 그룹용, nullable)
+
+    // A member is 일반(regular) by default and may be awarded any of
+    // exec/contrib/grad simultaneously. regular and the awards are mutually
+    // exclusive: awarding drops regular, revoking the last award restores it.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "member_category",
+                     joinColumns = @JoinColumn(name = "member_id"))
+    @Column(name = "category")
+    @Enumerated(EnumType.STRING)
+    private Set<MemberCategory> categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
 
     private Integer gen;          // 기수 정수 (응답은 "{gen}기")
     @Column(length = 1000)
@@ -50,7 +62,7 @@ public class Member {
         m.email = email;
         m.passwordHash = passwordHash;
         m.authority = Authority.MEMBER;
-        m.category = MemberCategory.contrib;
+        m.categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
         m.status = MemberStatus.PENDING;
         m.createdAt = Instant.now();
         return m;
@@ -68,12 +80,25 @@ public class Member {
     public Instant getCreatedAt() { return createdAt; }
 
     // Profile fields (people tab). Read by PeopleService; mutable as a member edits their profile.
-    public MemberCategory getCategory() { return category; }
-    public void setCategory(MemberCategory c) { this.category = c; }
-    public String getTitle() { return title; }
-    public void setTitle(String t) { this.title = t; }
-    public String getDepartment() { return department; }
-    public void setDepartment(String d) { this.department = d; }
+    public Set<MemberCategory> getCategories() { return Collections.unmodifiableSet(categories); }
+    public boolean hasCategory(MemberCategory c) { return categories.contains(c); }
+
+    // award(regular) is a no-op; awarding any real category drops regular.
+    public void award(MemberCategory c) {
+        if (c == MemberCategory.regular) return;
+        categories.remove(MemberCategory.regular);
+        categories.add(c);
+    }
+
+    // revoking the last award restores regular so a member is never categoryless.
+    public void revoke(MemberCategory c) {
+        categories.remove(c);
+        if (categories.isEmpty()) categories.add(MemberCategory.regular);
+    }
+    public MemberTitle getTitle() { return title; }
+    public void setTitle(MemberTitle t) { this.title = t; }
+    public MemberDepartment getDepartment() { return department; }
+    public void setDepartment(MemberDepartment d) { this.department = d; }
     public Integer getGen() { return gen; }
     public void setGen(Integer g) { this.gen = g; }
     public String getBio() { return bio; }

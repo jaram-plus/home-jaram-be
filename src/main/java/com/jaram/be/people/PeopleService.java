@@ -2,6 +2,7 @@ package com.jaram.be.people;
 
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberCategory;
+import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.people.dto.PeopleGroup;
@@ -41,17 +42,18 @@ public class PeopleService {
     }
 
     private List<Member> byCategory(List<Member> all, MemberCategory category) {
-        return all.stream().filter(m -> m.getCategory() == category).toList();
+        return all.stream().filter(m -> m.hasCategory(category)).toList();
     }
 
     // exec: one group per department, preserving first-seen order.
     private PeopleTab execTab(List<Member> execs) {
-        Map<String, List<PersonMember>> byDept = new LinkedHashMap<>();
+        Map<MemberDepartment, List<PersonMember>> byDept = new LinkedHashMap<>();
         for (Member m : execs) {
             byDept.computeIfAbsent(m.getDepartment(), k -> new ArrayList<>()).add(toCard(m));
         }
         List<PeopleGroup> groups = new ArrayList<>();
-        byDept.forEach((dept, cards) -> groups.add(new PeopleGroup(dept, cards)));
+        byDept.forEach((dept, cards) ->
+                groups.add(new PeopleGroup(dept == null ? null : dept.label(), cards)));
         return new PeopleTab("지금 자람을 이끄는 임원진입니다.", "등록된 임원 정보가 없습니다.", groups);
     }
 
@@ -66,7 +68,7 @@ public class PeopleService {
     private PersonMember toCard(Member m) {
         return new PersonMember(
                 m.getName(),
-                m.getTitle(),
+                m.getTitle() == null ? null : m.getTitle().label(),
                 m.getGen() == null ? null : m.getGen() + "기",
                 m.getBio(),
                 m.getGithubUrl(),
