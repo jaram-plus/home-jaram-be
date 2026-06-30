@@ -18,7 +18,9 @@ class MemberRepositoryTest extends PostgresTest {
 
     // Shared singleton Postgres: clear rows other @SpringBootTest classes committed
     // so existsBy/hasSize assertions are order-independent.
-    @BeforeEach void clean() { repo.deleteAll(); }
+    // deleteAllInBatch issues an immediate bulk DELETE; plain deleteAll() only queues
+    // row deletes, which Hibernate flushes AFTER the insert below -> duplicate-key crash.
+    @BeforeEach void clean() { repo.deleteAllInBatch(); }
 
     @Test
     void savesAndQueriesByEmailAndStatus() {
