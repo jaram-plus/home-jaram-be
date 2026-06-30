@@ -1,6 +1,7 @@
 package com.jaram.be.member;
 
 import com.jaram.be.support.PostgresTest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -14,6 +15,10 @@ import static org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTest
 class MemberRepositoryTest extends PostgresTest {
 
     @Autowired MemberRepository repo;
+
+    // Shared singleton Postgres: clear rows other @SpringBootTest classes committed
+    // so existsBy/hasSize assertions are order-independent.
+    @BeforeEach void clean() { repo.deleteAll(); }
 
     @Test
     void savesAndQueriesByEmailAndStatus() {
