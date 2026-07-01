@@ -42,6 +42,9 @@ public class Study {
 
     private Instant createdAt = Instant.now();
 
+    @Version
+    private Long version;   // 관리자 일괄 편집 낙관적 잠금
+
     protected Study() { }
 
     public static Study create(String title, List<String> fields, Integer capacity,
@@ -71,9 +74,11 @@ public class Study {
 
     public String getId() { return id; }
     public String getTitle() { return title; }
+    public void setTitle(String v) { this.title = v; }
     public List<String> getFields() { return fields; }
     public String getLeaderId() { return leaderId; }
     public Integer getCapacity() { return capacity; }
+    public void setCapacity(Integer v) { this.capacity = v; }
     public String getSchedule() { return schedule; }
     public String getPeriod() { return period; }
     public String getMode() { return mode; }
@@ -81,4 +86,5 @@ public class Study {
     public ApprovalStatus getApprovalStatus() { return approvalStatus; }
     public String getReason() { return reason; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getVersion() { return version; }
 }

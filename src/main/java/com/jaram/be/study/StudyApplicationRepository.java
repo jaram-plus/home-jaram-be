@@ -10,4 +10,5 @@ public interface StudyApplicationRepository extends JpaRepository<StudyApplicati
     List<StudyApplication> findByStatusOrderByCreatedAtDesc(ApplicationStatus status);
     int countByStudyIdAndStatus(String studyId, ApplicationStatus status);
     List<StudyApplication> findByStudyIdAndStatus(String studyId, ApplicationStatus status);
+    List<StudyApplication> findByStudyId(String studyId);
 }

@@ -7,4 +7,5 @@ import java.util.Optional;
 public interface AttendanceRepository extends JpaRepository<Attendance, String> {
     Optional<Attendance> findBySeminarIdAndMemberId(String seminarId, String memberId);
     List<Attendance> findBySeminarIdOrderByAtAsc(String seminarId);
+    List<Attendance> findByMemberId(String memberId);
 }

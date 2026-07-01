@@ -24,6 +24,9 @@ public class Seminar {
     private String createdById;
     private Instant createdAt = Instant.now();
 
+    @Version
+    private Long version;   // 관리자 일괄 편집 낙관적 잠금
+
     protected Seminar() { }
 
     public static Seminar create(String title, String speaker, String topic, Instant startsAt,
@@ -47,14 +50,21 @@ public class Seminar {
 
     public String getId() { return id; }
     public String getTitle() { return title; }
+    public void setTitle(String v) { this.title = v; }
     public String getSpeaker() { return speaker; }
+    public void setSpeaker(String v) { this.speaker = v; }
     public String getTopic() { return topic; }
+    public void setTopic(String v) { this.topic = v; }
     public Instant getStartsAt() { return startsAt; }
     public String getPlace() { return place; }
+    public void setPlace(String v) { this.place = v; }
     public String getMode() { return mode; }
+    public void setMode(String v) { this.mode = v; }
     public String getAttendanceCode() { return attendanceCode; }
     public String getMaterialUrl() { return materialUrl; }
     public Integer getCapacity() { return capacity; }
+    public void setCapacity(Integer v) { this.capacity = v; }
     public String getCreatedById() { return createdById; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getVersion() { return version; }
 }

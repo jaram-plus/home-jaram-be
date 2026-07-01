@@ -63,6 +63,9 @@ public class Member {
 
     private Instant createdAt = Instant.now();
 
+    @Version
+    private Long version;   // 관리자 일괄 편집 낙관적 잠금
+
     protected Member() { }
 
     public static Member newPending(String name, String studentId, String email, String passwordHash) {
@@ -82,6 +85,7 @@ public class Member {
 
     public String getId() { return id; }
     public String getName() { return name; }
+    public void setName(String n) { this.name = n; }
     public String getStudentId() { return studentId; }
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
@@ -94,6 +98,7 @@ public class Member {
     public MemberGrade getGrade() { return grade; }
     public void setGrade(MemberGrade g) { this.grade = g; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getVersion() { return version; }
 
     // Profile fields (people tab). Read by PeopleService; mutable as a member edits their profile.
     public Set<MemberCategory> getCategories() { return Collections.unmodifiableSet(categories); }
