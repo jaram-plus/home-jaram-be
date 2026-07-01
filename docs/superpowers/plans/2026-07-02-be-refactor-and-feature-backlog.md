@@ -147,7 +147,7 @@ FE 계약상 스터디는 **개설 신청→개설 승인(임원)→모집→지
 트랙별 개발 완료 체크. 각 트랙: 구현 → 테스트 green → sub-agent 검증 → 체크.
 
 - [x] **P4 — 회원 도메인 리팩터링** (R1 축분리 · R2 grade 추출 · R3 확인) — 68 tests green, sub-agent 검증 CLEAN
-- [ ] **P5 — Study 도메인** (F1, UC-T1~T8)
+- [x] **P5 — Study 도메인** (F1, UC-T1~T8) — 9 엔드포인트, 전체 92→93 tests green, sub-agent 검증 (reject→apply=CLOSED 수정 반영)
 - [ ] **P6 — Admin 관리 서피스 코어** (F2 A1~A4)
 - [ ] **P7 — Drive 연동** (F2 A5)
 
