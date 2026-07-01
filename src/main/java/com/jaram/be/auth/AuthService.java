@@ -51,8 +51,13 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION", "입력값을 확인해 주세요.",
                     Map.of("studentId", "이미 등록된 학번입니다."));
         }
-        members.save(Member.newPending(
-                req.name(), req.studentId(), req.email(), encoder.encode(req.password())));
+        Member m = Member.newPending(
+                req.name(), req.studentId(), req.email(), encoder.encode(req.password()));
+        m.setGen(Integer.parseInt(req.gen()));   // @Pattern ^\d+$ guarantees parseable
+        m.setFaculty(req.faculty());
+        m.setPhone(req.phone());
+        m.setEnrolled(req.enrolled());
+        members.save(m);
     }
 
     @Transactional(readOnly = true)

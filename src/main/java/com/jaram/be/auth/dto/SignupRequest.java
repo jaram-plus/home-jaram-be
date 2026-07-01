@@ -2,6 +2,7 @@ package com.jaram.be.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 public record SignupRequest(
@@ -17,5 +18,18 @@ public record SignupRequest(
 
         @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$",
                  message = "비밀번호는 8자 이상이며 영문·숫자·기호를 각각 포함해야 합니다.")
-        String password
+        String password,
+
+        @NotBlank(message = "기수를 입력해 주세요.")
+        @Pattern(regexp = "^\\d+$", message = "기수는 숫자만 입력할 수 있습니다.")
+        String gen,
+
+        @NotBlank(message = "학부를 입력해 주세요.")
+        String faculty,
+
+        @NotBlank(message = "휴대전화 번호를 입력해 주세요.")
+        String phone,
+
+        @NotNull(message = "재학여부를 선택해 주세요.")
+        Boolean enrolled
 ) { }

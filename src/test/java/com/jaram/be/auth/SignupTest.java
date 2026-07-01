@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
@@ -26,8 +27,16 @@ class SignupTest extends PostgresTest {
     }
 
     private Map<String, Object> valid() {
-        return Map.of("name", "홍길동", "studentId", "2023012345",
-                "email", "hong@hanyang.ac.kr", "password", "passw0rd!");
+        Map<String, Object> m = new HashMap<>();
+        m.put("name", "홍길동");
+        m.put("studentId", "2023012345");
+        m.put("email", "hong@hanyang.ac.kr");
+        m.put("password", "passw0rd!");
+        m.put("gen", "41");
+        m.put("faculty", "컴퓨터학부");
+        m.put("phone", "010-1234-5678");
+        m.put("enrolled", true);
+        return m;
     }
 
     @Test
@@ -40,8 +49,9 @@ class SignupTest extends PostgresTest {
     @Test
     void duplicateEmailReturns409EmailTaken() {
         given().contentType("application/json").body(valid()).post("/api/auth/signup");
-        var second = Map.of("name", "김철수", "studentId", "2023099999",
-                "email", "hong@hanyang.ac.kr", "password", "passw0rd!");
+        Map<String, Object> second = valid();
+        second.put("name", "김철수");
+        second.put("studentId", "2023099999");
         given().contentType("application/json").body(second)
                 .when().post("/api/auth/signup")
                 .then().statusCode(409).body("code", equalTo("EMAIL_TAKEN"));
@@ -49,8 +59,20 @@ class SignupTest extends PostgresTest {
 
     @Test
     void nonHanyangEmailReturns422() {
-        var bad = Map.of("name", "홍길동", "studentId", "2023012345",
-                "email", "hong@gmail.com", "password", "passw0rd!");
+        Map<String, Object> bad = valid();
+        bad.put("email", "hong@gmail.com");
+        given().contentType("application/json").body(bad)
+                .when().post("/api/auth/signup")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void missingNewFieldsReturns422() {
+        Map<String, Object> bad = valid();
+        bad.remove("gen");
+        bad.remove("faculty");
+        bad.remove("phone");
+        bad.remove("enrolled");
         given().contentType("application/json").body(bad)
                 .when().post("/api/auth/signup")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));

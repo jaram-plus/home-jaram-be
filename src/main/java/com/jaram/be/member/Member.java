@@ -47,6 +47,10 @@ public class Member {
     private String githubUrl;
     private String blogUrl;
 
+    private String faculty;       // 학부 (자유 입력 텍스트, 가입 시 입력)
+    private String phone;         // 휴대전화 (하이픈 포함 형식 저장)
+    private Boolean enrolled;     // 재학여부 (true=재학, false=휴학)
+
     @Enumerated(EnumType.STRING)
     private MemberStatus status = MemberStatus.PENDING;
 
@@ -107,4 +111,10 @@ public class Member {
     public void setGithubUrl(String u) { this.githubUrl = u; }
     public String getBlogUrl() { return blogUrl; }
     public void setBlogUrl(String u) { this.blogUrl = u; }
+    public String getFaculty() { return faculty; }
+    public void setFaculty(String f) { this.faculty = f; }
+    public String getPhone() { return phone; }
+    public void setPhone(String p) { this.phone = p; }
+    public Boolean getEnrolled() { return enrolled; }
+    public void setEnrolled(Boolean e) { this.enrolled = e; }
 }

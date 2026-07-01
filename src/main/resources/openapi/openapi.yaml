@@ -568,6 +568,14 @@ components:
     Authority:
       type: string
       enum: [MEMBER, OFFICER]
+    MemberDepartment:
+      type: [string, 'null']
+      description: 부서. enum name으로 전송 (라벨은 FE 매핑).
+      enum: [LEADERSHIP, ACADEMIC, PR, FINANCE, INFRA, null]
+    MemberTitle:
+      type: [string, 'null']
+      description: 직책. enum name으로 전송 (라벨은 FE 매핑).
+      enum: [PRESIDENT, VICE_PRESIDENT, ACADEMIC_LEAD, ACADEMIC_MEMBER, PR_LEAD, PR_MEMBER, FINANCE_LEAD, FINANCE_MEMBER, SERVER_ADMIN, OB, REGULAR, ASSOCIATE, NEWCOMER, null]
     MeProfile:
       type: object
       required: [id, name, email, authority]
@@ -577,6 +585,8 @@ components:
         studentId: { type: string }
         email: { type: string, format: email }
         authority: { $ref: '#/components/schemas/Authority' }
+        department: { $ref: '#/components/schemas/MemberDepartment' }
+        title: { $ref: '#/components/schemas/MemberTitle' }
         gen: { type: [string, 'null'], example: '41기' }
         bio: { type: [string, 'null'] }
         githubUrl: { type: [string, 'null'], format: uri }
@@ -631,7 +641,7 @@ components:
         user: { $ref: '#/components/schemas/UserSummary' }
     SignupRequest:
       type: object
-      required: [name, studentId, email, password]
+      required: [name, studentId, email, password, gen, faculty, phone, enrolled]
       properties:
         name: { type: string }
         studentId: { type: string, pattern: '^\d{8,10}$', example: '2023012345' }
@@ -644,6 +654,23 @@ components:
           type: string
           format: password
           description: 8자 이상, 영문·숫자·기호 각 1개 이상
+        gen:
+          type: string
+          pattern: '^\d+$'
+          example: '41'
+          description: 기수(숫자만). 신입생은 가입 연도 기준 FE 자동 산출.
+        faculty:
+          type: string
+          example: 컴퓨터학부
+          description: 학부. 자유 입력 텍스트(고정 enum 아님).
+        phone:
+          type: string
+          example: 010-1234-5678
+          description: 휴대전화. 하이픈 포함 형식으로 저장.
+        enrolled:
+          type: boolean
+          example: true
+          description: 재학여부. true=재학, false=휴학.
     PasswordResetRequest:
       type: object
       required: [email]
