@@ -159,3 +159,37 @@ FE 계약상 스터디는 **개설 신청→개설 승인(임원)→모집→지
   계약에 없음 — 리소스별 허용 필드/검증을 FE 화면 스키마와 맞춰 별도 합의 필요.
 - **AdminSettings 저장 위치**: 단일 학회 설정 로우인지, autoPromote 승격 잡 트리거 여부.
 - **Drive 연동 인증 방식**: 서비스 계정 vs OAuth, driveFolder 지정 방식.
+
+## 6. 미완·후속 작업 (2026-07-02 P4~P7 구현 후 잔여)
+
+P4~P7 는 전부 구현·테스트 green·sub-agent 검증 완료(§4-1). 아래는 이번 범위에서
+**의도적으로 스텁/보류했거나, 계약에 있으나 미구현으로 남긴 갭**. 우선순위 순.
+
+### 6-1. 의도적 스텁/보류 (FE·인프라 확정 대기)
+- [ ] **실제 Google Drive 업로드** — 현재 `StubDriveExporter`(업로드 없음, 스텁 링크 반환).
+  인증 방식(서비스 계정 vs OAuth)·`driveFolder` 확정 후 실제 어댑터 구현 → `@Primary` 로 교체.
+  (`admin/DriveExporter` 포트 시임은 준비됨.)
+- [ ] **대시보드 fuzzy 지표 실산출** — `studyAttendanceRate=0`, `attendanceTrend=[]`, `deltas=0`
+  은 플레이스홀더. FE 대시보드 스펙 확정 후 실제 집계로 대체(`AdminDashboardService`).
+- [ ] **Admin 행 필드 스키마·batch 검증 규칙 확정** — 행 투영/업데이트 화이트리스트가 BE 추정.
+  FE `admin.data SCHEMAS` 확정 후 `AdminResourceService`(행 투영)·`AdminBatchExecutor`
+  (필드 화이트리스트/검증) 정렬. member batch-create 미지원, study/seminar create 최소 필드만.
+
+### 6-2. 계약에 있으나 미구현 갭
+- [ ] **Admin 목록 임의 필터** — 계약 A1 은 `grade·cohort·status·department` 등 임의 쿼리 필터 키를
+  명시하나 현재 `tab`+`q`+`sort`+`page`+`size` 만 구현. 임의 필터 키 미적용(`AdminResourceService.list`).
+- [ ] **Export `filters` 파라미터 적용** — `DriveExportRequest.filters` 무시, `columns` 만 적용.
+- [ ] **Study `ONGOING` 상태** — 라이프사이클 전환 엔드포인트가 계약에 없어 `RECRUITING`/`CLOSED` 만 파생.
+  모집→진행 전환 수단이 정의되면 추가.
+- [ ] **MemberGrade `REGULAR`/`OB` 승격 + `autoPromote` 잡** — 승인 시 `NEWCOMER`/`ASSOCIATE` 만 파생.
+  `autoPromote` 플래그는 저장만 하고 승격 배치/트리거 미구현.
+- [ ] **`driveConnected`/`driveFolder` 실연동** — 설정 저장만, 실제 Drive 연결 상태와 미연동.
+
+### 6-3. 구조적 보강 (현재 무해하나 방어 필요)
+- [ ] **FK 제약/참조 무결성** — `leaderId·applicantId·memberId·studyId` 는 FK 없는 String.
+  admin member-delete 는 리더 차단 + 지원/출석 정리로 완화했으나, DB 레벨 보증은 아님.
+  향후 삭제 경로 추가 시 dangling 위험 → FK 또는 애플리케이션 가드 확장.
+
+### 6-4. FE 상신
+- [ ] **계약 export op `422` 응답 선언** — `/api/admin/export/google-drive` 가 잘못된 resource 에
+  422 를 반환하나 계약엔 미선언(sibling admin op엔 있음). FE 계약 파일 보완 요청.
