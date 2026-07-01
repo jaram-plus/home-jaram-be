@@ -29,6 +29,8 @@ public class Member {
     @Enumerated(EnumType.STRING)
     private MemberTitle title;            // 직책 (nullable)
     @Enumerated(EnumType.STRING)
+    private MemberGrade grade;            // 등급 (승인 시 gen 파생, nullable 이전)
+    @Enumerated(EnumType.STRING)
     private MemberDepartment department;  // 부서 (exec 그룹용, nullable)
 
     // A member is 일반(regular) by default and may be awarded any of
@@ -51,8 +53,13 @@ public class Member {
     private String phone;         // 휴대전화 (하이픈 포함 형식 저장)
     private Boolean enrolled;     // 재학여부 (true=재학, false=휴학)
 
+    // 승인축: 가입 승인 상태. 활동축(status)과 분리.
     @Enumerated(EnumType.STRING)
-    private MemberStatus status = MemberStatus.PENDING;
+    private MemberApproval approval = MemberApproval.PENDING;
+
+    // 활동축: 가입 시 enrolled로 파생, 이후 admin이 변경.
+    @Enumerated(EnumType.STRING)
+    private MemberStatus status = MemberStatus.ACTIVE;
 
     private Instant createdAt = Instant.now();
 
@@ -67,7 +74,8 @@ public class Member {
         m.passwordHash = passwordHash;
         m.authority = Authority.MEMBER;
         m.categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
-        m.status = MemberStatus.PENDING;
+        m.approval = MemberApproval.PENDING;
+        m.status = MemberStatus.ACTIVE;
         m.createdAt = Instant.now();
         return m;
     }
@@ -81,6 +89,10 @@ public class Member {
     public Authority getAuthority() { return authority; }
     public MemberStatus getStatus() { return status; }
     public void setStatus(MemberStatus s) { this.status = s; }
+    public MemberApproval getApproval() { return approval; }
+    public void setApproval(MemberApproval a) { this.approval = a; }
+    public MemberGrade getGrade() { return grade; }
+    public void setGrade(MemberGrade g) { this.grade = g; }
     public Instant getCreatedAt() { return createdAt; }
 
     // Profile fields (people tab). Read by PeopleService; mutable as a member edits their profile.

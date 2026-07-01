@@ -1,6 +1,8 @@
 package com.jaram.be.auth;
 
+import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberStatus;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -64,6 +67,23 @@ class SignupTest extends PostgresTest {
         given().contentType("application/json").body(bad)
                 .when().post("/api/auth/signup")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void enrolledTrueBecomesActivePendingApproval() {
+        given().contentType("application/json").body(valid()).post("/api/auth/signup");
+        var m = members.findByEmail("hong@hanyang.ac.kr").orElseThrow();
+        assertThat(m.getApproval()).isEqualTo(MemberApproval.PENDING);
+        assertThat(m.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    @Test
+    void enrolledFalseBecomesOnLeave() {
+        Map<String, Object> body = valid();
+        body.put("enrolled", false);
+        given().contentType("application/json").body(body).post("/api/auth/signup");
+        var m = members.findByEmail("hong@hanyang.ac.kr").orElseThrow();
+        assertThat(m.getStatus()).isEqualTo(MemberStatus.ON_LEAVE);
     }
 
     @Test

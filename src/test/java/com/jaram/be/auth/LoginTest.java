@@ -1,8 +1,8 @@
 package com.jaram.be.auth;
 
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
-import com.jaram.be.member.MemberStatus;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +31,7 @@ class LoginTest extends PostgresTest {
 
     private Member active(String email) {
         Member m = Member.newPending("홍길동", "2023012345", email, encoder.encode("passw0rd!"));
-        m.setStatus(MemberStatus.ACTIVE);
+        m.setApproval(MemberApproval.APPROVED);
         return members.save(m);
     }
 

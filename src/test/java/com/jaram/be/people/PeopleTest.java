@@ -1,6 +1,7 @@
 package com.jaram.be.people;
 
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberRepository;
@@ -31,6 +32,7 @@ class PeopleTest extends PostgresTest {
     private Member active(String name, String studentId, String email,
                          MemberCategory category, MemberDepartment department, MemberTitle title, Integer gen) {
         Member m = Member.newPending(name, studentId, email, "hash");
+        m.setApproval(MemberApproval.APPROVED);
         m.setStatus(MemberStatus.ACTIVE);
         m.award(category);
         m.setDepartment(department);
@@ -43,7 +45,7 @@ class PeopleTest extends PostgresTest {
     void returnsActiveMembersGroupedByTab() {
         active("김자람", "2023000001", "a@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
         active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.ACADEMIC, MemberTitle.ACADEMIC_LEAD, 41);
-        active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, MemberTitle.OB, 38);
+        active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, null, 38);
         active("정졸업", "2023000004", "d@hanyang.ac.kr", MemberCategory.grad, null, null, null);
 
         // PENDING member must be excluded
@@ -73,6 +75,7 @@ class PeopleTest extends PostgresTest {
     @Test
     void memberWithMultipleAwardsAppearsInEachAwardedTab() {
         Member m = Member.newPending("멀티", "2023000010", "m@hanyang.ac.kr", "hash");
+        m.setApproval(MemberApproval.APPROVED);
         m.setStatus(MemberStatus.ACTIVE);
         m.award(MemberCategory.exec);
         m.award(MemberCategory.grad);
@@ -91,6 +94,7 @@ class PeopleTest extends PostgresTest {
     void regularMemberAppearsInNoTab() {
         // newPending default = regular (no award) → excluded from all three tabs
         Member m = Member.newPending("일반", "2023000011", "r@hanyang.ac.kr", "hash");
+        m.setApproval(MemberApproval.APPROVED);
         m.setStatus(MemberStatus.ACTIVE);
         members.save(m);
 

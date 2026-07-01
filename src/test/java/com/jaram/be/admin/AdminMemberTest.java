@@ -48,8 +48,37 @@ class AdminMemberTest extends PostgresTest {
                 .then().statusCode(200);
 
         org.assertj.core.api.Assertions.assertThat(
-                members.findById(p.getId()).orElseThrow().getStatus())
-                .isEqualTo(MemberStatus.ACTIVE);
+                members.findById(p.getId()).orElseThrow().getApproval())
+                .isEqualTo(MemberApproval.APPROVED);
+    }
+
+    @Test
+    void approveDerivesGradeFromGen() {
+        int currentGen = java.time.Year.now().getValue() - 1984;
+        Member newcomer = members.save(withGen("nc@hanyang.ac.kr", "2026000001", currentGen));
+        Member senior = members.save(withGen("sr@hanyang.ac.kr", "2020000001", currentGen - 5));
+
+        approve(newcomer.getId());
+        approve(senior.getId());
+
+        org.assertj.core.api.Assertions.assertThat(
+                members.findById(newcomer.getId()).orElseThrow().getGrade())
+                .isEqualTo(MemberGrade.NEWCOMER);
+        org.assertj.core.api.Assertions.assertThat(
+                members.findById(senior.getId()).orElseThrow().getGrade())
+                .isEqualTo(MemberGrade.ASSOCIATE);
+    }
+
+    private Member withGen(String email, String sid, int gen) {
+        Member m = Member.newPending("가입자", sid, email, "hash");
+        m.setGen(gen);
+        return m;
+    }
+
+    private void approve(String id) {
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().post("/api/admin/members/" + id + "/approve")
+                .then().statusCode(200);
     }
 
     @Test

@@ -3,6 +3,8 @@ package com.jaram.be.contract;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
 import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.security.JwtProvider;
@@ -34,7 +36,9 @@ class MeContractTest extends PostgresTest {
         RestAssured.port = port;
         members.deleteAll();
         Member m = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", "hash");
+        m.setApproval(MemberApproval.APPROVED);
         m.setStatus(MemberStatus.ACTIVE);
+        m.setGrade(MemberGrade.ASSOCIATE);
         m.setGen(41);
         members.save(m);
         token = jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);

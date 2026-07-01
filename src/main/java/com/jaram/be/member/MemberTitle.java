@@ -11,11 +11,7 @@ public enum MemberTitle {
     PR_MEMBER("홍보부원"),
     FINANCE_LEAD("회계부장"),
     FINANCE_MEMBER("회계부원"),
-    SERVER_ADMIN("서버 관리자"),
-    OB("OB"),
-    REGULAR("정회원"),
-    ASSOCIATE("준회원"),
-    NEWCOMER("신입부원");
+    SERVER_ADMIN("서버 관리자");
 
     private final String label;
     MemberTitle(String label) { this.label = label; }

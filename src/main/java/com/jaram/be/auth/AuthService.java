@@ -8,6 +8,7 @@ import com.jaram.be.auth.dto.SignupRequest;
 import com.jaram.be.auth.dto.UserSummary;
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.security.JwtProvider;
@@ -57,6 +58,8 @@ public class AuthService {
         m.setFaculty(req.faculty());
         m.setPhone(req.phone());
         m.setEnrolled(req.enrolled());
+        // 활동축 파생: 재학 → ACTIVE, 휴학 → ON_LEAVE. 승인축은 PENDING (팩토리 기본).
+        m.setStatus(req.enrolled() ? MemberStatus.ACTIVE : MemberStatus.ON_LEAVE);
         members.save(m);
     }
 
@@ -64,7 +67,7 @@ public class AuthService {
     public LoginResponse login(LoginRequest req) {
         Member m = members.findByEmail(req.email())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "등록된 회원 정보가 없습니다."));
-        if (m.getStatus() != MemberStatus.ACTIVE) {
+        if (m.getApproval() != MemberApproval.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN, "PENDING", "가입 승인을 기다리는 중입니다.");
         }
         if (!encoder.matches(req.password(), m.getPasswordHash())) {

@@ -3,16 +3,21 @@ package com.jaram.be.admin;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
-import com.jaram.be.member.MemberStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Year;
 import java.util.List;
 
 @Service
 public class AdminMemberService {
+
+    // 자람 창립 연도. 등급 파생 기준: gen == (현재년도 - FOUNDING_YEAR) → NEWCOMER.
+    private static final int FOUNDING_YEAR = 1984;
 
     private final MemberRepository members;
 
@@ -20,17 +25,27 @@ public class AdminMemberService {
 
     @Transactional(readOnly = true)
     public List<PendingMember> listPending() {
-        return members.findByStatus(MemberStatus.PENDING).stream()
+        return members.findByApproval(MemberApproval.PENDING).stream()
                 .map(m -> new PendingMember(m.getId(), m.getName(), m.getStudentId(),
                         m.getEmail(), m.getCreatedAt().toString()))
                 .toList();
     }
 
     @Transactional
-    public void approve(String id) { load(id).setStatus(MemberStatus.ACTIVE); }
+    public void approve(String id) {
+        Member m = load(id);
+        m.setApproval(MemberApproval.APPROVED);
+        m.setGrade(deriveGrade(m.getGen()));
+    }
 
     @Transactional
-    public void reject(String id, String reason) { load(id).setStatus(MemberStatus.REJECTED); }
+    public void reject(String id, String reason) { load(id).setApproval(MemberApproval.REJECTED); }
+
+    // 계약 MemberGrade.description: gen == 현재년도-1984 → NEWCOMER, 그 외 ASSOCIATE.
+    private MemberGrade deriveGrade(Integer gen) {
+        int currentGen = Year.now().getValue() - FOUNDING_YEAR;
+        return (gen != null && gen == currentGen) ? MemberGrade.NEWCOMER : MemberGrade.ASSOCIATE;
+    }
 
     private Member load(String id) {
         return members.findById(id)

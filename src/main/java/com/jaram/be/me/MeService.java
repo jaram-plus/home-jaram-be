@@ -46,6 +46,8 @@ public class MeService {
                 m.getStudentId(),
                 m.getEmail(),
                 m.getAuthority(),
+                m.getGrade(),
+                m.getStatus(),
                 m.getDepartment(),
                 m.getTitle(),
                 m.getGen() == null ? null : m.getGen() + "기",

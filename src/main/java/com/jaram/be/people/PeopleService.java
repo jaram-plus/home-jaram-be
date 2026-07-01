@@ -1,6 +1,7 @@
 package com.jaram.be.people;
 
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberRepository;
@@ -32,7 +33,10 @@ public class PeopleService {
 
     @Transactional(readOnly = true)
     public PeopleResponse list() {
-        List<Member> active = members.findByStatus(MemberStatus.ACTIVE);
+        // 승인된 회원 중 탈퇴자(WITHDRAWN)를 제외한 현 회원(재학/휴학)만 노출.
+        List<Member> active = members.findByApproval(MemberApproval.APPROVED).stream()
+                .filter(m -> m.getStatus() != MemberStatus.WITHDRAWN)
+                .toList();
         return new PeopleResponse(
                 execTab(byCategory(active, MemberCategory.exec)),
                 flatTab("자람에 힘을 더해주신 분들입니다.", "등록된 기여자가 없습니다.",
@@ -68,10 +72,18 @@ public class PeopleService {
     private PersonMember toCard(Member m) {
         return new PersonMember(
                 m.getName(),
-                m.getTitle() == null ? null : m.getTitle().label(),
+                roleLabel(m),
                 m.getGen() == null ? null : m.getGen() + "기",
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());
+    }
+
+    // PersonMember.role은 required. 직책(title)이 있으면 그 라벨, 없으면 등급(grade)
+    // 라벨로 폴백(예 grad 카드 "OB"). 둘 다 없으면 빈 문자열로 non-null 보장.
+    private String roleLabel(Member m) {
+        if (m.getTitle() != null) return m.getTitle().label();
+        if (m.getGrade() != null) return m.getGrade().label();
+        return "";
     }
 }

@@ -142,6 +142,15 @@ FE 계약상 스터디는 **개설 신청→개설 승인(임원)→모집→지
 각 페이즈: `superpowers:writing-plans` 로 태스크별 Files/Interfaces/TDD 단계 확정 후
 `superpowers:executing-plans` 로 test-first 진행. 엔드포인트마다 contract 테스트 + `./gradlew test` green = 완료.
 
+## 4-1. 구현 완료 기록
+
+트랙별 개발 완료 체크. 각 트랙: 구현 → 테스트 green → sub-agent 검증 → 체크.
+
+- [x] **P4 — 회원 도메인 리팩터링** (R1 축분리 · R2 grade 추출 · R3 확인) — 68 tests green, sub-agent 검증 CLEAN
+- [ ] **P5 — Study 도메인** (F1, UC-T1~T8)
+- [ ] **P6 — Admin 관리 서피스 코어** (F2 A1~A4)
+- [ ] **P7 — Drive 연동** (F2 A5)
+
 ## 5. 열린 질문 (FE 확인 필요)
 
 - **회원 승인축 필드명/노출**: 계약 스키마에 회원 `approval` 필드가 직접 노출되지 않음.

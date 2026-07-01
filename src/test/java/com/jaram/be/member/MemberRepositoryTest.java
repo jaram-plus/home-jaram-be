@@ -29,7 +29,7 @@ class MemberRepositoryTest extends PostgresTest {
 
         assertThat(repo.existsByEmail("hong@hanyang.ac.kr")).isTrue();
         assertThat(repo.existsByStudentId("2023012345")).isTrue();
-        assertThat(repo.findByStatus(MemberStatus.PENDING)).hasSize(1);
+        assertThat(repo.findByApproval(MemberApproval.PENDING)).hasSize(1);
         assertThat(repo.findByEmail("hong@hanyang.ac.kr")).isPresent();
     }
 }
