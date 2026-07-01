@@ -96,6 +96,16 @@ public class AdminResourceService {
         return new AdminBatchResponse(updated, created, deleted, conflicts, errors);
     }
 
+    // 내보내기(A5)용: 페이지 없이 리소스 전체 행을 투영해 반환.
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> allRows(AdminResource resource) {
+        return switch (resource) {
+            case members -> members.findAll().stream().map(this::memberRow).toList();
+            case seminars -> seminars.findAllByOrderByStartsAtDesc().stream().map(this::seminarRow).toList();
+            case studies -> studies.findAll().stream().map(this::studyRow).toList();
+        };
+    }
+
     // ── 행 투영 ──
 
     private Map<String, Object> memberRow(Member m) {

@@ -149,7 +149,7 @@ FE 계약상 스터디는 **개설 신청→개설 승인(임원)→모집→지
 - [x] **P4 — 회원 도메인 리팩터링** (R1 축분리 · R2 grade 추출 · R3 확인) — 68 tests green, sub-agent 검증 CLEAN
 - [x] **P5 — Study 도메인** (F1, UC-T1~T8) — 9 엔드포인트, 전체 92→93 tests green, sub-agent 검증 (reject→apply=CLOSED 수정 반영)
 - [x] **P6 — Admin 관리 서피스 코어** (F2 A1~A4) — 목록/batch(부분성공·행별 REQUIRES_NEW·낙관적잠금)/대시보드/설정, 전체 111 tests green, sub-agent 검증 (partial-success 격리·Attendance 정리·수치 정렬 수정 반영). ⚠️ 행 필드 스키마·batch 검증 규칙은 FE admin.data SCHEMAS 확정 후 조정 필요(§5)
-- [ ] **P7 — Drive 연동** (F2 A5)
+- [x] **P7 — Drive 연동** (F2 A5) — POST /api/admin/export/google-drive, 포트-어댑터 시임 + 스텁 어댑터(실제 업로드 미수행), 전체 116 tests green, sub-agent 검증 clean. ⚠️ 실제 Google Drive 클라이언트는 인증 방식(서비스 계정 vs OAuth)·driveFolder 확정(§5) 후 어댑터 교체. FE 상신: 계약이 export op에 `422` 응답 미선언(sibling admin op엔 있음) — FE 계약 보완 권장
 
 ## 5. 열린 질문 (FE 확인 필요)
 

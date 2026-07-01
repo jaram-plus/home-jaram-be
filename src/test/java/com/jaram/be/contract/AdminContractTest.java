@@ -83,6 +83,17 @@ class AdminContractTest extends PostgresTest {
     }
 
     @Test
+    void driveExportMatchesContract() {
+        approved("김자람", "2023000001");
+        given().filter(validation)
+                .header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("resource", "members", "columns", java.util.List.of("name", "email")))
+                .when().post("/api/admin/export/google-drive")
+                .then().statusCode(200);
+    }
+
+    @Test
     void patchSettingsMatchesContract() {
         given().filter(validation)
                 .header("Authorization", "Bearer " + officerToken)
