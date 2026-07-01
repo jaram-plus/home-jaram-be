@@ -14,21 +14,21 @@ class SeminarStatusTest {
     @Test
     void beforeStartIsUpcoming() {
         assertThat(SeminarStatus.of(start, start.minus(1, ChronoUnit.MINUTES), 120))
-                .isEqualTo(SeminarStatus.upcoming);
+                .isEqualTo(SeminarStatus.UPCOMING);
     }
 
     @Test
     void atStartAndWithinWindowIsOngoing() {
-        assertThat(SeminarStatus.of(start, start, 120)).isEqualTo(SeminarStatus.ongoing);
+        assertThat(SeminarStatus.of(start, start, 120)).isEqualTo(SeminarStatus.ONGOING);
         assertThat(SeminarStatus.of(start, start.plus(119, ChronoUnit.MINUTES), 120))
-                .isEqualTo(SeminarStatus.ongoing);
+                .isEqualTo(SeminarStatus.ONGOING);
     }
 
     @Test
     void atWindowEdgeIsOngoingAndAfterIsEnded() {
         assertThat(SeminarStatus.of(start, start.plus(120, ChronoUnit.MINUTES), 120))
-                .isEqualTo(SeminarStatus.ongoing);
+                .isEqualTo(SeminarStatus.ONGOING);
         assertThat(SeminarStatus.of(start, start.plus(121, ChronoUnit.MINUTES), 120))
-                .isEqualTo(SeminarStatus.ended);
+                .isEqualTo(SeminarStatus.ENDED);
     }
 }

@@ -39,7 +39,7 @@ class SeminarCreateTest extends PostgresTest {
         Map<String, Object> body = Map.of(
                 "title", "새 세미나",
                 "speaker", "이연사",
-                "startsAt", "2026-07-01T10:00:00Z",
+                "startsAt", "2027-07-01T10:00:00Z",
                 "place", "IT관 401",
                 "attendanceCode", "JOIN123",
                 "capacity", 40);
@@ -49,7 +49,7 @@ class SeminarCreateTest extends PostgresTest {
                 .when().post("/api/seminars")
                 .then().statusCode(201)
                 .body("title", equalTo("새 세미나"))
-                .body("status", equalTo("upcoming"))
+                .body("status", equalTo("UPCOMING"))
                 .body("capacity", equalTo(40))
                 .body("$", not(hasKey("attendanceCode")))
                 .extract().path("id");

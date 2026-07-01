@@ -92,7 +92,7 @@ public class SeminarService {
             return new AttendResult(seminarId, formatTime(existing.getAt()));  // idempotent
         }
 
-        boolean ongoing = SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes) == SeminarStatus.ongoing;
+        boolean ongoing = SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes) == SeminarStatus.ONGOING;
         // code is @NotBlank (never null); compare from it so a code-less seminar yields
         // INVALID_CODE rather than an NPE/500.
         if (!ongoing || !code.equals(s.getAttendanceCode())) {

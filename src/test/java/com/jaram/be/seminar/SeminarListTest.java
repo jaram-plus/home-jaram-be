@@ -40,10 +40,10 @@ class SeminarListTest extends PostgresTest {
                 .body("size()", equalTo(2))
                 // newest (future) first
                 .body("[0].title", equalTo("다음 세미나"))
-                .body("[0].status", equalTo("upcoming"))
+                .body("[0].status", equalTo("UPCOMING"))
                 // past seminar derived display fields (Asia/Seoul)
                 .body("[1].title", equalTo("지난 세미나"))
-                .body("[1].status", equalTo("ended"))
+                .body("[1].status", equalTo("ENDED"))
                 .body("[1].day", equalTo("27"))
                 .body("[1].month", equalTo("6월"))
                 .body("[1].weekday", equalTo("토"))
