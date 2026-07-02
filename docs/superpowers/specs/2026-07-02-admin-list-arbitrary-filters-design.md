@@ -14,9 +14,10 @@ FE `home-jaram-fe/src/features/admin/admin.data.js` · `admin.api.js` 검증 결
 
 - **필터는 단일 선택** (`options: ['전체', ...]`, '전체'=미전송). → 키당 값 1개, 키 간 AND. multi-value 없음.
 - **값은 wire enum 키(UPPER_SNAKE)** — FE `toWire` 가 라벨→키 변환 후 전송. 백엔드 행의 `.name()` 과 직접 대응.
-- **cohort = 정수** — 계약 `cohortBreakdown.cohort: integer`, `currentCohort: integer`. FE `toWire` 가
-  `'41기'|'41' → 41` 변환(비숫자 '외부' 등은 통과). 필터 쿼리도 `toWire` 경유 → `cohort=41` 로 전송.
-- member 필터 키: `grade·cohort·status·department`. `status` = 활동축(ACTIVE/ON_LEAVE/WITHDRAWN),
+- **기수 = `gen` 정수** — 계약 `cohortBreakdown.cohort: integer`, `currentCohort: integer`. FE `toWire` 가
+  `'41기'|'41' → 41` 변환(비숫자 '외부' 등은 통과). **FE 가 필터 키도 `cohort`→`gen` 으로 변경** →
+  쿼리는 `gen=41` 로 전송, 백엔드 행 키 `gen` 과 직접 일치(별명 불필요).
+- member 필터 키: `grade·gen·status·department`. `status` = 활동축(ACTIVE/ON_LEAVE/WITHDRAWN),
   승인축(PENDING/APPROVED/REJECTED)은 별개 축(신청자 전용).
 
 ## 설계
@@ -40,15 +41,13 @@ list(resource, tab, q, sort, page, size, allParams):
 ### 서비스 (`AdminResourceService.list`)
 
 기존 `.filter(matchesQuery)` 체인에 `.filter(matchesFilters)` 추가. 행은 이미 `Map<String,Object>`
-투영이라 리소스 무관 범용 매칭.
+투영이라 리소스 무관 범용 매칭. 필터 키 = 행 필드명 직접 매칭(별명 없음).
 
 ```
-alias(key):   key == "cohort" ? "gen" : key
 matchesFilters(row, filters):
     for (key, val) in filters:
-        rowKey = alias(key)
-        if !row.containsKey(rowKey): continue          # 없는 키 → no-op (전체 통과)
-        rowVal = row.get(rowKey)
+        if !row.containsKey(key): continue             # 없는 키 → no-op (전체 통과)
+        rowVal = row.get(key)
         if rowVal == null: return false
         if rowVal is List: if none of list equalsIgnoreCase(val): return false
         else if !String.valueOf(rowVal).equalsIgnoreCase(val): return false
@@ -56,7 +55,7 @@ matchesFilters(row, filters):
 ```
 
 동작:
-- `?grade=REGULAR&cohort=39` → grade=REGULAR **AND** gen=39
+- `?grade=REGULAR&gen=39` → grade=REGULAR **AND** gen=39 (gen 정수 39 → `"39"` 비교)
 - `?status=ACTIVE` → 활동 회원만
 - 없는 키 / 행에 없는 필드 → 무시(전체 반환)
 
@@ -71,8 +70,8 @@ matchesFilters(row, filters):
 
 - grade 단일 필터 → 해당 등급만
 - status 단일 필터(활동축) → 해당 상태만
-- cohort 필터 `"41"` → gen==41 만 (alias + 문자열 비교)
-- 복합 `grade` + `cohort` → AND
+- gen 필터 `"41"` → gen==41 만 (정수→문자열 비교)
+- 복합 `grade` + `gen` → AND
 - 없는 키(`foo=bar`) → 전체 통과(no-op)
 - 빈 필터 → 기존과 동일(전체)
 
