@@ -1,0 +1,16 @@
+.git
+.gradle
+build
+out
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+HELP.md
+.dockerignore
+Dockerfile
+.claude
+.zed
+docs
+scripts/dev-run.sh
