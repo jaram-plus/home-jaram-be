@@ -1,6 +1,7 @@
 package com.jaram.be.seminar;
 
 import com.jaram.be.support.PostgresTest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -20,6 +21,14 @@ class SeminarRepositoryTest extends PostgresTest {
 
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
+
+    // The @SpringBootTest seminar classes commit their fixtures and only clean up on their
+    // own @BeforeEach, so rows can outlive them. Clear first — this runs inside the test's
+    // rolled-back transaction, so it never destroys another class's data.
+    @BeforeEach void clean() {
+        attendances.deleteAll();
+        seminars.deleteAll();
+    }
 
     @Test
     void listsSeminarsNewestFirst() {

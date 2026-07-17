@@ -102,6 +102,16 @@ class SeminarContractTest extends PostgresTest {
                 .when().get("/api/seminars/" + s.getId() + "/roster").then().statusCode(200);
     }
 
+    @Test
+    void attendeesMatchesContract() {
+        Member m = members.save(activeMember());
+        Seminar s = seminars.save(Seminar.create("세미나", null, null,
+                Instant.now(), null, null, "CODE", null, null, "officer-1"));
+        attendances.save(Attendance.create(s.getId(), m.getId(), Instant.now()));
+        given().filter(validation).header("Authorization", "Bearer " + memberToken)
+                .when().get("/api/seminars/" + s.getId() + "/attendees").then().statusCode(200);
+    }
+
     private Member activeMember() {
         Member m = Member.newPending("김출석", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);

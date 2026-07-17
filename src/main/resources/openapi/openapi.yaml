@@ -211,6 +211,24 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '5XX': { $ref: '#/components/responses/ServerError' }
 
+  /api/seminars/{id}/attendees:
+    get:
+      tags: [seminar]
+      summary: 참석자 미리보기 (신규)
+      description: 로그인한 회원 누구나 조회. sid(학번) 미노출 — officer 전용 roster와 구분.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SeminarId'
+      responses:
+        '200':
+          description: 참석자 미리보기
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttendeePreviewResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
   # ─────────────────────────── study ───────────────────────────
   /api/studies:
     get:
@@ -930,6 +948,20 @@ components:
         list:
           type: array
           items: { $ref: '#/components/schemas/RosterEntry' }
+    AttendeePreviewEntry:
+      type: object
+      required: [at]
+      properties:
+        name: { type: [string, 'null'] }
+        at: { type: string, description: 출석 시각 표시 (예 '19:02') }
+    AttendeePreviewResponse:
+      type: object
+      required: [count, list]
+      properties:
+        count: { type: integer }
+        list:
+          type: array
+          items: { $ref: '#/components/schemas/AttendeePreviewEntry' }
 
     # ── study ──
     Study:
