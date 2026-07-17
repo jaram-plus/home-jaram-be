@@ -22,7 +22,9 @@ public class SeminarController {
     public SeminarController(SeminarService service) { this.service = service; }
 
     @GetMapping
-    public List<SeminarResponse> list() { return service.list(); }
+    public List<SeminarResponse> list(@AuthenticationPrincipal CurrentMember me) {
+        return service.list(me == null ? null : me.id());
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

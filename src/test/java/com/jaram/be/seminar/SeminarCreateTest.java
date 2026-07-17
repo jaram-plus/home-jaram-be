@@ -42,7 +42,8 @@ class SeminarCreateTest extends PostgresTest {
                 "startsAt", "2027-07-01T10:00:00Z",
                 "place", "IT관 401",
                 "attendanceCode", "JOIN123",
-                "capacity", 40);
+                "capacity", 40,
+                "description", "이번 세미나는 신규 회원 대상입니다.");
 
         String id = given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json").body(body)
@@ -51,6 +52,7 @@ class SeminarCreateTest extends PostgresTest {
                 .body("title", equalTo("새 세미나"))
                 .body("status", equalTo("UPCOMING"))
                 .body("capacity", equalTo(40))
+                .body("description", equalTo("이번 세미나는 신규 회원 대상입니다."))
                 .body("$", not(hasKey("attendanceCode")))
                 .extract().path("id");
 

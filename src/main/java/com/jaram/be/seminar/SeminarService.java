@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -50,21 +51,28 @@ public class SeminarService {
     }
 
     @Transactional(readOnly = true)
-    public List<SeminarResponse> list() {
-        return seminars.findAllByOrderByStartsAtDesc().stream().map(this::toResponse).toList();
+    public List<SeminarResponse> list(String callerId) {
+        return seminars.findAllByOrderByStartsAtDesc().stream()
+                .map(s -> toResponse(s, callerId)).toList();
     }
 
     @Transactional
     public SeminarResponse create(SeminarCreateRequest req, String createdById) {
-        Seminar saved = seminars.save(Seminar.create(
+        Seminar s = Seminar.create(
                 req.title(), req.speaker(), req.topic(), req.startsAt(),
                 req.place(), req.mode(), req.attendanceCode(),
-                req.materialUrl(), req.capacity(), createdById));
-        return toResponse(saved);
+                req.materialUrl(), req.capacity(), createdById);
+        s.setDescription(req.description());
+        Seminar saved = seminars.save(s);
+        return toResponse(saved, createdById);
     }
 
-    SeminarResponse toResponse(Seminar s) {
+    SeminarResponse toResponse(Seminar s, String callerId) {
         ZonedDateTime t = s.getStartsAt().atZone(SEOUL);
+        Instant closesAt = s.getStartsAt().plus(Duration.ofMinutes(windowMinutes));
+        String attendedAt = callerId == null ? null :
+                attendances.findBySeminarIdAndMemberId(s.getId(), callerId)
+                        .map(a -> formatTime(a.getAt())).orElse(null);
         return new SeminarResponse(
                 s.getId(),
                 s.getTitle(),
@@ -79,7 +87,10 @@ public class SeminarService {
                 s.getMode(),
                 SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes),
                 s.getMaterialUrl(),
-                s.getCapacity());
+                s.getCapacity(),
+                s.getDescription(),
+                closesAt.toString(),
+                attendedAt);
     }
 
     @Transactional

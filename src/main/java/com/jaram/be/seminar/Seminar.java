@@ -20,6 +20,7 @@ public class Seminar {
     private String attendanceCode;   // never serialized to clients
     private String materialUrl;
     private Integer capacity;
+    private String description;      // nullable, free-text detail (set via setter, not the factory)
 
     private String createdById;
     private Instant createdAt = Instant.now();
@@ -64,6 +65,8 @@ public class Seminar {
     public String getMaterialUrl() { return materialUrl; }
     public Integer getCapacity() { return capacity; }
     public void setCapacity(Integer v) { this.capacity = v; }
+    public String getDescription() { return description; }
+    public void setDescription(String v) { this.description = v; }
     public String getCreatedById() { return createdById; }
     public Instant getCreatedAt() { return createdAt; }
     public Long getVersion() { return version; }

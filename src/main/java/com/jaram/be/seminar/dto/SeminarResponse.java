@@ -17,5 +17,8 @@ public record SeminarResponse(
         String mode,
         SeminarStatus status,
         String materialUrl,
-        Integer capacity
+        Integer capacity,
+        String description,
+        String attendanceClosesAt,
+        String attendedAt
 ) { }

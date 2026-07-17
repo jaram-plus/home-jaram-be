@@ -1,5 +1,10 @@
 package com.jaram.be.seminar;
 
+import com.jaram.be.member.Authority;
+import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberStatus;
+import com.jaram.be.security.JwtProvider;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,11 +25,14 @@ class SeminarListTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
+    @Autowired MemberRepository members;
+    @Autowired JwtProvider jwt;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         attendances.deleteAll();
         seminars.deleteAll();
+        members.deleteAll();
     }
 
     @Test
@@ -59,5 +67,41 @@ class SeminarListTest extends PostgresTest {
     @Test
     void emptyDatabaseReturnsEmptyArray() {
         given().when().get("/api/seminars").then().statusCode(200).body("size()", equalTo(0));
+    }
+
+    @Test
+    void anonymousListHasClosesAtAndNullAttendedAt() {
+        // Postgres stores microsecond precision; truncate so the expected value survives the round-trip
+        Instant starts = Instant.now().minus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.MICROS);
+        seminars.save(Seminar.create("진행중", null, null, starts,
+                null, null, "CODE", null, null, "officer-1"));
+
+        given().when().get("/api/seminars").then().statusCode(200)
+                .body("[0].attendanceClosesAt", equalTo(starts.plusSeconds(120 * 60).toString()))
+                .body("[0].attendedAt", nullValue())
+                .body("[0].description", nullValue());
+    }
+
+    @Test
+    void authenticatedCallerSeesOwnAttendance() {
+        Member m = Member.newPending("김출석", "2023000001", "a@hanyang.ac.kr", "hash");
+        m.setStatus(MemberStatus.ACTIVE);
+        m = members.save(m);
+        String token = jwt.generate(m.getId(), "김출석", "a@hanyang.ac.kr", Authority.MEMBER);
+
+        // now - 200m is outside the default 120m window -> ENDED
+        Instant endedStart = Instant.now().minus(200, ChronoUnit.MINUTES);
+        Seminar attended = seminars.save(Seminar.create("종료-출석", null, null, endedStart,
+                null, null, "CODE1", null, null, "officer-1"));
+        Seminar notAttended = seminars.save(Seminar.create("종료-결석", null, null, endedStart.minusSeconds(1),
+                null, null, "CODE2", null, null, "officer-1"));
+        attendances.save(Attendance.create(attended.getId(), m.getId(), endedStart.plusSeconds(60)));
+
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/seminars").then().statusCode(200)
+                .body("[0].id", equalTo(attended.getId()))
+                .body("[0].attendedAt", notNullValue())
+                .body("[1].id", equalTo(notAttended.getId()))
+                .body("[1].attendedAt", nullValue());
     }
 }
