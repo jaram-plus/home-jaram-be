@@ -4,6 +4,8 @@ import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.seminar.dto.AttendResult;
+import com.jaram.be.seminar.dto.AttendeePreviewEntry;
+import com.jaram.be.seminar.dto.AttendeePreviewResponse;
 import com.jaram.be.seminar.dto.RosterEntry;
 import com.jaram.be.seminar.dto.RosterResponse;
 import com.jaram.be.seminar.dto.SeminarCreateRequest;
@@ -134,6 +136,24 @@ public class SeminarService {
 
         int cap = s.getCapacity() == null ? 0 : s.getCapacity();
         return new RosterResponse(s.getTitle(), cap, list);
+    }
+
+    @Transactional(readOnly = true)
+    public AttendeePreviewResponse attendeePreview(String seminarId) {
+        seminars.findById(seminarId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
+
+        List<Attendance> rows = attendances.findBySeminarIdOrderByAtAsc(seminarId);
+        Map<String, Member> byId = members.findAllById(
+                        rows.stream().map(Attendance::getMemberId).toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+
+        List<AttendeePreviewEntry> list = rows.stream().map(a -> {
+            Member m = byId.get(a.getMemberId());
+            return new AttendeePreviewEntry(m == null ? null : m.getName(), formatTime(a.getAt()));
+        }).toList();
+
+        return new AttendeePreviewResponse(list.size(), list);
     }
 
     private String formatTime(Instant at) {

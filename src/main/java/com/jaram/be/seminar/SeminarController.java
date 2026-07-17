@@ -2,6 +2,7 @@ package com.jaram.be.seminar;
 
 import com.jaram.be.seminar.dto.AttendRequest;
 import com.jaram.be.seminar.dto.AttendResult;
+import com.jaram.be.seminar.dto.AttendeePreviewResponse;
 import com.jaram.be.seminar.dto.RosterResponse;
 import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
@@ -43,5 +44,10 @@ public class SeminarController {
     @GetMapping("/{id}/roster")
     public RosterResponse roster(@PathVariable String id) {
         return service.roster(id);
+    }
+
+    @GetMapping("/{id}/attendees")
+    public AttendeePreviewResponse attendees(@PathVariable String id) {
+        return service.attendeePreview(id);
     }
 }
