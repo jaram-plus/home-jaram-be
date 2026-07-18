@@ -193,3 +193,24 @@ P4~P7 는 전부 구현·테스트 green·sub-agent 검증 완료(§4-1). 아래
 ### 6-4. FE 상신
 - [ ] **계약 export op `422` 응답 선언** — `/api/admin/export/google-drive` 가 잘못된 resource 에
   422 를 반환하나 계약엔 미선언(sibling admin op엔 있음). FE 계약 파일 보완 요청.
+- [ ] **(2026-07-18 추가) `attendanceCode`는 슬롯 제출/재제출 경로에서 절대 받지 않음** —
+  `POST /api/schedules/{id}/slots/{index}/seminar`, `PATCH /api/seminars/{id}`(재제출) 는
+  `SeminarCreateRequest` 스키마를 그대로 참조하지만, FE는 이 두 엔드포인트에서 `attendanceCode`
+  필드를 절대 전송하지 않는다(학회원이 스스로 출석 코드를 정하지 않도록 폼에서 제거함 —
+  `src/features/seminar/schedule.api.js`/`seminar.api.js` 참고). 대신 승인 후 임원이
+  `PATCH /api/admin/seminars:batch`(admin `seminars` 리소스 표의 `attendanceCode` 셀)로 직접
+  설정한다. **BE 확인 필요**: 위 두 엔드포인트는 `attendanceCode`를 옵션 처리(누락 시 null/미설정)
+  해야 하며 필수값으로 검증하면 안 됨. 반대로 admin batch update 경로는 `attendanceCode` 필드
+  쓰기를 반드시 허용해야 한다(p3-seminar 계획 문서 기준 지금까지는 생성 시에만 저장 확인됨,
+  승인 후 업데이트 허용 여부는 미확인 — §6-1 "Admin 행 필드 스키마" 정리 시 같이 반영 요망).
+- [ ] **(2026-07-18 추가) 슬롯 강제 해제 409 게이트가 반려 상태와 모순** —
+  `DELETE /api/admin/schedules/{id}/slots/{index}`(openapi.yaml:761-780)는
+  "seminarId가 있으면 409 — 먼저 그 세미나를 반려해야 한다"로 문서화되어 있다. 그런데
+  `PATCH /api/seminars/{id}` 재제출 계약상 REJECTED 세미나도 **같은 `seminarId`를 유지**한 채
+  본인이 수정→재제출하는 구조라(같은 id, approvalStatus만 PENDING으로 리셋), 반려 후에도
+  슬롯의 `seminarId`는 절대 비워지지 않는다. 즉 "먼저 반려하면 해제 가능"이라는 설명대로
+  구현하면, 세미나원이 재제출하지 않고 방치한 반려 슬롯을 임원이 영영 강제 해제할 방법이
+  없다(항상 409). FE는 이번 라운드에서 이 문제를 FE 쪽 변경 없이 그대로 두기로 결정했고,
+  이 문서로 BE 쪽에 판단을 넘긴다 — 강제 해제 409 조건을 "seminarId가 있고 그 세미나의
+  approvalStatus가 REJECTED가 아닐 때"로 좁히거나(반려 상태는 통과), 다른 라이프사이클
+  경로를 설계해야 한다. `/api/admin/schedules/{id}/slots/{index}` 구현 착수 전에 FE와 합의 필요.
