@@ -125,6 +125,13 @@ public class ScheduleService {
     }
 
     @Transactional
+    public ScheduleResponse unlock(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        sch.unlock();
+        return toResponse(schedules.save(sch));
+    }
+
+    @Transactional
     public ScheduleResponse forceRelease(String scheduleId, int index) {
         Schedule sch = load(scheduleId);
         ScheduleSlot slot = slot(sch, index);

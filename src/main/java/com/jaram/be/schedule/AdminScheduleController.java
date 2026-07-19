@@ -25,6 +25,11 @@ public class AdminScheduleController {
         return service.lock(id);
     }
 
+    @PatchMapping("/{id}/unlock")
+    public ScheduleResponse unlock(@PathVariable String id) {
+        return service.unlock(id);
+    }
+
     @DeleteMapping("/{id}/slots/{index}")
     public ScheduleResponse forceRelease(@PathVariable String id, @PathVariable int index) {
         return service.forceRelease(id, index);

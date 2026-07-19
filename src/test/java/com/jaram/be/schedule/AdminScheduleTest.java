@@ -65,6 +65,31 @@ class AdminScheduleTest extends PostgresTest {
     }
 
     @Test
+    void officerUnlocks() {
+        Schedule s = Schedule.create(Instant.now(), null, null, 3);
+        s.lock();
+        schedules.save(s);
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().patch("/api/admin/schedules/" + s.getId() + "/unlock").then().statusCode(200)
+                .body("status", equalTo("OPEN"));
+    }
+
+    @Test
+    void memberCannotUnlock() {
+        Schedule s = Schedule.create(Instant.now(), null, null, 3);
+        s.lock();
+        schedules.save(s);
+        given().header("Authorization", "Bearer " + memberToken)
+                .when().patch("/api/admin/schedules/" + s.getId() + "/unlock").then().statusCode(403);
+    }
+
+    @Test
+    void unlockMissingScheduleIs404() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().patch("/api/admin/schedules/nope/unlock").then().statusCode(404);
+    }
+
+    @Test
     void forceReleaseEmptySlot() {
         Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
         given().header("Authorization", "Bearer " + officerToken)

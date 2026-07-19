@@ -46,6 +46,8 @@ public class Schedule {
 
     public void lock() { this.status = ScheduleStatus.LOCKED; }
 
+    public void unlock() { this.status = ScheduleStatus.OPEN; }
+
     public String getId() { return id; }
     public Instant getStartsAt() { return startsAt; }
     public String getPlace() { return place; }

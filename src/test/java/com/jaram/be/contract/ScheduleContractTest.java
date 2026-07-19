@@ -99,6 +99,15 @@ class ScheduleContractTest extends PostgresTest {
     }
 
     @Test
+    void unlockMatchesContract() {
+        Schedule s = Schedule.create(Instant.now(), null, null, 3);
+        s.lock();
+        schedules.save(s);
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().patch("/api/admin/schedules/" + s.getId() + "/unlock").then().statusCode(200);
+    }
+
+    @Test
     void submitMatchesContract() {
         Member m = members.findAll().get(0);
         Schedule s = Schedule.create(Instant.now(), "IT관", "offline", 3);
