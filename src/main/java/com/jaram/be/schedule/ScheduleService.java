@@ -84,6 +84,11 @@ public class ScheduleService {
         if (!memberId.equals(slot.getMemberId())) {
             throw forbidden("본인 슬롯만 취소할 수 있습니다.");
         }
+        // unlock으로 다시 OPEN이 된 슬롯에는 제출한 세미나가 붙어 있을 수 있다.
+        // 그대로 놓아주면 세미나가 고아가 되므로 임원 반려(forceRelease)를 거치게 한다.
+        if (slot.getSeminarId() != null) {
+            throw forbidden("제출한 세미나가 있어 취소할 수 없습니다. 임원에게 반려를 요청하세요.");
+        }
         slot.release();
         schedules.save(sch);
         return toResponse(sch);
@@ -139,6 +144,10 @@ public class ScheduleService {
             Seminar sem = seminars.findById(slot.getSeminarId()).orElse(null);
             if (sem != null && sem.getApprovalStatus() != ApprovalStatus.REJECTED) {
                 throw conflict("먼저 세미나를 반려한 뒤 해제할 수 있습니다.");
+            }
+            if (sem != null) {   // 슬롯이 비므로 세미나→일정 역참조도 함께 끊는다
+                sem.setScheduleId(null);
+                seminars.save(sem);
             }
         }
         slot.release();

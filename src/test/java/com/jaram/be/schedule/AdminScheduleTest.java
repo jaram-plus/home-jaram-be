@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -108,11 +109,15 @@ class AdminScheduleTest extends PostgresTest {
         s.getSlots().get(0).attachSeminar(sem.getId());
         s.lock();
         schedules.save(s);
+        sem.setScheduleId(s.getId());
+        seminars.save(sem);
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().delete("/api/admin/schedules/" + s.getId() + "/slots/0").then().statusCode(200)
                 .body("slots[0].member", nullValue())
                 .body("slots[0].seminarId", nullValue());
+        // 슬롯→세미나만 끊으면 세미나가 없어진 슬롯을 계속 가리킨다. 역방향도 함께 끊는다.
+        assertThat(seminars.findById(sem.getId()).orElseThrow().getScheduleId()).isNull();
     }
 
     @Test
