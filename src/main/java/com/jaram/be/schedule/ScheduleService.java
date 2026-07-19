@@ -1,5 +1,6 @@
 package com.jaram.be.schedule;
 
+import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.schedule.dto.ScheduleResponse;
@@ -7,6 +8,7 @@ import com.jaram.be.schedule.dto.ScheduleSlotResponse;
 import com.jaram.be.schedule.dto.SlotMember;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,53 @@ public class ScheduleService {
     public List<ScheduleResponse> list() {
         return schedules.findAllByOrderByStartsAtAsc().stream().map(this::toResponse).toList();
     }
+
+    @Transactional
+    public ScheduleResponse claim(String scheduleId, int index, String memberId) {
+        Schedule sch = load(scheduleId);
+        if (sch.getStatus() != ScheduleStatus.OPEN) {
+            throw conflict("잠긴 일정입니다.");
+        }
+        ScheduleSlot slot = slot(sch, index);
+        if (slot.getMemberId() != null) {
+            throw conflict("이미 점유된 슬롯입니다.");
+        }
+        boolean alreadyMine = sch.getSlots().stream().anyMatch(x -> memberId.equals(x.getMemberId()));
+        if (alreadyMine) {
+            throw conflict("이미 이 일정의 슬롯을 잡았습니다.");
+        }
+        slot.claim(memberId);
+        schedules.save(sch);
+        return toResponse(sch);
+    }
+
+    @Transactional
+    public ScheduleResponse cancel(String scheduleId, int index, String memberId) {
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (sch.getStatus() != ScheduleStatus.OPEN) {
+            throw forbidden("잠긴 일정은 취소할 수 없습니다.");
+        }
+        if (!memberId.equals(slot.getMemberId())) {
+            throw forbidden("본인 슬롯만 취소할 수 있습니다.");
+        }
+        slot.release();
+        schedules.save(sch);
+        return toResponse(sch);
+    }
+
+    private Schedule load(String id) {
+        return schedules.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "일정을 찾을 수 없습니다."));
+    }
+
+    private ScheduleSlot slot(Schedule sch, int index) {
+        return sch.getSlots().stream().filter(x -> x.getIndex() == index).findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "슬롯을 찾을 수 없습니다."));
+    }
+
+    private ApiException conflict(String msg) { return new ApiException(HttpStatus.CONFLICT, "CONFLICT", msg); }
+    private ApiException forbidden(String msg) { return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", msg); }
 
     ScheduleResponse toResponse(Schedule s) {
         List<ScheduleSlot> slots = s.getSlots();
