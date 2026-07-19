@@ -55,7 +55,6 @@ public class SecurityConfig {
                 .requestMatchers("/api/studies/applicants/**").hasAuthority("OFFICER")
                 .requestMatchers(HttpMethod.POST, "/api/seminars").hasAuthority("OFFICER")
                 .requestMatchers(HttpMethod.GET, "/api/seminars/*/roster").hasAuthority("OFFICER")
-                .requestMatchers(HttpMethod.GET, "/api/seminars/*").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/schedules").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/studies/*/approve", "/api/studies/*/reject").hasAuthority("OFFICER")
                 .anyRequest().authenticated())

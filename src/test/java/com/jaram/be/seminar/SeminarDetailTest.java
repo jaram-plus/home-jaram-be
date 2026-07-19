@@ -37,11 +37,19 @@ class SeminarDetailTest extends PostgresTest {
     }
 
     @Test
-    void approvedIsPublic() {
+    void approvedVisibleToAnyMember() {
         Seminar s = save("공개", "officer-1", Seminar::approve);
-        given().when().get("/api/seminars/" + s.getId()).then().statusCode(200)
+        String member = jwt.generate("member-7", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        given().header("Authorization", "Bearer " + member)
+                .when().get("/api/seminars/" + s.getId()).then().statusCode(200)
                 .body("title", equalTo("공개"))
                 .body("approvalStatus", equalTo("APPROVED"));
+    }
+
+    @Test
+    void anonymousGets401() {
+        Seminar s = save("공개", "officer-1", Seminar::approve);
+        given().when().get("/api/seminars/" + s.getId()).then().statusCode(401);
     }
 
     @Test
@@ -72,6 +80,8 @@ class SeminarDetailTest extends PostgresTest {
 
     @Test
     void missingReturns404() {
-        given().when().get("/api/seminars/nope").then().statusCode(404);
+        String member = jwt.generate("member-7", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        given().header("Authorization", "Bearer " + member)
+                .when().get("/api/seminars/nope").then().statusCode(404);
     }
 }
