@@ -151,6 +151,13 @@ public class SeminarService {
         return toResponse(saved, memberId);
     }
 
+    // 어드민 승인 큐. 일반 목록(/api/admin/{resource})은 승인상태로 거르지 않는다.
+    @Transactional(readOnly = true)
+    public List<SeminarResponse> listPending() {
+        return seminars.findByApprovalStatusOrderByStartsAtDesc(ApprovalStatus.PENDING).stream()
+                .map(s -> toResponse(s, null)).toList();
+    }
+
     @Transactional
     public SeminarResponse approve(String id) {
         Seminar s = seminars.findById(id)

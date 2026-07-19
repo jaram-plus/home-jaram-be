@@ -66,6 +66,27 @@ class SeminarApprovalTest extends PostgresTest {
                 .when().post("/api/admin/seminars/" + s.getId() + "/reject").then().statusCode(422);
     }
 
+    /** 승인 큐는 PENDING만. 일반 목록(/api/admin/seminars)은 걸러주지 않는다. */
+    @Test
+    void pendingQueueOnlyHasPending() {
+        Seminar mine = pending();
+        Seminar approved = pending();
+        approved.approve();
+        seminars.save(approved);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/seminars/pending").then().statusCode(200)
+                .body("size()", equalTo(1))
+                .body("[0].id", equalTo(mine.getId()))
+                .body("[0].approvalStatus", equalTo("PENDING"));
+    }
+
+    @Test
+    void memberCannotSeePendingQueue() {
+        given().header("Authorization", "Bearer " + memberToken)
+                .when().get("/api/admin/seminars/pending").then().statusCode(403);
+    }
+
     @Test
     void memberCannotApprove() {
         Seminar s = pending();

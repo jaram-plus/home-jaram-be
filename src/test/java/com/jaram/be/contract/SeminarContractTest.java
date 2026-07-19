@@ -141,6 +141,14 @@ class SeminarContractTest extends PostgresTest {
     }
 
     @Test
+    void pendingQueueMatchesContract() {
+        seminars.save(Seminar.create("대기", null, null, Instant.now(),
+                null, null, "CODE", null, null, "member-1"));
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/seminars/pending").then().statusCode(200);
+    }
+
+    @Test
     void approveMatchesContract() {
         Seminar s = seminars.save(Seminar.create("대기", null, null, Instant.now(),
                 null, null, "CODE", null, null, "member-1"));
