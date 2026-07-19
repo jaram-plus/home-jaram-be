@@ -56,12 +56,13 @@ class ScheduleSlotTest extends PostgresTest {
     }
 
     @Test
-    void claimSecondSlotSameMemberIs409() {
+    void claimSecondSlotSameMemberIsAllowed() {
         Schedule s = open();
         given().header("Authorization", "Bearer " + token)
                 .when().post("/api/schedules/" + s.getId() + "/slots/0/claim").then().statusCode(200);
         given().header("Authorization", "Bearer " + token)
-                .when().post("/api/schedules/" + s.getId() + "/slots/1/claim").then().statusCode(409);
+                .when().post("/api/schedules/" + s.getId() + "/slots/1/claim").then().statusCode(200)
+                .body("slots[1].member.id", equalTo("member-1"));
     }
 
     @Test

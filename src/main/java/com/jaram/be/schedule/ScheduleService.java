@@ -65,10 +65,6 @@ public class ScheduleService {
         if (slot.getMemberId() != null) {
             throw conflict("이미 점유된 슬롯입니다.");
         }
-        boolean alreadyMine = sch.getSlots().stream().anyMatch(x -> memberId.equals(x.getMemberId()));
-        if (alreadyMine) {
-            throw conflict("이미 이 일정의 슬롯을 잡았습니다.");
-        }
         slot.claim(memberId);
         schedules.save(sch);
         return toResponse(sch);
