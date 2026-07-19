@@ -102,6 +102,32 @@ class ScheduleSubmitTest extends PostgresTest {
                 .when().post("/api/schedules/" + s.getId() + "/slots/0/seminar").then().statusCode(409);
     }
 
+    /** 세미나가 삭제되면 슬롯의 seminarId도 끊긴다 — 안 그러면 취소도 재제출도 막힌다. */
+    @Test
+    void deletingSeminarDetachesSlot() {
+        Schedule s = lockedWithMyClaim();
+        String id = given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(Map.of("title", "삭제될 세미나", "startsAt", "2026-01-01T00:00:00Z"))
+                .when().post("/api/schedules/" + s.getId() + "/slots/0/seminar").then().statusCode(201)
+                .extract().path("id");
+
+        String officer = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
+        given().header("Authorization", "Bearer " + officer)
+                .contentType("application/json").body(Map.of("deletes", java.util.List.of(id)))
+                .when().patch("/api/admin/seminars:batch").then().statusCode(200)
+                .body("deleted", equalTo(java.util.List.of(id)));
+
+        // 슬롯은 점유는 유지하고 세미나 링크만 잃는다
+        given().when().get("/api/schedules").then().statusCode(200)
+                .body("[0].slots[0].member.id", equalTo("member-1"))
+                .body("[0].slots[0].seminarId", equalTo(null));
+
+        // 그래서 다시 제출할 수 있다
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(Map.of("title", "재제출", "startsAt", "2026-01-01T00:00:00Z"))
+                .when().post("/api/schedules/" + s.getId() + "/slots/0/seminar").then().statusCode(201);
+    }
+
     @Test
     void submitWithoutTitleIs422() {
         Schedule s = lockedWithMyClaim();

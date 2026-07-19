@@ -2,6 +2,9 @@ package com.jaram.be.admin;
 
 import com.jaram.be.admin.dto.AdminBatchRequest;
 import com.jaram.be.member.*;
+import com.jaram.be.schedule.Schedule;
+import com.jaram.be.schedule.ScheduleRepository;
+import com.jaram.be.schedule.ScheduleSlot;
 import com.jaram.be.seminar.Attendance;
 import com.jaram.be.seminar.AttendanceRepository;
 import com.jaram.be.seminar.Seminar;
@@ -34,15 +37,18 @@ public class AdminBatchExecutor {
     private final AttendanceRepository attendances;
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
+    private final ScheduleRepository schedules;
 
     public AdminBatchExecutor(MemberRepository members, SeminarRepository seminars,
                               AttendanceRepository attendances, StudyRepository studies,
-                              StudyApplicationRepository applications) {
+                              StudyApplicationRepository applications,
+                              ScheduleRepository schedules) {
         this.members = members;
         this.seminars = seminars;
         this.attendances = attendances;
         this.studies = studies;
         this.applications = applications;
+        this.schedules = schedules;
     }
 
     // ── 행 결과 타입 ──
@@ -222,6 +228,12 @@ public class AdminBatchExecutor {
             case seminars -> {
                 if (seminars.findById(id).isEmpty()) { errors.put("id", "대상을 찾을 수 없습니다."); return errors; }
                 attendances.deleteAll(attendances.findBySeminarIdOrderByAtAsc(id));
+                // 슬롯이 없어진 세미나를 가리키면 취소도 재제출도 막힌다. 점유는 남기고 링크만 끊는다.
+                for (Schedule sch : schedules.findBySlotsSeminarId(id)) {
+                    sch.getSlots().stream().filter(x -> id.equals(x.getSeminarId()))
+                            .forEach(ScheduleSlot::detachSeminar);
+                    schedules.save(sch);
+                }
                 seminars.deleteById(id);
             }
             case studies -> {

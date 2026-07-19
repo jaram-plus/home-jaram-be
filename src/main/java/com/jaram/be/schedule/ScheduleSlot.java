@@ -33,6 +33,8 @@ public class ScheduleSlot {
     public void claim(String memberId) { this.memberId = memberId; }
     public void release() { this.memberId = null; this.seminarId = null; }
     public void attachSeminar(String seminarId) { this.seminarId = seminarId; }
+    // 세미나만 떼고 점유는 유지 — 슬롯 주인이 다시 제출할 수 있어야 한다.
+    public void detachSeminar() { this.seminarId = null; }
 
     public String getId() { return id; }
     public int getIndex() { return index; }
