@@ -165,6 +165,49 @@ paths:
         '422': { $ref: '#/components/responses/Validation' }
         '5XX': { $ref: '#/components/responses/ServerError' }
 
+  /api/seminars/{id}:
+    get:
+      tags: [seminar]
+      summary: 세미나 단건 조회 (수정 폼 프리필용)
+      description: APPROVED는 공개. PENDING/REJECTED는 본인 또는 임원만 조회 가능(그 외 404).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SeminarId'
+      responses:
+        '200':
+          description: 세미나
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seminar' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+    patch:
+      tags: [seminar]
+      summary: 반려된 세미나 재제출 (본인만)
+      description: approvalStatus가 REJECTED인 본인 소유 세미나만 가능. 성공 시
+        approvalStatus는 PENDING으로, rejectReason은 null로 돌아간다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SeminarId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeminarCreateRequest' }
+      responses:
+        '200':
+          description: 재제출됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seminar' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
   /api/seminars/{id}/attend:
     post:
       tags: [seminar]
@@ -227,6 +270,91 @@ paths:
               schema: { $ref: '#/components/schemas/AttendeePreviewResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  # ─────────────────────────── schedule ───────────────────────────
+  /api/schedules:
+    get:
+      tags: [schedule]
+      summary: 일정 목록 조회
+      description: 슬롯 포함. public.
+      responses:
+        '200':
+          description: 일정 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Schedule' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/schedules/{id}/slots/{index}/claim:
+    post:
+      tags: [schedule]
+      summary: 슬롯 자기등록 (선착순)
+      description: Schedule.status가 OPEN일 때만. 정원 초과·이미 참·잠김은 409.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ScheduleId'
+        - $ref: '#/components/parameters/SlotIndex'
+      responses:
+        '200':
+          description: 등록됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Schedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/schedules/{id}/slots/{index}:
+    delete:
+      tags: [schedule]
+      summary: 슬롯 자진취소 (본인)
+      description: Schedule.status가 OPEN이고 본인 슬롯일 때만. LOCKED 이후엔 403.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ScheduleId'
+        - $ref: '#/components/parameters/SlotIndex'
+      responses:
+        '200':
+          description: 취소됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Schedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/schedules/{id}/slots/{index}/seminar:
+    post:
+      tags: [schedule]
+      summary: 슬롯에서 세미나 제출
+      description: Schedule.status가 LOCKED이고 본인 슬롯이며 seminarId가 아직 없을 때만.
+        생성된 Seminar는 approvalStatus=PENDING으로 시작. startsAt/place/mode는 Schedule
+        값을 그대로 쓴다(요청 바디에 있어도 무시).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ScheduleId'
+        - $ref: '#/components/parameters/SlotIndex'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SeminarCreateRequest' }
+      responses:
+        '201':
+          description: 제출됨 (PENDING)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seminar' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Validation' }
         '5XX': { $ref: '#/components/responses/ServerError' }
 
   # ─────────────────────────── study ───────────────────────────
@@ -590,6 +718,109 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '5XX': { $ref: '#/components/responses/ServerError' }
 
+  /api/admin/schedules:
+    post:
+      tags: [schedule]
+      summary: 일정 생성 (임원)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScheduleCreateRequest' }
+      responses:
+        '201':
+          description: 생성됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Schedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/admin/schedules/{id}/lock:
+    patch:
+      tags: [schedule]
+      summary: 일정 잠금 (임원)
+      description: OPEN→LOCKED. 역방향 없음.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ScheduleId'
+      responses:
+        '200':
+          description: 잠김
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Schedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/admin/schedules/{id}/slots/{index}:
+    delete:
+      tags: [schedule]
+      summary: 슬롯 강제 해제 (임원)
+      description: seminarId가 있으면 409 — 먼저 그 세미나를 반려해야 한다.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ScheduleId'
+        - $ref: '#/components/parameters/SlotIndex'
+      responses:
+        '200':
+          description: 해제됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Schedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/admin/seminars/{id}/approve:
+    post:
+      tags: [seminar]
+      summary: 세미나 승인 (임원)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SeminarId'
+      responses:
+        '200':
+          description: 승인됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seminar' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
+  /api/admin/seminars/{id}/reject:
+    post:
+      tags: [seminar]
+      summary: 세미나 반려 (임원)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SeminarId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectRequest' }
+      responses:
+        '200':
+          description: 반려됨
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Seminar' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Validation' }
+        '5XX': { $ref: '#/components/responses/ServerError' }
+
   /api/me:
     get:
       summary: 내 정보 조회
@@ -653,6 +884,18 @@ components:
       required: true
       schema: { type: string }
       description: 회원 ID
+    ScheduleId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: 일정 ID
+    SlotIndex:
+      name: index
+      in: path
+      required: true
+      schema: { type: integer, minimum: 0 }
+      description: 슬롯 번호(0-based)
 
   responses:
     Unauthorized:
@@ -680,6 +923,12 @@ components:
             code: VALIDATION
             message: 입력값을 확인해 주세요.
             fieldErrors: { email: 한양대 이메일(@hanyang.ac.kr)만 사용할 수 있습니다. }
+    Conflict:
+      description: 상태 충돌 (예 정원 초과·이미 잠김·세미나 존재)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { code: CONFLICT, message: 이미 처리된 요청입니다. }
     ServerError:
       description: 서버 오류
       content:
@@ -904,6 +1153,9 @@ components:
         description: { type: [string, 'null'], description: 세미나 상세 설명 }
         attendanceClosesAt: { type: string, format: date-time, description: '출석 인정 마감 시각 (startsAt + 출석창, 서버 파생)' }
         attendedAt: { type: [string, 'null'], description: '내 출석 시각 표시(예 19:02). 미출석/비로그인이면 null' }
+        scheduleId: { type: [string, 'null'], description: 슬롯 경로로 생성됐으면 채워짐. 임원 직접생성은 null. }
+        approvalStatus: { $ref: '#/components/schemas/ApprovalStatus' }
+        rejectReason: { type: [string, 'null'], description: approvalStatus가 REJECTED일 때만 }
     SeminarCreateRequest:
       type: object
       required: [title, startsAt]
@@ -921,6 +1173,53 @@ components:
           items: { $ref: '#/components/schemas/TargetGrade' }
           description: 공개 대상 등급. 빈 배열은 전체 공개.
         description: { type: [string, 'null'] }
+    ScheduleStatus:
+      type: string
+      enum: [OPEN, LOCKED]
+      description: 임원 수동 토글로만 LOCKED. 역방향(재오픈) 없음.
+    SlotMember:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    ScheduleSlot:
+      type: object
+      required: [index, member, seminarId]
+      properties:
+        index: { type: integer, minimum: 0 }
+        member: { oneOf: [{ $ref: '#/components/schemas/SlotMember' }, { type: 'null' }] }
+        seminarId: { type: [string, 'null'] }
+        seminarApprovalStatus:
+          oneOf: [{ $ref: '#/components/schemas/ApprovalStatus' }, { type: 'null' }]
+          description: seminarId가 없으면 null. 슬롯 카드가 세미나 상세를 따로 조회하지
+            않도록 슬롯에 얹어 준다.
+        seminarRejectReason: { type: [string, 'null'], description: REJECTED일 때만 }
+    Schedule:
+      type: object
+      required: [id, startsAt, day, month, weekday, time, capacity, status, slots]
+      properties:
+        id: { type: string }
+        startsAt: { type: string, format: date-time }
+        day: { type: string, description: 파생 표시 (예 '27') }
+        month: { type: string, description: 파생 표시 (예 '6월') }
+        weekday: { type: string, description: 파생 표시 (예 '금') }
+        time: { type: string, description: 파생 표시 (예 '19:00') }
+        place: { type: [string, 'null'] }
+        mode: { type: [string, 'null'] }
+        capacity: { type: integer, minimum: 1, default: 3 }
+        status: { $ref: '#/components/schemas/ScheduleStatus' }
+        slots:
+          type: array
+          items: { $ref: '#/components/schemas/ScheduleSlot' }
+    ScheduleCreateRequest:
+      type: object
+      required: [startsAt]
+      properties:
+        startsAt: { type: string, format: date-time }
+        place: { type: [string, 'null'] }
+        mode: { type: [string, 'null'] }
+        capacity: { type: integer, minimum: 1, default: 3 }
     AttendRequest:
       type: object
       required: [code]
