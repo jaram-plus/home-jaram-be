@@ -3,9 +3,11 @@ package com.jaram.be.schedule;
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.schedule.dto.ScheduleCreateRequest;
 import com.jaram.be.schedule.dto.ScheduleResponse;
 import com.jaram.be.schedule.dto.ScheduleSlotResponse;
 import com.jaram.be.schedule.dto.SlotMember;
+import com.jaram.be.seminar.ApprovalStatus;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
 import com.jaram.be.seminar.SeminarService;
@@ -106,6 +108,35 @@ public class ScheduleService {
         slot.attachSeminar(resp.id());
         schedules.save(sch);
         return resp;
+    }
+
+    @Transactional
+    public ScheduleResponse create(ScheduleCreateRequest req) {
+        int capacity = req.capacity() == null ? 3 : req.capacity();
+        Schedule sch = Schedule.create(req.startsAt(), req.place(), req.mode(), capacity);
+        return toResponse(schedules.save(sch));
+    }
+
+    @Transactional
+    public ScheduleResponse lock(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        sch.lock();
+        return toResponse(schedules.save(sch));
+    }
+
+    @Transactional
+    public ScheduleResponse forceRelease(String scheduleId, int index) {
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (slot.getSeminarId() != null) {
+            Seminar sem = seminars.findById(slot.getSeminarId()).orElse(null);
+            if (sem != null && sem.getApprovalStatus() != ApprovalStatus.REJECTED) {
+                throw conflict("먼저 세미나를 반려한 뒤 해제할 수 있습니다.");
+            }
+        }
+        slot.release();
+        schedules.save(sch);
+        return toResponse(sch);
     }
 
     private Schedule load(String id) {
