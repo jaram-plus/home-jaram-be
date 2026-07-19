@@ -113,6 +113,32 @@ public class SeminarService {
     }
 
     @Transactional
+    public SeminarResponse resubmit(String id, SeminarCreateRequest req, String callerId) {
+        Seminar s = seminars.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
+        if (!callerId.equals(s.getCreatedById())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "본인 세미나만 수정할 수 있습니다.");
+        }
+        if (s.getApprovalStatus() != ApprovalStatus.REJECTED) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "반려된 세미나만 재제출할 수 있습니다.");
+        }
+        s.setTitle(req.title());
+        s.setSpeaker(req.speaker());
+        s.setTopic(req.topic());
+        s.setMaterialUrl(req.materialUrl());
+        s.setDescription(req.description());
+        s.setCapacity(req.capacity());
+        // 슬롯 연동 세미나는 시간/장소/모드를 Schedule 값으로 유지(요청 무시). attendanceCode는 항상 무시.
+        if (s.getScheduleId() == null) {
+            s.setStartsAt(req.startsAt());
+            s.setPlace(req.place());
+            s.setMode(req.mode());
+        }
+        s.resubmit();
+        return toResponse(s, callerId);
+    }
+
+    @Transactional
     public AttendResult attend(String seminarId, String memberId, String code) {
         Seminar s = seminars.findById(seminarId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));

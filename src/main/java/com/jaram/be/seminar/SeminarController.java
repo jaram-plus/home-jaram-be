@@ -42,6 +42,13 @@ public class SeminarController {
                 me != null && me.authority() == Authority.OFFICER);
     }
 
+    @PatchMapping("/{id}")
+    public SeminarResponse resubmit(@PathVariable String id,
+                                    @Valid @RequestBody SeminarCreateRequest req,
+                                    @AuthenticationPrincipal CurrentMember me) {
+        return service.resubmit(id, req, me.id());
+    }
+
     @PostMapping("/{id}/attend")
     public AttendResult attend(@PathVariable String id,
                                @Valid @RequestBody AttendRequest req,

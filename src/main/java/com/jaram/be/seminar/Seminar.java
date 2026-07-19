@@ -65,12 +65,14 @@ public class Seminar {
     public String getTopic() { return topic; }
     public void setTopic(String v) { this.topic = v; }
     public Instant getStartsAt() { return startsAt; }
+    public void setStartsAt(Instant v) { this.startsAt = v; }
     public String getPlace() { return place; }
     public void setPlace(String v) { this.place = v; }
     public String getMode() { return mode; }
     public void setMode(String v) { this.mode = v; }
     public String getAttendanceCode() { return attendanceCode; }
     public String getMaterialUrl() { return materialUrl; }
+    public void setMaterialUrl(String v) { this.materialUrl = v; }
     public Integer getCapacity() { return capacity; }
     public void setCapacity(Integer v) { this.capacity = v; }
     public String getDescription() { return description; }
