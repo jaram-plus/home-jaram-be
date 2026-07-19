@@ -71,4 +71,28 @@ class SeminarRepositoryTest extends PostgresTest {
         assertThat(attendances.findBySeminarIdOrderByAtAsc(s.getId()))
                 .extracting(Attendance::getMemberId).containsExactly("m1", "m2");
     }
+
+    @Test
+    void defaultsToPendingAndFiltersByApprovalStatus() {
+        Seminar pending = Seminar.create("대기", null, null, Instant.now(),
+                null, null, "C1", null, null, "officer-1");
+        Seminar approved = Seminar.create("승인", null, null, Instant.now(),
+                null, null, "C2", null, null, "officer-1");
+        approved.approve();
+        Seminar rejected = Seminar.create("반려", null, null, Instant.now(),
+                null, null, "C3", null, null, "officer-1");
+        rejected.reject("사유");
+        seminars.save(pending);
+        seminars.save(approved);
+        seminars.save(rejected);
+
+        assertThat(pending.getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING);
+        assertThat(seminars.findByApprovalStatusOrderByStartsAtDesc(ApprovalStatus.APPROVED))
+                .extracting(Seminar::getTitle).containsExactly("승인");
+        assertThat(rejected.getRejectReason()).isEqualTo("사유");
+
+        rejected.resubmit();
+        assertThat(rejected.getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING);
+        assertThat(rejected.getRejectReason()).isNull();
+    }
 }

@@ -5,4 +5,6 @@ import java.util.List;
 
 public interface SeminarRepository extends JpaRepository<Seminar, String> {
     List<Seminar> findAllByOrderByStartsAtDesc();
+
+    List<Seminar> findByApprovalStatusOrderByStartsAtDesc(ApprovalStatus approvalStatus);
 }

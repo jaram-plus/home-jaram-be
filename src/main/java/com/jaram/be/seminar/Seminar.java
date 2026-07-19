@@ -22,6 +22,14 @@ public class Seminar {
     private Integer capacity;
     private String description;      // nullable, free-text detail (set via setter, not the factory)
 
+    private String scheduleId;       // 슬롯 경로로 생성 시 채움; 임원 직접생성은 null
+
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING;
+
+    @Column(length = 1000)
+    private String rejectReason;     // approvalStatus==REJECTED일 때만
+
     private String createdById;
     private Instant createdAt = Instant.now();
 
@@ -70,4 +78,24 @@ public class Seminar {
     public String getCreatedById() { return createdById; }
     public Instant getCreatedAt() { return createdAt; }
     public Long getVersion() { return version; }
+
+    public void approve() {
+        this.approvalStatus = ApprovalStatus.APPROVED;
+        this.rejectReason = null;
+    }
+
+    public void reject(String reason) {
+        this.approvalStatus = ApprovalStatus.REJECTED;
+        this.rejectReason = reason;
+    }
+
+    public void resubmit() {
+        this.approvalStatus = ApprovalStatus.PENDING;
+        this.rejectReason = null;
+    }
+
+    public String getScheduleId() { return scheduleId; }
+    public void setScheduleId(String v) { this.scheduleId = v; }
+    public ApprovalStatus getApprovalStatus() { return approvalStatus; }
+    public String getRejectReason() { return rejectReason; }
 }
