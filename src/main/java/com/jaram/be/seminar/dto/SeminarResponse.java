@@ -1,5 +1,6 @@
 package com.jaram.be.seminar.dto;
 
+import com.jaram.be.seminar.ApprovalStatus;
 import com.jaram.be.seminar.SeminarStatus;
 
 // Matches OpenAPI schema Seminar. attendanceCode is intentionally absent.
@@ -20,5 +21,8 @@ public record SeminarResponse(
         Integer capacity,
         String description,
         String attendanceClosesAt,
-        String attendedAt
+        String attendedAt,
+        String scheduleId,
+        ApprovalStatus approvalStatus,
+        String rejectReason
 ) { }

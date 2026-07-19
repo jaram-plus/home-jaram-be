@@ -61,8 +61,10 @@ class SeminarContractTest extends PostgresTest {
 
     @Test
     void listMatchesContract() {
-        seminars.save(Seminar.create("세미나", "김연사", "주제", Instant.now(),
-                "IT관", "offline", "CODE", "https://m.example.com/a", 30, "officer-1"));
+        Seminar s = Seminar.create("세미나", "김연사", "주제", Instant.now(),
+                "IT관", "offline", "CODE", "https://m.example.com/a", 30, "officer-1");
+        s.approve();
+        seminars.save(s);
         given().filter(validation).when().get("/api/seminars").then().statusCode(200);
     }
 

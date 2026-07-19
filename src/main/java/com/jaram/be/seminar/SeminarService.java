@@ -54,7 +54,7 @@ public class SeminarService {
 
     @Transactional(readOnly = true)
     public List<SeminarResponse> list(String callerId) {
-        return seminars.findAllByOrderByStartsAtDesc().stream()
+        return seminars.findByApprovalStatusOrderByStartsAtDesc(ApprovalStatus.APPROVED).stream()
                 .map(s -> toResponse(s, callerId)).toList();
     }
 
@@ -65,11 +65,12 @@ public class SeminarService {
                 req.place(), req.mode(), req.attendanceCode(),
                 req.materialUrl(), req.capacity(), createdById);
         s.setDescription(req.description());
+        s.approve();
         Seminar saved = seminars.save(s);
         return toResponse(saved, createdById);
     }
 
-    SeminarResponse toResponse(Seminar s, String callerId) {
+    public SeminarResponse toResponse(Seminar s, String callerId) {
         ZonedDateTime t = s.getStartsAt().atZone(SEOUL);
         Instant closesAt = s.getStartsAt().plus(Duration.ofMinutes(windowMinutes));
         String attendedAt = callerId == null ? null :
@@ -92,7 +93,10 @@ public class SeminarService {
                 s.getCapacity(),
                 s.getDescription(),
                 closesAt.toString(),
-                attendedAt);
+                attendedAt,
+                s.getScheduleId(),
+                s.getApprovalStatus(),
+                s.getRejectReason());
     }
 
     @Transactional
