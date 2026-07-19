@@ -138,6 +138,19 @@ public class SeminarService {
         return toResponse(s, callerId);
     }
 
+    // 슬롯 제출 경로: PENDING 유지, 시간/장소/모드는 Schedule 값, attendanceCode·capacity 무시.
+    @Transactional
+    public SeminarResponse submitFromSlot(SeminarCreateRequest req, String memberId, String scheduleId,
+                                          Instant startsAt, String place, String mode) {
+        Seminar s = Seminar.create(
+                req.title(), req.speaker(), req.topic(), startsAt,
+                place, mode, null, req.materialUrl(), null, memberId);
+        s.setDescription(req.description());
+        s.setScheduleId(scheduleId);
+        Seminar saved = seminars.save(s);
+        return toResponse(saved, memberId);
+    }
+
     @Transactional
     public SeminarResponse approve(String id) {
         Seminar s = seminars.findById(id)

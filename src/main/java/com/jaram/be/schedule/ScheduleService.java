@@ -8,6 +8,9 @@ import com.jaram.be.schedule.dto.ScheduleSlotResponse;
 import com.jaram.be.schedule.dto.SlotMember;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.seminar.SeminarService;
+import com.jaram.be.seminar.dto.SeminarCreateRequest;
+import com.jaram.be.seminar.dto.SeminarResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,12 +38,14 @@ public class ScheduleService {
     private final ScheduleRepository schedules;
     private final MemberRepository members;
     private final SeminarRepository seminars;
+    private final SeminarService seminarService;
 
     public ScheduleService(ScheduleRepository schedules, MemberRepository members,
-                           SeminarRepository seminars) {
+                           SeminarRepository seminars, SeminarService seminarService) {
         this.schedules = schedules;
         this.members = members;
         this.seminars = seminars;
+        this.seminarService = seminarService;
     }
 
     @Transactional(readOnly = true)
@@ -80,6 +85,27 @@ public class ScheduleService {
         slot.release();
         schedules.save(sch);
         return toResponse(sch);
+    }
+
+    @Transactional
+    public SeminarResponse submitSeminar(String scheduleId, int index, String memberId,
+                                         SeminarCreateRequest req) {
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (sch.getStatus() != ScheduleStatus.LOCKED) {
+            throw conflict("잠긴 일정에서만 세미나를 제출할 수 있습니다.");
+        }
+        if (!memberId.equals(slot.getMemberId())) {
+            throw forbidden("본인 슬롯만 제출할 수 있습니다.");
+        }
+        if (slot.getSeminarId() != null) {
+            throw conflict("이미 제출한 슬롯입니다.");
+        }
+        SeminarResponse resp = seminarService.submitFromSlot(
+                req, memberId, sch.getId(), sch.getStartsAt(), sch.getPlace(), sch.getMode());
+        slot.attachSeminar(resp.id());
+        schedules.save(sch);
+        return resp;
     }
 
     private Schedule load(String id) {
