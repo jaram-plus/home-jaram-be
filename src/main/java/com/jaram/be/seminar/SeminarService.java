@@ -58,6 +58,19 @@ public class SeminarService {
                 .map(s -> toResponse(s, callerId)).toList();
     }
 
+    @Transactional(readOnly = true)
+    public SeminarResponse getOne(String id, String callerId, boolean officer) {
+        Seminar s = seminars.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
+        if (s.getApprovalStatus() != ApprovalStatus.APPROVED) {
+            boolean owner = callerId != null && callerId.equals(s.getCreatedById());
+            if (!owner && !officer) {
+                throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다.");
+            }
+        }
+        return toResponse(s, callerId);
+    }
+
     @Transactional
     public SeminarResponse create(SeminarCreateRequest req, String createdById) {
         Seminar s = Seminar.create(

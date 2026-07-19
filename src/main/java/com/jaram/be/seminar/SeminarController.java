@@ -6,6 +6,7 @@ import com.jaram.be.seminar.dto.AttendeePreviewResponse;
 import com.jaram.be.seminar.dto.RosterResponse;
 import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
+import com.jaram.be.member.Authority;
 import com.jaram.be.security.CurrentMember;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,13 @@ public class SeminarController {
     public SeminarResponse create(@Valid @RequestBody SeminarCreateRequest req,
                                   @AuthenticationPrincipal CurrentMember me) {
         return service.create(req, me.id());
+    }
+
+    @GetMapping("/{id}")
+    public SeminarResponse getOne(@PathVariable String id,
+                                  @AuthenticationPrincipal CurrentMember me) {
+        return service.getOne(id, me == null ? null : me.id(),
+                me != null && me.authority() == Authority.OFFICER);
     }
 
     @PostMapping("/{id}/attend")
