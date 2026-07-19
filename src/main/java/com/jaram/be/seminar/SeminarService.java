@@ -139,6 +139,22 @@ public class SeminarService {
     }
 
     @Transactional
+    public SeminarResponse approve(String id) {
+        Seminar s = seminars.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
+        s.approve();
+        return toResponse(s, null);
+    }
+
+    @Transactional
+    public SeminarResponse reject(String id, String reason) {
+        Seminar s = seminars.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
+        s.reject(reason);
+        return toResponse(s, null);
+    }
+
+    @Transactional
     public AttendResult attend(String seminarId, String memberId, String code) {
         Seminar s = seminars.findById(seminarId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
