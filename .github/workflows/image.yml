@@ -70,12 +70,16 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
-      # NOTE(deploy): 추후 self-hosted runner deploy job을 붙일 자리.
-      # 아래와 같은 새 job을 추가하면 됨:
-      #
-      #   deploy:
-      #     needs: docker
-      #     if: github.event_name == 'push'
-      #     runs-on: [self-hosted, jaram-prod]
-      #     steps:
-      #       - run: docker compose pull && docker compose up -d
+  # dev 자동 배포 (develop 브랜치 push 시).
+  # VM의 self-hosted runner가 /srv/jaram/infra 에서 deploy script 실행.
+  # runner가 docker group 멤버라 별도 ssh 불필요. image는 public이라 login 생략.
+  deploy-dev:
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, linux, x64, jaram-vm, deploy]
+    timeout-minutes: 5
+    steps:
+      - name: Deploy on VM (compose pull + up)
+        run: |
+          cd /srv/jaram/infra
+          ./scripts/deploy-backend.sh
