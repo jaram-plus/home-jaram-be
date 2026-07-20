@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.hasItems;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class PeopleContractTest extends PostgresTest {
@@ -43,8 +44,19 @@ class PeopleContractTest extends PostgresTest {
         m.setGen(41);
         members.save(m);
 
+        Member lead = Member.newPending("박학술", "2023000002", "b@hanyang.ac.kr", "hash");
+        lead.setApproval(MemberApproval.APPROVED);
+        lead.setStatus(MemberStatus.ACTIVE);
+        lead.award(MemberCategory.exec);
+        lead.setDepartment(MemberDepartment.ACADEMIC);
+        lead.setTitle(MemberTitle.LEAD);
+        lead.setGen(41);
+        members.save(lead);
+
         given().filter(validation)
                 .when().get("/api/people")
-                .then().statusCode(200);
+                .then().statusCode(200)
+                // 라벨은 department + title 조합에서 파생된다
+                .body("exec.groups.flatten().members.flatten().role", hasItems("회장", "학술부장"));
     }
 }

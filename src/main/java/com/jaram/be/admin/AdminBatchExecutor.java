@@ -146,8 +146,33 @@ public class AdminBatchExecutor {
                 default -> errors.put(k, "수정할 수 없는 필드입니다.");
             }
         });
+        // 직책×부서 조합 검사. 한쪽만 요청에 담겨 오면 나머지는 엔티티의 현재 값을 기준으로 판정한다.
+        if (errors.isEmpty()) {
+            MemberDepartment d = f.containsKey("department")
+                    ? parsed(f.get("department"), MemberDepartment.class) : m.getDepartment();
+            MemberTitle t = f.containsKey("title")
+                    ? parsed(f.get("title"), MemberTitle.class) : m.getTitle();
+            String comboError = comboError(d, t);
+            if (comboError != null) errors.put("title", comboError);
+        }
         if (errors.isEmpty()) actions.forEach(Runnable::run);
         return errors;
+    }
+
+    private <E extends Enum<E>> E parsed(Object v, Class<E> type) {
+        return v == null ? null : Enum.valueOf(type, v.toString());
+    }
+
+    // null = 허용.
+    private String comboError(MemberDepartment d, MemberTitle t) {
+        if (t == null) return null;
+        if (d == null) return "직책을 지정하려면 부서를 함께 지정해 주세요.";
+        if (t.allowedIn(d)) return null;
+        return switch (d) {
+            case LEADERSHIP -> "회장단에는 회장 또는 부회장만 지정할 수 있습니다.";
+            case ACADEMIC, PR, FINANCE -> d.label() + "에는 부장 또는 부원만 지정할 수 있습니다.";
+            case INFRA -> "인프라에는 서버 관리자만 지정할 수 있습니다.";
+        };
     }
 
     private Map<String, String> updateSeminar(Seminar s, Map<String, Object> f) {

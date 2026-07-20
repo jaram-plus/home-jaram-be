@@ -44,7 +44,7 @@ class PeopleTest extends PostgresTest {
     @Test
     void returnsActiveMembersGroupedByTab() {
         active("김자람", "2023000001", "a@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
-        active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.ACADEMIC, MemberTitle.ACADEMIC_LEAD, 41);
+        active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.ACADEMIC, MemberTitle.LEAD, 41);
         active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, null, 38);
         active("정졸업", "2023000004", "d@hanyang.ac.kr", MemberCategory.grad, null, null, null);
 

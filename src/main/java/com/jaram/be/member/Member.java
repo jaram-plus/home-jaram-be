@@ -24,10 +24,7 @@ public class Member {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    private Authority authority = Authority.MEMBER;
-
-    @Enumerated(EnumType.STRING)
-    private MemberTitle title;            // 직책 (nullable)
+    private MemberTitle title;            // 직책 (nullable). 권한(authority)의 단일 진실원.
     @Enumerated(EnumType.STRING)
     private MemberGrade grade;            // 등급 (승인 시 gen 파생, nullable 이전)
     @Enumerated(EnumType.STRING)
@@ -51,13 +48,12 @@ public class Member {
 
     private String faculty;       // 학부 (자유 입력 텍스트, 가입 시 입력)
     private String phone;         // 휴대전화 (하이픈 포함 형식 저장)
-    private Boolean enrolled;     // 재학여부 (true=재학, false=휴학)
 
     // 승인축: 가입 승인 상태. 활동축(status)과 분리.
     @Enumerated(EnumType.STRING)
     private MemberApproval approval = MemberApproval.PENDING;
 
-    // 활동축: 가입 시 enrolled로 파생, 이후 admin이 변경.
+    // 활동축의 단일 진실원. 가입 시 SignupRequest.enrolled로 파생, 이후 admin이 변경.
     @Enumerated(EnumType.STRING)
     private MemberStatus status = MemberStatus.ACTIVE;
 
@@ -75,7 +71,6 @@ public class Member {
         m.studentId = studentId;
         m.email = email;
         m.passwordHash = passwordHash;
-        m.authority = Authority.MEMBER;
         m.categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
         m.approval = MemberApproval.PENDING;
         m.status = MemberStatus.ACTIVE;
@@ -90,7 +85,8 @@ public class Member {
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String h) { this.passwordHash = h; }
-    public Authority getAuthority() { return authority; }
+    // 권한은 저장하지 않는다 — 직책이 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
+    public Authority getAuthority() { return title != null ? Authority.OFFICER : Authority.MEMBER; }
     public MemberStatus getStatus() { return status; }
     public void setStatus(MemberStatus s) { this.status = s; }
     public MemberApproval getApproval() { return approval; }
@@ -132,6 +128,4 @@ public class Member {
     public void setFaculty(String f) { this.faculty = f; }
     public String getPhone() { return phone; }
     public void setPhone(String p) { this.phone = p; }
-    public Boolean getEnrolled() { return enrolled; }
-    public void setEnrolled(Boolean e) { this.enrolled = e; }
 }

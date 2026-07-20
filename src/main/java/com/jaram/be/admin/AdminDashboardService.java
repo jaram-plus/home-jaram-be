@@ -7,6 +7,7 @@ import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberStatus;
 import com.jaram.be.seminar.AttendanceRepository;
 import com.jaram.be.seminar.SeminarRepository;
 import com.jaram.be.study.ApplicationStatus;
@@ -100,7 +101,7 @@ public class AdminDashboardService {
         int freshman = (int) pending.stream()
                 .filter(m -> m.getGen() != null && m.getGen() == currentGen).count();
         int enrolled = (int) pending.stream()
-                .filter(m -> Boolean.TRUE.equals(m.getEnrolled())).count();
+                .filter(m -> m.getStatus() == MemberStatus.ACTIVE).count();
         return new PendingBreakdown(freshman, enrolled);
     }
 

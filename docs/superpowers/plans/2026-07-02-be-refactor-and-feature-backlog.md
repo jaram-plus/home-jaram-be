@@ -150,6 +150,7 @@ FE 계약상 스터디는 **개설 신청→개설 승인(임원)→모집→지
 - [x] **P5 — Study 도메인** (F1, UC-T1~T8) — 9 엔드포인트, 전체 92→93 tests green, sub-agent 검증 (reject→apply=CLOSED 수정 반영)
 - [x] **P6 — Admin 관리 서피스 코어** (F2 A1~A4) — 목록/batch(부분성공·행별 REQUIRES_NEW·낙관적잠금)/대시보드/설정, 전체 111 tests green, sub-agent 검증 (partial-success 격리·Attendance 정리·수치 정렬 수정 반영). ⚠️ 행 필드 스키마·batch 검증 규칙은 FE admin.data SCHEMAS 확정 후 조정 필요(§5)
 - [x] **P7 — Drive 연동** (F2 A5) — POST /api/admin/export/google-drive, 포트-어댑터 시임 + 스텁 어댑터(실제 업로드 미수행), 전체 116 tests green, sub-agent 검증 clean. ⚠️ 실제 Google Drive 클라이언트는 인증 방식(서비스 계정 vs OAuth)·driveFolder 확정(§5) 후 어댑터 교체. FE 상신: 계약이 export op에 `422` 응답 미선언(sibling admin op엔 있음) — FE 계약 보완 권장
+- [x] **P8 — 회원 축 중복 제거** (2026-07-20) — `MemberTitle` 9→5 값(부서×직위 조합으로 라벨 파생), `authority` 컬럼 제거 후 `title != null → OFFICER` 파생(부원 포함), `enrolled` 컬럼 제거 후 `MemberStatus` 단일 진실원, `AdminBatchExecutor`에 직책×부서 조합 검증 추가. 계약 `MemberTitle` enum 축소(FE `openapi.yaml`), FE `titleLabel(title, department)` 2-인자화. BE 196 tests 중 192 green(잔여 4건은 이 변경과 무관한 기존 계약 드리프트 — `currentCohort`·`cohortBreakdown`·`capacity`), FE lint·build green. ⚠️ 배포 전 enum 값 마이그레이션 SQL 필수 — `docs/superpowers/specs/2026-07-20-member-axis-dedup-design.md` §5 참조
 
 ## 5. 열린 질문 (FE 확인 필요)
 

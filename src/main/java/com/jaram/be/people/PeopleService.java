@@ -82,7 +82,7 @@ public class PeopleService {
     // PersonMember.role은 required. 직책(title)이 있으면 그 라벨, 없으면 등급(grade)
     // 라벨로 폴백(예 grad 카드 "OB"). 둘 다 없으면 빈 문자열로 non-null 보장.
     private String roleLabel(Member m) {
-        if (m.getTitle() != null) return m.getTitle().label();
+        if (m.getTitle() != null) return m.getTitle().label(m.getDepartment());
         if (m.getGrade() != null) return m.getGrade().label();
         return "";
     }

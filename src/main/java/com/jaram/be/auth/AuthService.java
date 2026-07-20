@@ -57,7 +57,6 @@ public class AuthService {
         m.setGen(Integer.parseInt(req.gen()));   // @Pattern ^\d+$ guarantees parseable
         m.setFaculty(req.faculty());
         m.setPhone(req.phone());
-        m.setEnrolled(req.enrolled());
         // 활동축 파생: 재학 → ACTIVE, 휴학 → ON_LEAVE. 승인축은 PENDING (팩토리 기본).
         m.setStatus(req.enrolled() ? MemberStatus.ACTIVE : MemberStatus.ON_LEAVE);
         members.save(m);
