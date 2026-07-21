@@ -2,6 +2,7 @@ package com.jaram.be.admin;
 
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.common.ApiException;
+import com.jaram.be.member.Gen;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberGrade;
@@ -10,14 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Year;
 import java.util.List;
 
 @Service
 public class AdminMemberService {
-
-    // 자람 창립 연도. 등급 파생 기준: gen == (현재년도 - FOUNDING_YEAR) → NEWCOMER.
-    private static final int FOUNDING_YEAR = 1984;
 
     private final MemberRepository members;
 
@@ -43,7 +40,7 @@ public class AdminMemberService {
 
     // 계약 MemberGrade.description: gen == 현재년도-1984 → NEWCOMER, 그 외 ASSOCIATE.
     private MemberGrade deriveGrade(Integer gen) {
-        int currentGen = Year.now().getValue() - FOUNDING_YEAR;
+        int currentGen = Gen.current();
         return (gen != null && gen == currentGen) ? MemberGrade.NEWCOMER : MemberGrade.ASSOCIATE;
     }
 

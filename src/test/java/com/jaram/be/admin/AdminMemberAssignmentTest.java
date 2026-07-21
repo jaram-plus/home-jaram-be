@@ -97,7 +97,7 @@ class AdminMemberAssignmentTest extends PostgresTest {
     @Test
     void judgesAgainstTheStoredValueWhenOnlyOneSideIsSent() {
         Member m = approved("기존부서", "2023000004");
-        m.setDepartment(MemberDepartment.INFRA);
+        m.assignTerm(MemberDepartment.INFRA, MemberTitle.SERVER_ADMIN, 42);
         members.saveAndFlush(m);
 
         // 저장된 INFRA 기준으로 LEAD 는 거부
@@ -117,8 +117,7 @@ class AdminMemberAssignmentTest extends PostgresTest {
     @Test
     void allowsClearingTitleAndDepartment() {
         Member m = approved("해임", "2023000005");
-        m.setDepartment(MemberDepartment.PR);
-        m.setTitle(MemberTitle.STAFF);
+        m.assignTerm(MemberDepartment.PR, MemberTitle.STAFF, 42);
         members.saveAndFlush(m);
 
         Map<String, Object> fields = new HashMap<>();

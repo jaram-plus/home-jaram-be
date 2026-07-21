@@ -22,7 +22,7 @@ class MemberAuthorityTest {
     @DisplayName("직책이 있으면 임원 권한이다")
     void withTitleIsOfficer() {
         Member m = member();
-        m.setTitle(MemberTitle.PRESIDENT);
+        m.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 42);
         assertThat(m.getAuthority()).isEqualTo(Authority.OFFICER);
     }
 
@@ -30,7 +30,7 @@ class MemberAuthorityTest {
     @DisplayName("부원도 임원 권한을 갖는다")
     void staffIsAlsoOfficer() {
         Member m = member();
-        m.setTitle(MemberTitle.STAFF);
+        m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.STAFF, 42);
         assertThat(m.getAuthority()).isEqualTo(Authority.OFFICER);
     }
 
@@ -38,8 +38,8 @@ class MemberAuthorityTest {
     @DisplayName("직책을 제거하면 권한도 함께 돌아온다")
     void clearingTitleRevokesOfficer() {
         Member m = member();
-        m.setTitle(MemberTitle.LEAD);
-        m.setTitle(null);
+        m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 42);
+        m.endCurrentTerm(42);
         assertThat(m.getAuthority()).isEqualTo(Authority.MEMBER);
     }
 }

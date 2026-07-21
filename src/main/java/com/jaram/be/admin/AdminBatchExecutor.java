@@ -38,17 +38,27 @@ public class AdminBatchExecutor {
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
     private final ScheduleRepository schedules;
+    private final AdminSettingsRepository settings;
 
     public AdminBatchExecutor(MemberRepository members, SeminarRepository seminars,
                               AttendanceRepository attendances, StudyRepository studies,
                               StudyApplicationRepository applications,
-                              ScheduleRepository schedules) {
+                              ScheduleRepository schedules,
+                              AdminSettingsRepository settings) {
         this.members = members;
         this.seminars = seminars;
         this.attendances = attendances;
         this.studies = studies;
         this.applications = applications;
         this.schedules = schedules;
+        this.settings = settings;
+    }
+
+    /** 임기 전환 기준 기수. 운영이 설정한 현재 기수를 우선하고, 미설정(0)이면 올해 기준으로 계산한다. */
+    private int currentGen() {
+        Integer c = settings.findById(AdminSettings.SINGLETON_ID)
+                .map(AdminSettings::getCurrentCohort).orElse(null);
+        return (c != null && c > 0) ? c : Gen.current();
     }
 
     // ── 행 결과 타입 ──
@@ -138,25 +148,62 @@ public class AdminBatchExecutor {
             switch (k) {
                 case "name" -> actions.add(() -> m.setName(str(v)));
                 case "gen" -> intField(v, errors, k, m::setGen, actions);
-                case "grade" -> enumField(MemberGrade.class, v, errors, k, m::setGrade, actions, false);
+                case "grade" -> enumField(MemberGrade.class, v, errors, k, g -> applyGrade(m, g), actions, false);
                 case "status" -> enumField(MemberStatus.class, v, errors, k, m::setStatus, actions, false);
                 case "approval" -> enumField(MemberApproval.class, v, errors, k, m::setApproval, actions, false);
-                case "department" -> enumField(MemberDepartment.class, v, errors, k, m::setDepartment, actions, true);
-                case "title" -> enumField(MemberTitle.class, v, errors, k, m::setTitle, actions, true);
+                case "department" -> enumCheck(MemberDepartment.class, v, errors, k);
+                case "title" -> enumCheck(MemberTitle.class, v, errors, k);
                 default -> errors.put(k, "수정할 수 없는 필드입니다.");
             }
         });
+        // 졸업 규칙. 신입부원은 바로 OB 가 될 수 없고, 현직 임원과 OB 는 공존하지 않는다.
+        MemberGrade newGrade = errors.isEmpty() && f.containsKey("grade")
+                ? parsed(f.get("grade"), MemberGrade.class) : null;
+        if (errors.isEmpty() && newGrade == MemberGrade.OB) {
+            if (m.getGrade() == MemberGrade.NEWCOMER) {
+                errors.put("grade", "신입부원은 바로 OB로 변경할 수 없습니다. 준회원 또는 정회원을 거쳐 주세요.");
+            } else if (f.get("title") != null) {
+                errors.put("grade", "OB로 변경하면서 직책을 함께 지정할 수 없습니다.");
+            }
+        }
+        // 이미 OB 인 회원에게는 새 임기를 부여하지 않는다. 등급을 먼저 되돌려야 한다.
+        if (errors.isEmpty() && f.get("title") != null
+                && m.getGrade() == MemberGrade.OB && newGrade == null) {
+            errors.put("title", "OB 회원에게는 직책을 지정할 수 없습니다. 등급을 먼저 변경해 주세요.");
+        }
         // 직책×부서 조합 검사. 한쪽만 요청에 담겨 오면 나머지는 엔티티의 현재 값을 기준으로 판정한다.
-        if (errors.isEmpty()) {
+        if (errors.isEmpty() && (f.containsKey("department") || f.containsKey("title"))) {
             MemberDepartment d = f.containsKey("department")
                     ? parsed(f.get("department"), MemberDepartment.class) : m.getDepartment();
             MemberTitle t = f.containsKey("title")
                     ? parsed(f.get("title"), MemberTitle.class) : m.getTitle();
             String comboError = comboError(d, t);
-            if (comboError != null) errors.put("title", comboError);
+            if (comboError != null) {
+                errors.put("title", comboError);
+            } else {
+                actions.add(t == null ? () -> m.endCurrentTerm(currentGen())
+                                      : () -> m.assignTerm(d, t, currentGen()));
+            }
         }
         if (errors.isEmpty()) actions.forEach(Runnable::run);
         return errors;
+    }
+
+    /** department/title 은 임기로 함께 적용되므로 개별 setter 가 없다. 값 검증만 여기서 한다. */
+    private <E extends Enum<E>> void enumCheck(Class<E> type, Object v,
+                                               Map<String, String> errors, String key) {
+        if (v == null) return;   // null = 해제, 허용
+        try {
+            Enum.valueOf(type, v.toString());
+        } catch (IllegalArgumentException e) {
+            errors.put(key, "허용되지 않은 값입니다.");
+        }
+    }
+
+    /** OB 로 전환하면 현직 임원 자격이 끝난다. 임기 이력은 남는다("전 학술부장"). */
+    private void applyGrade(Member m, MemberGrade g) {
+        m.setGrade(g);
+        if (g == MemberGrade.OB) m.endCurrentTerm(currentGen());
     }
 
     private <E extends Enum<E>> E parsed(Object v, Class<E> type) {

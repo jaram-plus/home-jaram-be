@@ -6,7 +6,7 @@ import com.jaram.be.admin.dto.AdminBatchResponse;
 import com.jaram.be.admin.dto.AdminBatchResponse.*;
 import com.jaram.be.admin.dto.AdminListResponse;
 import com.jaram.be.member.Member;
-import com.jaram.be.member.MemberCategory;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
@@ -120,7 +120,6 @@ public class AdminResourceService {
         r.put("department", m.getDepartment() == null ? null : m.getDepartment().name());
         r.put("title", m.getTitle() == null ? null : m.getTitle().name());
         r.put("gen", m.getGen());
-        r.put("categories", m.getCategories().stream().map(Enum::name).toList());
         r.put("version", m.getVersion());
         return r;
     }
@@ -155,9 +154,9 @@ public class AdminResourceService {
     private boolean matchesMemberTab(Member m, String tab) {
         if (tab == null || tab.isBlank() || tab.equals("member")) return true;
         return switch (tab) {
-            case "exec" -> m.hasCategory(MemberCategory.exec);
-            case "contrib" -> m.hasCategory(MemberCategory.contrib);
-            case "graduate" -> m.hasCategory(MemberCategory.grad);
+            case "exec" -> m.currentTerm().isPresent();
+            case "contrib" -> m.isContributor();
+            case "graduate" -> m.getGrade() == MemberGrade.OB;
             default -> true;
         };
     }

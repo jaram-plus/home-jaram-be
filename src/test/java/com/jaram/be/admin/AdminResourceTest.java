@@ -36,11 +36,10 @@ class AdminResourceTest extends PostgresTest {
         officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
     }
 
-    private Member approved(String name, String sid, MemberCategory cat) {
+    private Member approved(String name, String sid) {
         Member m = Member.newPending(name, sid, name + "@hanyang.ac.kr", "hash");
         m.setApproval(MemberApproval.APPROVED);
         m.setGrade(MemberGrade.ASSOCIATE);
-        if (cat != null) m.award(cat);
         return members.save(m);
     }
 
@@ -48,7 +47,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void listPaginatesMembers() {
-        for (int i = 0; i < 10; i++) approved("m" + i, "202300000" + i, null);
+        for (int i = 0; i < 10; i++) approved("m" + i, "202300000" + i);
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?page=1&size=8")
@@ -61,15 +60,18 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void listFiltersMembersByTabAndQuery() {
-        approved("김임원", "2023000001", MemberCategory.exec);
-        approved("박기여", "2023000002", MemberCategory.contrib);
+        Member exec = approved("김임원", "2023000001");
+        exec.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 42);
+        members.saveAndFlush(exec);
+        Member contrib = approved("박기여", "2023000002");
+        contrib.setContributor(true);
+        members.saveAndFlush(contrib);
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=exec")
                 .then().statusCode(200)
                 .body("items.size()", equalTo(1))
-                .body("items[0].name", equalTo("김임원"))
-                .body("items[0].categories", hasItem("exec"));
+                .body("items[0].name", equalTo("김임원"));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?q=박기여")
@@ -82,7 +84,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchUpdateAppliesFieldAndReportsUpdated() {
-        Member m = approved("수정대상", "2023000001", null);
+        Member m = approved("수정대상", "2023000001");
         Map<String, Object> update = new HashMap<>();
         update.put("id", m.getId());
         update.put("version", null);
@@ -104,7 +106,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchUpdateWithStaleVersionReportsConflict() {
-        Member m = approved("충돌", "2023000001", null);
+        Member m = approved("충돌", "2023000001");
         Map<String, Object> update = new HashMap<>();
         update.put("id", m.getId());
         update.put("version", 999);   // stale
@@ -122,7 +124,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchUpdateWithBadEnumReportsFieldError() {
-        Member m = approved("검증", "2023000001", null);
+        Member m = approved("검증", "2023000001");
         Map<String, Object> update = new HashMap<>();
         update.put("id", m.getId());
         update.put("fields", Map.of("grade", "BOGUS"));
@@ -145,8 +147,8 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchAppliesGoodRowsWhileReportingConflictRow() {
-        Member ok = approved("정상", "2023000001", null);
-        Member stale = approved("충돌", "2023000002", null);
+        Member ok = approved("정상", "2023000001");
+        Member stale = approved("충돌", "2023000002");
 
         Map<String, Object> good = new HashMap<>();
         good.put("id", ok.getId());
@@ -176,7 +178,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchDeleteRemovesMember() {
-        Member m = approved("삭제", "2023000001", null);
+        Member m = approved("삭제", "2023000001");
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
                 .body(Map.of("deletes", List.of(m.getId())))
@@ -189,7 +191,7 @@ class AdminResourceTest extends PostgresTest {
 
     @Test
     void batchDeleteBlockedForStudyLeader() {
-        Member leader = approved("리더", "2023000001", null);
+        Member leader = approved("리더", "2023000001");
         studies.save(Study.create("스터디", List.of("x"), 5, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + officerToken)

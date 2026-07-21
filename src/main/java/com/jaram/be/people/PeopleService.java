@@ -1,11 +1,13 @@
 package com.jaram.be.people;
 
+import com.jaram.be.member.Gen;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
-import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberDepartment;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
+import com.jaram.be.member.MemberTerm;
 import com.jaram.be.people.dto.PeopleGroup;
 import com.jaram.be.people.dto.PeopleResponse;
 import com.jaram.be.people.dto.PeopleTab;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * UC-P1: list ACTIVE members as the three people tabs. exec is grouped by
@@ -38,15 +41,11 @@ public class PeopleService {
                 .filter(m -> m.getStatus() != MemberStatus.WITHDRAWN)
                 .toList();
         return new PeopleResponse(
-                execTab(byCategory(active, MemberCategory.exec)),
+                execTab(active.stream().filter(m -> m.currentTerm().isPresent()).toList()),
                 flatTab("자람에 힘을 더해주신 분들입니다.", "등록된 기여자가 없습니다.",
-                        byCategory(active, MemberCategory.contrib)),
+                        active.stream().filter(Member::isContributor).toList()),
                 flatTab("자람을 거쳐 나아간 선배들입니다.", "등록된 졸업자가 없습니다.",
-                        byCategory(active, MemberCategory.grad)));
-    }
-
-    private List<Member> byCategory(List<Member> all, MemberCategory category) {
-        return all.stream().filter(m -> m.hasCategory(category)).toList();
+                        active.stream().filter(m -> m.getGrade() == MemberGrade.OB).toList()));
     }
 
     // exec: one group per department, preserving first-seen order.
@@ -56,8 +55,7 @@ public class PeopleService {
             byDept.computeIfAbsent(m.getDepartment(), k -> new ArrayList<>()).add(toCard(m));
         }
         List<PeopleGroup> groups = new ArrayList<>();
-        byDept.forEach((dept, cards) ->
-                groups.add(new PeopleGroup(dept == null ? null : dept.label(), cards)));
+        byDept.forEach((dept, cards) -> groups.add(new PeopleGroup(dept.label(), cards)));
         return new PeopleTab("지금 자람을 이끄는 임원진입니다.", "등록된 임원 정보가 없습니다.", groups);
     }
 
@@ -70,19 +68,30 @@ public class PeopleService {
     }
 
     private PersonMember toCard(Member m) {
+        Integer gen = displayGen(m);
         return new PersonMember(
                 m.getName(),
                 roleLabel(m),
-                m.getGen() == null ? null : m.getGen() + "기",
+                gen == null ? null : gen + "기",
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());
     }
 
-    // PersonMember.role은 required. 직책(title)이 있으면 그 라벨, 없으면 등급(grade)
-    // 라벨로 폴백(예 grad 카드 "OB"). 둘 다 없으면 빈 문자열로 non-null 보장.
+    // 재학 중에는 가입 기수, 졸업(OB) 후에는 입학 기수로 부르는 관례. 저장값은 그대로 두고 표시만 바꾼다.
+    private Integer displayGen(Member m) {
+        if (m.getGrade() != MemberGrade.OB) return m.getGen();
+        Integer enrolled = Gen.ofStudentId(m.getStudentId());
+        return enrolled != null ? enrolled : m.getGen();
+    }
+
+    // PersonMember.role은 required. 현직 임기 → 그 라벨, 지난 임기 → "전 {라벨}",
+    // 임기가 없으면 등급(grade) 라벨로 폴백. 셋 다 없으면 빈 문자열로 non-null 보장.
     private String roleLabel(Member m) {
-        if (m.getTitle() != null) return m.getTitle().label(m.getDepartment());
+        Optional<MemberTerm> cur = m.currentTerm();
+        if (cur.isPresent()) return cur.get().label();
+        Optional<MemberTerm> past = m.lastEndedTerm();
+        if (past.isPresent()) return "전 " + past.get().label();
         if (m.getGrade() != null) return m.getGrade().label();
         return "";
     }

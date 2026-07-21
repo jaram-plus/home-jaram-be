@@ -2,8 +2,8 @@ package com.jaram.be.people;
 
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
-import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberDepartment;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.member.MemberTitle;
@@ -29,30 +29,36 @@ class PeopleTest extends PostgresTest {
         members.deleteAll();
     }
 
-    private Member active(String name, String studentId, String email,
-                         MemberCategory category, MemberDepartment department, MemberTitle title, Integer gen) {
+    // 승인·활동 상태만 세팅한 회원. 탭 판정(임기/기여자/등급)은 각 테스트가 직접 준다.
+    private Member active(String name, String studentId, String email, Integer gen) {
         Member m = Member.newPending(name, studentId, email, "hash");
         m.setApproval(MemberApproval.APPROVED);
         m.setStatus(MemberStatus.ACTIVE);
-        m.award(category);
-        m.setDepartment(department);
-        m.setTitle(title);
         m.setGen(gen);
-        return members.save(m);
+        return m;
     }
 
     @Test
     void returnsActiveMembersGroupedByTab() {
-        active("김자람", "2023000001", "a@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
-        active("박학술", "2023000002", "b@hanyang.ac.kr", MemberCategory.exec, MemberDepartment.ACADEMIC, MemberTitle.LEAD, 41);
-        active("박나눔", "2023000003", "c@hanyang.ac.kr", MemberCategory.contrib, null, null, 38);
-        active("정졸업", "2023000004", "d@hanyang.ac.kr", MemberCategory.grad, null, null, null);
+        Member president = active("김자람", "2023000001", "a@hanyang.ac.kr", 41);
+        president.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 42);
+        members.save(president);
+
+        Member lead = active("박학술", "2023000002", "b@hanyang.ac.kr", 41);
+        lead.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 42);
+        members.save(lead);
+
+        Member contributor = active("박나눔", "2023000003", "c@hanyang.ac.kr", 38);
+        contributor.setContributor(true);
+        members.save(contributor);
+
+        Member graduate = active("정졸업", "2023000004", "d@hanyang.ac.kr", null);
+        graduate.setGrade(MemberGrade.OB);
+        members.save(graduate);
 
         // PENDING member must be excluded
         Member pending = Member.newPending("대기", "2023000099", "p@hanyang.ac.kr", "hash");
-        pending.award(MemberCategory.exec);
-        pending.setDepartment(MemberDepartment.LEADERSHIP);
-        pending.setTitle(MemberTitle.VICE_PRESIDENT);
+        pending.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.VICE_PRESIDENT, 42);
         members.save(pending);
 
         given().when().get("/api/people").then().statusCode(200)
@@ -69,39 +75,55 @@ class PeopleTest extends PostgresTest {
                 .body("contrib.groups[0].heading", nullValue())
                 .body("contrib.groups[0].members[0].name", equalTo("박나눔"))
                 .body("contrib.groups[0].members[0].gen", equalTo("38기"))
-                .body("grad.groups[0].members[0].gen", nullValue());
+                .body("grad.groups[0].members[0].name", equalTo("정졸업"));
     }
 
     @Test
-    void memberWithMultipleAwardsAppearsInEachAwardedTab() {
-        Member m = Member.newPending("멀티", "2023000010", "m@hanyang.ac.kr", "hash");
-        m.setApproval(MemberApproval.APPROVED);
-        m.setStatus(MemberStatus.ACTIVE);
-        m.award(MemberCategory.exec);
-        m.award(MemberCategory.grad);
-        m.setDepartment(MemberDepartment.LEADERSHIP);
-        m.setTitle(MemberTitle.PRESIDENT);
-        m.setGen(40);
+    void officerWhoIsAlsoAContributorAppearsInBothTabs() {
+        Member m = active("멀티", "2023000010", "m@hanyang.ac.kr", 40);
+        m.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 42);
+        m.setContributor(true);
         members.save(m);
 
         given().when().get("/api/people").then().statusCode(200)
                 .body("exec.groups.flatten().members.flatten().name", hasItem("멀티"))
-                .body("grad.groups.flatten().members.flatten().name", hasItem("멀티"))
-                .body("contrib.groups.flatten().members.flatten().name", not(hasItem("멀티")));
+                .body("contrib.groups.flatten().members.flatten().name", hasItem("멀티"))
+                .body("grad.groups.flatten().members.flatten().name", not(hasItem("멀티")));
     }
 
     @Test
-    void regularMemberAppearsInNoTab() {
-        // newPending default = regular (no award) → excluded from all three tabs
-        Member m = Member.newPending("일반", "2023000011", "r@hanyang.ac.kr", "hash");
-        m.setApproval(MemberApproval.APPROVED);
-        m.setStatus(MemberStatus.ACTIVE);
+    void plainMemberAppearsInNoTab() {
+        // 임기 없음 + 기여자 아님 + 졸업 아님 → 세 탭 모두에서 제외
+        Member m = active("일반", "2023000011", "r@hanyang.ac.kr", 41);
+        m.setGrade(MemberGrade.REGULAR);
         members.save(m);
 
         given().when().get("/api/people").then().statusCode(200)
                 .body("exec.groups.flatten().members.flatten().name", not(hasItem("일반")))
                 .body("contrib.groups.flatten().members.flatten().name", not(hasItem("일반")))
                 .body("grad.groups.flatten().members.flatten().name", not(hasItem("일반")));
+    }
+
+    @Test
+    void pastOfficerKeepsRoleWithFormerPrefix() {
+        Member m = active("박선배", "2021000001", "senior@jaram.net", 37);
+        m.setGrade(MemberGrade.OB);
+        m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 41);
+        m.endCurrentTerm(41);
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("grad.groups[0].members[0].role", equalTo("전 학술부장"));
+    }
+
+    @Test
+    void graduateGenComesFromStudentIdPrefix() {
+        Member m = active("최선배", "2021000002", "senior2@jaram.net", 40);
+        m.setGrade(MemberGrade.OB);
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("grad.groups[0].members[0].gen", equalTo("37기"));   // 2021 - 1984
     }
 
     @Test

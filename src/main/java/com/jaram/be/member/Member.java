@@ -1,10 +1,14 @@
 package com.jaram.be.member;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnDefault;
+
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Entity
@@ -24,21 +28,18 @@ public class Member {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    private MemberTitle title;            // 직책 (nullable). 권한(authority)의 단일 진실원.
-    @Enumerated(EnumType.STRING)
     private MemberGrade grade;            // 등급 (승인 시 gen 파생, nullable 이전)
-    @Enumerated(EnumType.STRING)
-    private MemberDepartment department;  // 부서 (exec 그룹용, nullable)
 
-    // A member is 일반(regular) by default and may be awarded any of
-    // exec/contrib/grad simultaneously. regular and the awards are mutually
-    // exclusive: awarding drops regular, revoking the last award restores it.
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "member_category",
-                     joinColumns = @JoinColumn(name = "member_id"))
-    @Column(name = "category")
-    @Enumerated(EnumType.STRING)
-    private Set<MemberCategory> categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
+    // 기여자 여부. 임원(임기)·졸업(grade)과 달리 파생할 근거가 없어 그대로 저장한다.
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    private boolean contributor = false;
+
+    // 직책 이력. 현직(endGen == null)은 최대 하나이며 title/department 는 여기서 파생한다.
+    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true,
+               fetch = FetchType.EAGER)
+    @OrderBy("startGen ASC")
+    private List<MemberTerm> terms = new ArrayList<>();
 
     private Integer gen;          // 기수 정수 (응답은 "{gen}기")
     @Column(length = 1000)
@@ -71,7 +72,6 @@ public class Member {
         m.studentId = studentId;
         m.email = email;
         m.passwordHash = passwordHash;
-        m.categories = new LinkedHashSet<>(Set.of(MemberCategory.regular));
         m.approval = MemberApproval.PENDING;
         m.status = MemberStatus.ACTIVE;
         m.createdAt = Instant.now();
@@ -85,8 +85,8 @@ public class Member {
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String h) { this.passwordHash = h; }
-    // 권한은 저장하지 않는다 — 직책이 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
-    public Authority getAuthority() { return title != null ? Authority.OFFICER : Authority.MEMBER; }
+    // 권한은 저장하지 않는다 — 진행 중인 임기가 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
+    public Authority getAuthority() { return currentTerm().isPresent() ? Authority.OFFICER : Authority.MEMBER; }
     public MemberStatus getStatus() { return status; }
     public void setStatus(MemberStatus s) { this.status = s; }
     public MemberApproval getApproval() { return approval; }
@@ -97,25 +97,43 @@ public class Member {
     public Long getVersion() { return version; }
 
     // Profile fields (people tab). Read by PeopleService; mutable as a member edits their profile.
-    public Set<MemberCategory> getCategories() { return Collections.unmodifiableSet(categories); }
-    public boolean hasCategory(MemberCategory c) { return categories.contains(c); }
+    public boolean isContributor() { return contributor; }
 
-    // award(regular) is a no-op; awarding any real category drops regular.
-    public void award(MemberCategory c) {
-        if (c == MemberCategory.regular) return;
-        categories.remove(MemberCategory.regular);
-        categories.add(c);
+    public void setContributor(boolean contributor) { this.contributor = contributor; }
+
+    public List<MemberTerm> getTerms() { return Collections.unmodifiableList(terms); }
+
+    /** 진행 중인 임기. 불변식상 최대 하나다. */
+    public Optional<MemberTerm> currentTerm() {
+        return terms.stream().filter(MemberTerm::isCurrent).findFirst();
     }
 
-    // revoking the last award restores regular so a member is never categoryless.
-    public void revoke(MemberCategory c) {
-        categories.remove(c);
-        if (categories.isEmpty()) categories.add(MemberCategory.regular);
+    /** 종료된 임기 중 startGen 이 가장 큰 것. 없으면 empty. */
+    public Optional<MemberTerm> lastEndedTerm() {
+        return terms.stream().filter(t -> !t.isCurrent())
+                .max(Comparator.comparingInt(MemberTerm::getStartGen));
     }
-    public MemberTitle getTitle() { return title; }
-    public void setTitle(MemberTitle t) { this.title = t; }
-    public MemberDepartment getDepartment() { return department; }
-    public void setDepartment(MemberDepartment d) { this.department = d; }
+
+    public MemberTitle getTitle() {
+        return currentTerm().map(MemberTerm::getTitle).orElse(null);
+    }
+
+    public MemberDepartment getDepartment() {
+        return currentTerm().map(MemberTerm::getDepartment).orElse(null);
+    }
+
+    /** 같은 (부서, 직책)이면 아무것도 하지 않는다 — 저장할 때마다 길이 0 임기가 쌓이지 않도록. */
+    public void assignTerm(MemberDepartment d, MemberTitle t, int currentGen) {
+        Optional<MemberTerm> cur = currentTerm();
+        if (cur.isPresent() && cur.get().getDepartment() == d && cur.get().getTitle() == t) return;
+        cur.ifPresent(term -> term.end(currentGen));
+        terms.add(MemberTerm.start(this, d, t, currentGen));
+    }
+
+    public void endCurrentTerm(int currentGen) {
+        currentTerm().ifPresent(t -> t.end(currentGen));
+    }
+
     public Integer getGen() { return gen; }
     public void setGen(Integer g) { this.gen = g; }
     public String getBio() { return bio; }

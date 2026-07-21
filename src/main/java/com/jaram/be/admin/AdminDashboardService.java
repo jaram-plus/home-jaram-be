@@ -2,9 +2,9 @@ package com.jaram.be.admin;
 
 import com.jaram.be.admin.dto.DashboardStats;
 import com.jaram.be.admin.dto.DashboardStats.*;
+import com.jaram.be.member.Gen;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
-import com.jaram.be.member.MemberCategory;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
@@ -15,7 +15,6 @@ import com.jaram.be.study.StudyApplicationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Year;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +26,6 @@ import java.util.Map;
  */
 @Service
 public class AdminDashboardService {
-
-    private static final int FOUNDING_YEAR = 1984;
 
     private final MemberRepository members;
     private final SeminarRepository seminars;
@@ -50,7 +47,7 @@ public class AdminDashboardService {
         List<Member> pending = members.findByApproval(MemberApproval.PENDING);
 
         int totalMembers = approved.size();
-        int alumniCount = (int) approved.stream().filter(m -> m.hasCategory(MemberCategory.grad)).count();
+        int alumniCount = (int) approved.stream().filter(m -> m.getGrade() == MemberGrade.OB).count();
 
         int seminarCount = (int) seminars.count();
         int attendanceCount = (int) attendances.count();
@@ -97,7 +94,7 @@ public class AdminDashboardService {
     }
 
     private PendingBreakdown pendingBreakdown(List<Member> pending) {
-        int currentGen = Year.now().getValue() - FOUNDING_YEAR;
+        int currentGen = Gen.current();
         int freshman = (int) pending.stream()
                 .filter(m -> m.getGen() != null && m.getGen() == currentGen).count();
         int enrolled = (int) pending.stream()

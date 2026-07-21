@@ -28,20 +28,19 @@ class AdminDashboardTest extends PostgresTest {
         officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
     }
 
-    private void approved(String name, String sid, MemberGrade grade, int gen, MemberCategory cat) {
+    private void approved(String name, String sid, MemberGrade grade, int gen) {
         Member m = Member.newPending(name, sid, name + "@hanyang.ac.kr", "hash");
         m.setApproval(MemberApproval.APPROVED);
         m.setGrade(grade);
         m.setGen(gen);
-        if (cat != null) m.award(cat);
         members.save(m);
     }
 
     @Test
     void statsAggregatesMembersGradesAndCohorts() {
-        approved("a", "2023000001", MemberGrade.NEWCOMER, 42, null);
-        approved("b", "2023000002", MemberGrade.ASSOCIATE, 41, null);
-        approved("c", "2023000003", MemberGrade.OB, 38, MemberCategory.grad);
+        approved("a", "2023000001", MemberGrade.NEWCOMER, 42);
+        approved("b", "2023000002", MemberGrade.ASSOCIATE, 41);
+        approved("c", "2023000003", MemberGrade.OB, 38);
         // pending members
         Member p = Member.newPending("대기", "2023000009", "p@hanyang.ac.kr", "hash");
         p.setGen(42);
