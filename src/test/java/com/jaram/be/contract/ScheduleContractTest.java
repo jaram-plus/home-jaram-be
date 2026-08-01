@@ -40,16 +40,12 @@ class ScheduleContractTest extends PostgresTest {
     //    path params (the UUID {id}).
     //  - oneOf: the same library mishandles `oneOf: [<object>, {type: 'null'}]` — a JSON
     //    null "matches 2 of 2", so every empty slot's `member`/`seminarApprovalStatus` fails.
-    //  - additionalProperties: the submit endpoint returns a Seminar, which carries the
-    //    known out-of-scope `capacity` drift (design §6-2) the contract's schema forbids.
     private final OpenApiValidationFilter validation = new OpenApiValidationFilter(
             OpenApiInteractionValidator.createForSpecificationUrl("openapi/openapi.yaml")
                     .withLevelResolver(LevelResolver.create()
                             .withLevel("validation.request.parameter.schema.invalidJson",
                                     ValidationReport.Level.IGNORE)
                             .withLevel("validation.response.body.schema.oneOf",
-                                    ValidationReport.Level.IGNORE)
-                            .withLevel("validation.response.body.schema.additionalProperties",
                                     ValidationReport.Level.IGNORE)
                             .build())
                     .build());

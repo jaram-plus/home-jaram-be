@@ -15,6 +15,5 @@ public record SeminarCreateRequest(
         String mode,
         String attendanceCode,
         String materialUrl,
-        Integer capacity,
         String description
 ) { }

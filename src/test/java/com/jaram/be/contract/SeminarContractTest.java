@@ -38,15 +38,11 @@ class SeminarContractTest extends PostgresTest {
 
     // swagger-request-validator 2.43.0 mis-handles OAS 3.1 `type: string` path parameters,
     // JSON-parsing the {id} value (a UUID) and failing. Downgrade only that spurious
-    // request-parameter error. Also ignore response additionalProperties for the known,
-    // out-of-scope `capacity`/`target` Seminar drift (design §6-2): every Seminar response
-    // carries `capacity`, which the contract's Seminar schema (using `target`) forbids.
+    // request-parameter error.
     private final OpenApiValidationFilter validation = new OpenApiValidationFilter(
             OpenApiInteractionValidator.createForSpecificationUrl("openapi/openapi.yaml")
                     .withLevelResolver(LevelResolver.create()
                             .withLevel("validation.request.parameter.schema.invalidJson",
-                                    ValidationReport.Level.IGNORE)
-                            .withLevel("validation.response.body.schema.additionalProperties",
                                     ValidationReport.Level.IGNORE)
                             .build())
                     .build());
@@ -76,7 +72,7 @@ class SeminarContractTest extends PostgresTest {
     void createMatchesContract() {
         given().filter(validation).header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
-                .body(Map.of("title", "새 세미나", "startsAt", "2026-07-01T10:00:00Z", "capacity", 40))
+                .body(Map.of("title", "새 세미나", "startsAt", "2026-07-01T10:00:00Z"))
                 .when().post("/api/seminars").then().statusCode(201);
     }
 

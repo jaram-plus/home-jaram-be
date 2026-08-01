@@ -58,7 +58,6 @@ class SeminarListTest extends PostgresTest {
                 .body("[1].time", equalTo("19:00"))
                 .body("[1].place", equalTo("IT관 401"))
                 .body("[1].materialUrl", equalTo("https://m.example.com/a"))
-                .body("[1].capacity", equalTo(30))
                 // attendanceCode must never be serialized
                 .body("[0]", not(hasKey("attendanceCode")))
                 .body("[1]", not(hasKey("attendanceCode")));

@@ -42,7 +42,6 @@ class SeminarCreateTest extends PostgresTest {
                 "startsAt", "2027-07-01T10:00:00Z",
                 "place", "IT관 401",
                 "attendanceCode", "JOIN123",
-                "capacity", 40,
                 "description", "이번 세미나는 신규 회원 대상입니다.");
 
         String id = given().header("Authorization", "Bearer " + officerToken)
@@ -51,9 +50,10 @@ class SeminarCreateTest extends PostgresTest {
                 .then().statusCode(201)
                 .body("title", equalTo("새 세미나"))
                 .body("status", equalTo("UPCOMING"))
-                .body("capacity", equalTo(40))
                 .body("description", equalTo("이번 세미나는 신규 회원 대상입니다."))
                 .body("$", not(hasKey("attendanceCode")))
+                // 계약 Seminar 스키마는 capacity를 허용하지 않는다 (정원은 RosterResponse.cap).
+                .body("$", not(hasKey("capacity")))
                 .extract().path("id");
 
         // persisted with the (hidden) attendance code

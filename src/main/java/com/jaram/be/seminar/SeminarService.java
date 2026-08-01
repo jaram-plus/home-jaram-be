@@ -76,7 +76,7 @@ public class SeminarService {
         Seminar s = Seminar.create(
                 req.title(), req.speaker(), req.topic(), req.startsAt(),
                 req.place(), req.mode(), req.attendanceCode(),
-                req.materialUrl(), req.capacity(), createdById);
+                req.materialUrl(), null, createdById);
         s.setDescription(req.description());
         s.approve();
         Seminar saved = seminars.save(s);
@@ -103,7 +103,6 @@ public class SeminarService {
                 s.getMode(),
                 SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes),
                 s.getMaterialUrl(),
-                s.getCapacity(),
                 s.getDescription(),
                 closesAt.toString(),
                 attendedAt,
@@ -127,7 +126,6 @@ public class SeminarService {
         s.setTopic(req.topic());
         s.setMaterialUrl(req.materialUrl());
         s.setDescription(req.description());
-        s.setCapacity(req.capacity());
         // 슬롯 연동 세미나는 시간/장소/모드를 Schedule 값으로 유지(요청 무시). attendanceCode는 항상 무시.
         if (s.getScheduleId() == null) {
             s.setStartsAt(req.startsAt());
@@ -138,7 +136,7 @@ public class SeminarService {
         return toResponse(s, callerId);
     }
 
-    // 슬롯 제출 경로: PENDING 유지, 시간/장소/모드는 Schedule 값, attendanceCode·capacity 무시.
+    // 슬롯 제출 경로: PENDING 유지, 시간/장소/모드는 Schedule 값, attendanceCode 무시.
     @Transactional
     public SeminarResponse submitFromSlot(SeminarCreateRequest req, String memberId, String scheduleId,
                                           Instant startsAt, String place, String mode) {
