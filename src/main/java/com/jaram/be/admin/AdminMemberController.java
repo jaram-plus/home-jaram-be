@@ -1,5 +1,6 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.admin.dto.MemberDetail;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.admin.dto.RejectRequest;
 import jakarta.validation.Valid;
@@ -17,6 +18,10 @@ public class AdminMemberController {
 
     @GetMapping("/pending")
     public List<PendingMember> pending() { return service.listPending(); }
+
+    // /pending 은 리터럴이라 Spring 이 {id} 보다 먼저 매칭한다.
+    @GetMapping("/{id}")
+    public MemberDetail detail(@PathVariable String id) { return service.detail(id); }
 
     @PostMapping("/{id}/approve")
     public void approve(@PathVariable String id) { service.approve(id); }

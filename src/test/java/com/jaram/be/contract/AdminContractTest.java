@@ -102,4 +102,23 @@ class AdminContractTest extends PostgresTest {
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200);
     }
+
+    @Test
+    void memberDetailMatchesContract() {
+        Member m = approved("김자람", "2023000001");
+        given().filter(validation)
+                .header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/" + m.getId())
+                .then().statusCode(200);
+    }
+
+    /** grade 는 승인 전까지 null 이다. MemberDetail 이 그 null 을 허용하는지 못박는다. */
+    @Test
+    void pendingMemberDetailWithNullGradeMatchesContract() {
+        Member m = members.save(Member.newPending("신청자", "2023000002", "apply@hanyang.ac.kr", "hash"));
+        given().filter(validation)
+                .header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/" + m.getId())
+                .then().statusCode(200);
+    }
 }

@@ -1,5 +1,6 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.admin.dto.MemberDetail;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Gen;
@@ -26,6 +27,11 @@ public class AdminMemberService {
                 .map(m -> new PendingMember(m.getId(), m.getName(), m.getStudentId(),
                         m.getEmail(), m.getCreatedAt().toString()))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public MemberDetail detail(String id) {
+        return MemberDetail.of(load(id));
     }
 
     @Transactional

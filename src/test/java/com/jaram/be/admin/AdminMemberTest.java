@@ -89,4 +89,48 @@ class AdminMemberTest extends PostgresTest {
                 .when().post("/api/admin/members/" + p.getId() + "/reject")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));
     }
+
+    @Test
+    void officerReadsMemberDetail() {
+        Member m = pending("detail@hanyang.ac.kr", "2023022222");
+        m.setApproval(MemberApproval.APPROVED);
+        m.setGrade(MemberGrade.ASSOCIATE);
+        m.setGen(41);
+        m.setPhone("010-1234-5678");
+        m.setFaculty("컴퓨터학부");
+        members.save(m);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/" + m.getId())
+                .then().statusCode(200)
+                .body("id", equalTo(m.getId()))
+                .body("studentId", equalTo("2023022222"))
+                .body("phone", equalTo("010-1234-5678"))
+                .body("faculty", equalTo("컴퓨터학부"))
+                .body("grade", equalTo("ASSOCIATE"))
+                .body("approval", equalTo("APPROVED"))
+                .body("contributor", equalTo(false))
+                .body("department", nullValue())
+                .body("title", nullValue())
+                .body("terms", hasSize(0))
+                .body("createdAt", notNullValue());
+    }
+
+    @Test
+    void memberDetailReturns404ForUnknownId() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/does-not-exist")
+                .then().statusCode(404).body("code", equalTo("NOT_FOUND"));
+    }
+
+    /** /pending 은 리터럴 경로라 {id} 보다 먼저 매칭돼야 한다. */
+    @Test
+    void pendingPathStillResolvesAfterAddingIdRoute() {
+        pending("stillwaiting@hanyang.ac.kr", "2023033333");
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/pending")
+                .then().statusCode(200).body("size()", equalTo(1))
+                .body("[0].email", equalTo("stillwaiting@hanyang.ac.kr"));
+    }
 }
