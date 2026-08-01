@@ -5,6 +5,7 @@ import com.jaram.be.me.dto.MeProfile;
 import com.jaram.be.me.dto.MeUpdateRequest;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.dto.MemberTermResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +52,7 @@ public class MeService {
                 m.getStatus(),
                 m.getDepartment(),
                 m.getTitle(),
+                m.getTerms().stream().map(MemberTermResponse::of).toList(),
                 m.getGen(),
                 m.getBio(),
                 m.getGithubUrl(),

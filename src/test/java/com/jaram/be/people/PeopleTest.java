@@ -113,7 +113,12 @@ class PeopleTest extends PostgresTest {
         members.save(m);
 
         given().when().get("/api/people").then().statusCode(200)
-                .body("grad.groups[0].members[0].role", equalTo("전 학술부장"));
+                .body("grad.groups[0].members[0].role", equalTo("전 학술부장"))
+                .body("grad.groups[0].members[0].terms.size()", equalTo(1))
+                .body("grad.groups[0].members[0].terms[0].department", equalTo("ACADEMIC"))
+                .body("grad.groups[0].members[0].terms[0].title", equalTo("LEAD"))
+                .body("grad.groups[0].members[0].terms[0].startGen", equalTo(41))
+                .body("grad.groups[0].members[0].terms[0].endGen", equalTo(41));
     }
 
     @Test
@@ -123,7 +128,8 @@ class PeopleTest extends PostgresTest {
         members.save(m);
 
         given().when().get("/api/people").then().statusCode(200)
-                .body("grad.groups[0].members[0].gen", equalTo(37));   // 2021 - 1984
+                .body("grad.groups[0].members[0].gen", equalTo(37))   // 2021 - 1984
+                .body("grad.groups[0].members[0].terms", hasSize(0));
     }
 
     @Test

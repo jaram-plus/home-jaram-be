@@ -5,6 +5,9 @@ import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.member.MemberTitle;
+import com.jaram.be.member.dto.MemberTermResponse;
+
+import java.util.List;
 
 public record MeProfile(
         String id,
@@ -16,6 +19,7 @@ public record MeProfile(
         MemberStatus status,          // 활동축 enum name
         MemberDepartment department,  // enum name, nullable
         MemberTitle title,            // enum name, nullable
+        List<MemberTermResponse> terms,   // 임기 이력(오래된 순), 없으면 빈 배열
         Integer gen,
         String bio,
         String githubUrl,

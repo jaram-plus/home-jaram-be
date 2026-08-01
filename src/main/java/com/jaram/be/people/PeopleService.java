@@ -8,6 +8,7 @@ import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.member.MemberTerm;
+import com.jaram.be.member.dto.MemberTermResponse;
 import com.jaram.be.people.dto.PeopleGroup;
 import com.jaram.be.people.dto.PeopleResponse;
 import com.jaram.be.people.dto.PeopleTab;
@@ -72,6 +73,7 @@ public class PeopleService {
                 m.getName(),
                 roleLabel(m),
                 displayGen(m),
+                m.getTerms().stream().map(MemberTermResponse::of).toList(),
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());

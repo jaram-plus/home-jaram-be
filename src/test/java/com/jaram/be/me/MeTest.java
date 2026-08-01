@@ -3,7 +3,9 @@ package com.jaram.be.me;
 import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberStatus;
+import com.jaram.be.member.MemberTitle;
 import com.jaram.be.security.JwtProvider;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
@@ -105,5 +107,35 @@ class MeTest extends PostgresTest {
         given().contentType("application/json").body(Map.of("bio", "x"))
                 .when().patch("/api/me")
                 .then().statusCode(401).body("code", equalTo("UNAUTHORIZED"));
+    }
+
+    @Test
+    void getReturnsTermsOldestFirst() {
+        Member m = members.findByEmail("hong@hanyang.ac.kr").orElseThrow();
+        m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 40);
+        m.endCurrentTerm(40);
+        m.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
+        members.saveAndFlush(m);
+
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/me")
+                .then().statusCode(200)
+                .body("terms.size()", equalTo(2))
+                .body("terms[0].department", equalTo("ACADEMIC"))
+                .body("terms[0].title", equalTo("LEAD"))
+                .body("terms[0].startGen", equalTo(40))
+                .body("terms[0].endGen", equalTo(40))
+                .body("terms[1].department", equalTo("LEADERSHIP"))
+                .body("terms[1].title", equalTo("PRESIDENT"))
+                .body("terms[1].startGen", equalTo(41))
+                .body("terms[1].endGen", nullValue());
+    }
+
+    @Test
+    void getReturnsEmptyTermsWhenNoTermExists() {
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/me")
+                .then().statusCode(200)
+                .body("terms", hasSize(0));
     }
 }
