@@ -21,6 +21,9 @@ public record MeProfile(
         MemberTitle title,            // enum name, nullable
         List<MemberTermResponse> terms,   // 임기 이력(오래된 순), 없으면 빈 배열
         Integer gen,
+        String faculty,               // 읽기 전용 — MeUpdateRequest 에는 없다
+        String phone,
+        boolean contributor,
         String bio,
         String githubUrl,
         String blogUrl) {

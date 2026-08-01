@@ -39,6 +39,9 @@ class MeTest extends PostgresTest {
         m.setGen(41);
         m.setBio("안녕하세요");
         m.setGithubUrl("https://github.com/hong");
+        m.setFaculty("컴퓨터학부");
+        m.setPhone("010-1234-5678");
+        m.setContributor(true);
         members.save(m);
         token = jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
     }
@@ -129,6 +132,16 @@ class MeTest extends PostgresTest {
                 .body("terms[1].title", equalTo("PRESIDENT"))
                 .body("terms[1].startGen", equalTo(41))
                 .body("terms[1].endGen", nullValue());
+    }
+
+    @Test
+    void getReturnsFacultyPhoneAndContributor() {
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/me")
+                .then().statusCode(200)
+                .body("faculty", equalTo("컴퓨터학부"))
+                .body("phone", equalTo("010-1234-5678"))
+                .body("contributor", equalTo(true));
     }
 
     @Test

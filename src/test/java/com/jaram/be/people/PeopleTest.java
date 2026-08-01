@@ -133,6 +133,19 @@ class PeopleTest extends PostgresTest {
     }
 
     @Test
+    void personCardOmitsFacultyAndPhone() {
+        Member m = active("박나눔", "2023000020", "priv@hanyang.ac.kr", 41);
+        m.setContributor(true);
+        m.setFaculty("컴퓨터학부");
+        m.setPhone("010-1234-5678");
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("contrib.groups[0].members[0]", not(hasKey("faculty")))
+                .body("contrib.groups[0].members[0]", not(hasKey("phone")));
+    }
+
+    @Test
     void emptyDatabaseReturnsEmptyGroups() {
         given().when().get("/api/people").then().statusCode(200)
                 .body("exec.groups", hasSize(0))

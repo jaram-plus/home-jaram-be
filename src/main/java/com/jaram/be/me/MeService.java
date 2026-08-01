@@ -54,6 +54,9 @@ public class MeService {
                 m.getTitle(),
                 m.getTerms().stream().map(MemberTermResponse::of).toList(),
                 m.getGen(),
+                m.getFaculty(),
+                m.getPhone(),
+                m.isContributor(),
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());
