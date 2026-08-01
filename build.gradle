@@ -40,7 +40,8 @@ dependencies {
 
 dependencyManagement {
 	imports {
-		mavenBom 'org.testcontainers:testcontainers-bom:1.20.2'
+		// 1.20.x 의 docker-java 는 Docker API 1.32 로 붙는데, Docker Engine 29 는 1.40 이상만 받는다.
+		mavenBom 'org.testcontainers:testcontainers-bom:1.21.4'
 	}
 }
 
