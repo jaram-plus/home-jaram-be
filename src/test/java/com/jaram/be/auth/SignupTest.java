@@ -35,7 +35,7 @@ class SignupTest extends PostgresTest {
         m.put("studentId", "2023012345");
         m.put("email", "hong@hanyang.ac.kr");
         m.put("password", "passw0rd!");
-        m.put("gen", "41");
+        m.put("gen", 41);
         m.put("faculty", "컴퓨터학부");
         m.put("phone", "010-1234-5678");
         m.put("enrolled", true);
@@ -93,6 +93,24 @@ class SignupTest extends PostgresTest {
         bad.remove("faculty");
         bad.remove("phone");
         bad.remove("enrolled");
+        given().contentType("application/json").body(bad)
+                .when().post("/api/auth/signup")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void missingGenReturns422() {
+        Map<String, Object> bad = valid();
+        bad.remove("gen");
+        given().contentType("application/json").body(bad)
+                .when().post("/api/auth/signup")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void zeroGenReturns422() {
+        Map<String, Object> bad = valid();
+        bad.put("gen", 0);
         given().contentType("application/json").body(bad)
                 .when().post("/api/auth/signup")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));

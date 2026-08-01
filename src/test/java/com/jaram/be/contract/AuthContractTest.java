@@ -34,7 +34,7 @@ class AuthContractTest extends PostgresTest {
                 .contentType("application/json")
                 .body(Map.of("name", "홍길동", "studentId", "2023012345",
                         "email", "hong@hanyang.ac.kr", "password", "passw0rd!",
-                        "gen", "41", "faculty", "컴퓨터학부",
+                        "gen", 41, "faculty", "컴퓨터학부",
                         "phone", "010-1234-5678", "enrolled", true))
                 .when().post("/api/auth/signup")
                 .then().statusCode(201);

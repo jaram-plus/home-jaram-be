@@ -54,7 +54,7 @@ public class AuthService {
         }
         Member m = Member.newPending(
                 req.name(), req.studentId(), req.email(), encoder.encode(req.password()));
-        m.setGen(Integer.parseInt(req.gen()));   // @Pattern ^\d+$ guarantees parseable
+        m.setGen(req.gen());
         m.setFaculty(req.faculty());
         m.setPhone(req.phone());
         // 활동축 파생: 재학 → ACTIVE, 휴학 → ON_LEAVE. 승인축은 PENDING (팩토리 기본).

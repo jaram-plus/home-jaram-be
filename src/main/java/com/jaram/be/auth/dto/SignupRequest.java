@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 
 public record SignupRequest(
         @NotBlank(message = "이름을 입력해 주세요.")
@@ -20,9 +21,9 @@ public record SignupRequest(
                  message = "비밀번호는 8자 이상이며 영문·숫자·기호를 각각 포함해야 합니다.")
         String password,
 
-        @NotBlank(message = "기수를 입력해 주세요.")
-        @Pattern(regexp = "^\\d+$", message = "기수는 숫자만 입력할 수 있습니다.")
-        String gen,
+        @NotNull(message = "기수를 입력해 주세요.")
+        @Positive(message = "기수는 1 이상의 숫자여야 합니다.")
+        Integer gen,
 
         @NotBlank(message = "학부를 입력해 주세요.")
         String faculty,
