@@ -71,10 +71,10 @@ class PeopleTest extends PostgresTest {
                 .body("exec.groups.heading", hasItems("회장단", "학술부"))
                 .body("exec.groups.flatten().members.flatten().name", hasItem("김자람"))
                 .body("exec.groups.flatten().members.flatten().name", not(hasItem("대기")))
-                // gen rendered as "{n}기"; contrib/grad single unnamed group
+                // gen은 정수로 그대로 나간다; contrib/grad는 이름 없는 단일 그룹
                 .body("contrib.groups[0].heading", nullValue())
                 .body("contrib.groups[0].members[0].name", equalTo("박나눔"))
-                .body("contrib.groups[0].members[0].gen", equalTo("38기"))
+                .body("contrib.groups[0].members[0].gen", equalTo(38))
                 .body("grad.groups[0].members[0].name", equalTo("정졸업"));
     }
 
@@ -123,7 +123,7 @@ class PeopleTest extends PostgresTest {
         members.save(m);
 
         given().when().get("/api/people").then().statusCode(200)
-                .body("grad.groups[0].members[0].gen", equalTo("37기"));   // 2021 - 1984
+                .body("grad.groups[0].members[0].gen", equalTo(37));   // 2021 - 1984
     }
 
     @Test

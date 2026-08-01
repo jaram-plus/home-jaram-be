@@ -16,7 +16,7 @@ public record MeProfile(
         MemberStatus status,          // 활동축 enum name
         MemberDepartment department,  // enum name, nullable
         MemberTitle title,            // enum name, nullable
-        String gen,
+        Integer gen,
         String bio,
         String githubUrl,
         String blogUrl) {

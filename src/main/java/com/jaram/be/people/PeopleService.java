@@ -68,11 +68,10 @@ public class PeopleService {
     }
 
     private PersonMember toCard(Member m) {
-        Integer gen = displayGen(m);
         return new PersonMember(
                 m.getName(),
                 roleLabel(m),
-                gen == null ? null : gen + "기",
+                displayGen(m),
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());

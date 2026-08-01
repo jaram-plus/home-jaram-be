@@ -50,7 +50,7 @@ class MeTest extends PostgresTest {
                 .body("studentId", equalTo("2023012345"))
                 .body("email", equalTo("hong@hanyang.ac.kr"))
                 .body("authority", equalTo("MEMBER"))
-                .body("gen", equalTo("41기"))
+                .body("gen", equalTo(41))
                 .body("bio", equalTo("안녕하세요"))
                 .body("githubUrl", equalTo("https://github.com/hong"));
     }

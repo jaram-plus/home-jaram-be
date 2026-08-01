@@ -10,8 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * GET/PATCH /api/me: the authenticated member's own profile. gen is rendered
- * "{gen}기" to match the people cards; profile edits touch only bio/github/blog.
+ * GET/PATCH /api/me: the authenticated member's own profile. gen goes out as a
+ * plain integer — the "기" suffix is FE's to render. Profile edits touch only
+ * bio/github/blog.
  */
 @Service
 public class MeService {
@@ -50,7 +51,7 @@ public class MeService {
                 m.getStatus(),
                 m.getDepartment(),
                 m.getTitle(),
-                m.getGen() == null ? null : m.getGen() + "기",
+                m.getGen(),
                 m.getBio(),
                 m.getGithubUrl(),
                 m.getBlogUrl());
