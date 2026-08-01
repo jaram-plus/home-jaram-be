@@ -156,7 +156,7 @@ public class AdminResourceService {
         return switch (tab) {
             case "exec" -> m.currentTerm().isPresent();
             case "contrib" -> m.isContributor();
-            case "graduate" -> m.getGrade() == MemberGrade.OB;
+            case "grad" -> m.getGrade() == MemberGrade.OB;
             default -> true;
         };
     }

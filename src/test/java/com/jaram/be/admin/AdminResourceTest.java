@@ -80,6 +80,20 @@ class AdminResourceTest extends PostgresTest {
                 .body("items[0].name", equalTo("박기여"));
     }
 
+    @Test
+    void listFiltersMembersByGradTab() {
+        Member ob = approved("정졸업", "2023000003");
+        ob.setGrade(MemberGrade.OB);
+        members.saveAndFlush(ob);
+        approved("김재학", "2023000004");   // ASSOCIATE
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=grad")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("items[0].name", equalTo("정졸업"));
+    }
+
     // ── A2 batch ──
 
     @Test
