@@ -11,14 +11,14 @@ public record DashboardStats(
         int studyAttendanceRate,
         Deltas deltas,
         GradeBreakdown gradeBreakdown,
-        List<CohortCount> cohortBreakdown,
+        List<GenCount> genBreakdown,
         List<TrendPoint> attendanceTrend,
         int pendingApplications,
         PendingBreakdown pendingBreakdown) {
 
     public record Deltas(int members, int seminarRate, int studyRate) { }
     public record GradeBreakdown(int probationary, int associate, int regular) { }
-    public record CohortCount(int cohort, int count) { }
+    public record GenCount(int gen, int count) { }
     public record TrendPoint(String month, int seminar, int study) { }
     public record PendingBreakdown(int freshman, int enrolled) { }
 }

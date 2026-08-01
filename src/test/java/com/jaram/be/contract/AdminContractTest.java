@@ -98,7 +98,7 @@ class AdminContractTest extends PostgresTest {
         given().filter(validation)
                 .header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
-                .body(Map.of("semester", "2026-2학기", "currentCohort", 42))
+                .body(Map.of("semester", "2026-2학기", "currentGen", 42))
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200);
     }

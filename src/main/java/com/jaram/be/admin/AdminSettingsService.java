@@ -21,7 +21,7 @@ public class AdminSettingsService {
     public AdminSettingsResponse update(AdminSettingsUpdate req) {
         AdminSettings s = loadOrCreate();
         if (req.semester() != null) s.setSemester(req.semester());
-        if (req.currentCohort() != null) s.setCurrentCohort(req.currentCohort());
+        if (req.currentGen() != null) s.setCurrentCohort(req.currentGen());
         if (req.autoPromote() != null) s.setAutoPromote(req.autoPromote());
         return toResponse(s);
     }

@@ -65,7 +65,7 @@ public class AdminDashboardService {
                 studyRate,
                 new Deltas(0, 0, 0),
                 gradeBreakdown(approved),
-                cohortBreakdown(approved),
+                genBreakdown(approved),
                 List.of(),                       // attendanceTrend: FE 스펙 확정 전까지 빈 배열
                 pendingApplications,
                 pendingBreakdown(pending));
@@ -82,14 +82,14 @@ public class AdminDashboardService {
         return (int) ms.stream().filter(m -> m.getGrade() == g).count();
     }
 
-    private List<CohortCount> cohortBreakdown(List<Member> approved) {
+    private List<GenCount> genBreakdown(List<Member> approved) {
         Map<Integer, Integer> byGen = new LinkedHashMap<>();
         for (Member m : approved) {
             if (m.getGen() == null) continue;
             byGen.merge(m.getGen(), 1, Integer::sum);
         }
         return byGen.entrySet().stream()
-                .map(e -> new CohortCount(e.getKey(), e.getValue()))
+                .map(e -> new GenCount(e.getKey(), e.getValue()))
                 .toList();
     }
 

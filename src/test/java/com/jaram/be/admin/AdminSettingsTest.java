@@ -43,11 +43,11 @@ class AdminSettingsTest extends PostgresTest {
     void patchUpdatesProvidedFieldsOnly() {
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
-                .body(Map.of("semester", "2026-2학기", "currentCohort", 42, "autoPromote", true))
+                .body(Map.of("semester", "2026-2학기", "currentGen", 42, "autoPromote", true))
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200)
                 .body("semester", equalTo("2026-2학기"))
-                .body("currentCohort", equalTo(42))
+                .body("currentGen", equalTo(42))
                 .body("autoPromote", equalTo(true));
     }
 

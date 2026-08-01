@@ -53,7 +53,7 @@ class AdminDashboardTest extends PostgresTest {
                 .body("alumniCount", equalTo(1))
                 .body("gradeBreakdown.probationary", equalTo(1))
                 .body("gradeBreakdown.associate", equalTo(1))
-                .body("cohortBreakdown.size()", greaterThanOrEqualTo(2))
+                .body("genBreakdown.size()", greaterThanOrEqualTo(2))
                 .body("pendingBreakdown.freshman", equalTo(1));
     }
 }
