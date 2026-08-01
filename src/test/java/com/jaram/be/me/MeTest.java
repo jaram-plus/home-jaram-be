@@ -113,6 +113,52 @@ class MeTest extends PostgresTest {
     }
 
     @Test
+    void patchUpdatesPhone() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("phone", "010-9999-0000");
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(body)
+                .when().patch("/api/me")
+                .then().statusCode(200)
+                .body("phone", equalTo("010-9999-0000"));
+    }
+
+    @Test
+    void patchWithoutPhoneKeepsIt() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("bio", "소개만 바꾼다");
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(body)
+                .when().patch("/api/me")
+                .then().statusCode(200)
+                .body("bio", equalTo("소개만 바꾼다"))
+                .body("phone", equalTo("010-1234-5678"));
+    }
+
+    @Test
+    void patchBlankPhoneReturns422() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("phone", "   ");
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(body)
+                .when().patch("/api/me")
+                .then().statusCode(422)
+                .body("code", equalTo("VALIDATION"))
+                .body("fieldErrors.phone", notNullValue());
+    }
+
+    @Test
+    void patchCannotChangeFaculty() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("faculty", "전자공학부");
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(body)
+                .when().patch("/api/me")
+                .then().statusCode(200)
+                .body("faculty", equalTo("컴퓨터학부"));
+    }
+
+    @Test
     void getReturnsTermsOldestFirst() {
         Member m = members.findByEmail("hong@hanyang.ac.kr").orElseThrow();
         m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 40);

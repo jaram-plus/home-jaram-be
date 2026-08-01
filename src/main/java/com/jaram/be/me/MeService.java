@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * GET/PATCH /api/me: the authenticated member's own profile. gen goes out as a
- * plain integer — the "기" suffix is FE's to render. Profile edits touch only
- * bio/github/blog.
+ * plain integer — the "기" suffix is FE's to render. Profile edits touch
+ * bio/github/blog/phone; faculty is read-only.
  */
 @Service
 public class MeService {
@@ -33,6 +33,7 @@ public class MeService {
         m.setBio(req.bio());
         m.setGithubUrl(req.githubUrl());
         m.setBlogUrl(req.blogUrl());
+        if (req.phone() != null) m.setPhone(req.phone());   // null = 미변경
         return toProfile(m);
     }
 
