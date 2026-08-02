@@ -44,7 +44,11 @@ public class PeopleService {
         return new PeopleResponse(
                 execTab(active.stream().filter(m -> m.currentTerm().isPresent()).toList()),
                 flatTab("자람에 힘을 더해주신 분들입니다.", "등록된 기여자가 없습니다.",
-                        active.stream().filter(Member::isContributor).toList()),
+                        active.stream()
+                              .filter(Member::isContributor)
+                              // 현직은 임원 탭이 담당한다 — 같은 사람을 두 탭에 싣지 않는다.
+                              .filter(m -> m.currentTerm().isEmpty())
+                              .toList()),
                 flatTab("자람을 거쳐 나아간 선배들입니다.", "등록된 졸업자가 없습니다.",
                         active.stream().filter(m -> m.getGrade() == MemberGrade.OB).toList()));
     }

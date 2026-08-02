@@ -78,8 +78,11 @@ class PeopleTest extends PostgresTest {
                 .body("grad.groups[0].members[0].name", equalTo("정졸업"));
     }
 
+    // 임기를 받으면 contributor 가 켜지므로(Member.assignTerm) 현직 임원은 모두
+    // 기여자 플래그를 갖는다. 공개 화면에서는 임원 탭이 현직을 담당하므로
+    // 기여자 탭에서 뺀다 — 같은 사람이 두 번 실리지 않게.
     @Test
-    void officerWhoIsAlsoAContributorAppearsInBothTabs() {
+    void currentOfficerIsExcludedFromTheContributorTab() {
         Member m = active("멀티", "2023000010", "m@hanyang.ac.kr", 40);
         m.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 42);
         m.setContributor(true);
@@ -87,8 +90,22 @@ class PeopleTest extends PostgresTest {
 
         given().when().get("/api/people").then().statusCode(200)
                 .body("exec.groups.flatten().members.flatten().name", hasItem("멀티"))
-                .body("contrib.groups.flatten().members.flatten().name", hasItem("멀티"))
+                .body("contrib.groups.flatten().members.flatten().name", not(hasItem("멀티")))
                 .body("grad.groups.flatten().members.flatten().name", not(hasItem("멀티")));
+    }
+
+    // 임기가 끝나면 임원 탭에서 빠지고 기여자 탭에 남는다.
+    @Test
+    void formerOfficerAppearsInTheContributorTab() {
+        Member m = active("전부장", "2023000012", "past@hanyang.ac.kr", 39);
+        m.assignTerm(MemberDepartment.PR, MemberTitle.LEAD, 40);
+        m.endCurrentTerm(41);
+        members.save(m);
+
+        given().when().get("/api/people").then().statusCode(200)
+                .body("exec.groups.flatten().members.flatten().name", not(hasItem("전부장")))
+                .body("contrib.groups.flatten().members.flatten().name", hasItem("전부장"))
+                .body("contrib.groups.flatten().members.flatten().role", hasItem("전 홍보부장"));
     }
 
     @Test
