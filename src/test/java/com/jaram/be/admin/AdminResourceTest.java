@@ -95,6 +95,52 @@ class AdminResourceTest extends PostgresTest {
                 .body("items[0].name", equalTo("정졸업"));
     }
 
+    @Test
+    void memberRowCarriesContributorAndLastTerm() {
+        // 임기가 끝난 회원 — 마지막으로 끝난 임기가 실린다.
+        Member past = approved("전학술", "2023000041");
+        past.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 40);
+        past.endCurrentTerm(41);
+        members.saveAndFlush(past);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=contrib")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("items[0].name", equalTo("전학술"))
+                .body("items[0].contributor", equalTo(true))
+                .body("items[0].termDepartment", equalTo("ACADEMIC"))
+                .body("items[0].termTitle", equalTo("LEAD"))
+                .body("items[0].termEndGen", equalTo(41));
+    }
+
+    @Test
+    void memberRowCarriesCurrentTermWithoutEndGen() {
+        Member current = approved("현직", "2023000042");
+        current.assignTerm(MemberDepartment.INFRA, MemberTitle.SERVER_ADMIN, 42);
+        members.saveAndFlush(current);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=exec")
+                .then().statusCode(200)
+                .body("items[0].termTitle", equalTo("SERVER_ADMIN"))
+                .body("items[0].termDepartment", equalTo("INFRA"))
+                .body("items[0].termEndGen", nullValue());
+    }
+
+    @Test
+    void memberRowWithoutAnyTermHasNullTermFields() {
+        approved("임기없음", "2023000043");
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=member")
+                .then().statusCode(200)
+                .body("items[0].contributor", equalTo(false))
+                .body("items[0].termTitle", nullValue())
+                .body("items[0].termDepartment", nullValue())
+                .body("items[0].termEndGen", nullValue());
+    }
+
     // ── A2 batch ──
 
     @Test

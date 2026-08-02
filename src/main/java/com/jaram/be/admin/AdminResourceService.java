@@ -8,6 +8,7 @@ import com.jaram.be.admin.dto.AdminListResponse;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberTerm;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
 import com.jaram.be.study.Study;
@@ -120,6 +121,15 @@ public class AdminResourceService {
         r.put("department", m.getDepartment() == null ? null : m.getDepartment().name());
         r.put("title", m.getTitle() == null ? null : m.getTitle().name());
         r.put("gen", m.getGen());
+        r.put("faculty", m.getFaculty());
+        // 임원 지정 화면이 임기 시작 기수를 보여준다. 현직이 없으면 null.
+        r.put("termStartGen", m.currentTerm().map(MemberTerm::getStartGen).orElse(null));
+        r.put("contributor", m.isContributor());
+        // 기여자 표의 「직책 이력」 — 현직이 있으면 현직, 없으면 마지막으로 끝난 임기.
+        MemberTerm last = m.currentTerm().or(m::lastEndedTerm).orElse(null);
+        r.put("termDepartment", last == null ? null : last.getDepartment().name());
+        r.put("termTitle", last == null ? null : last.getTitle().name());
+        r.put("termEndGen", last == null ? null : last.getEndGen());
         r.put("version", m.getVersion());
         return r;
     }
