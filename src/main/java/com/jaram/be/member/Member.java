@@ -124,6 +124,8 @@ public class Member {
 
     /** 같은 (부서, 직책)이면 아무것도 하지 않는다 — 저장할 때마다 길이 0 임기가 쌓이지 않도록. */
     public void assignTerm(MemberDepartment d, MemberTitle t, int currentGen) {
+        // 임기를 받은 사람은 기여자다. 임기가 끝나도 이력이므로 되돌리지 않는다.
+        this.contributor = true;
         Optional<MemberTerm> cur = currentTerm();
         if (cur.isPresent() && cur.get().getDepartment() == d && cur.get().getTitle() == t) return;
         cur.ifPresent(term -> term.end(currentGen));

@@ -131,4 +131,30 @@ class AdminMemberAssignmentTest extends PostgresTest {
         assertThat(reloaded.getTitle()).isNull();
         assertThat(reloaded.getAuthority()).isEqualTo(Authority.MEMBER);
     }
+
+    @Test
+    void assigningATermRegistersTheMemberAsContributor() {
+        Member m = approved("기여등록", "2023000006");
+        assertThat(m.isContributor()).isFalse();
+
+        patch(m.getId(), Map.of("department", "PR", "title", "STAFF"))
+                .body("updated.size()", equalTo(1));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isTrue();
+    }
+
+    // 임기가 끝나도 이력은 남는다 — 기여자에서 자동으로 빠지지 않는다.
+    @Test
+    void endingATermKeepsTheContributorFlag() {
+        Member m = approved("임기종료", "2023000007");
+        m.assignTerm(MemberDepartment.FINANCE, MemberTitle.LEAD, 42);
+        members.saveAndFlush(m);
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("department", null);
+        fields.put("title", null);
+        patch(m.getId(), fields).body("updated.size()", equalTo(1));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isTrue();
+    }
 }
