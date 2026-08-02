@@ -151,6 +151,7 @@ public class AdminBatchExecutor {
                 case "grade" -> enumField(MemberGrade.class, v, errors, k, g -> applyGrade(m, g), actions, false);
                 case "status" -> enumField(MemberStatus.class, v, errors, k, m::setStatus, actions, false);
                 case "approval" -> enumField(MemberApproval.class, v, errors, k, m::setApproval, actions, false);
+                case "contributor" -> boolField(v, errors, k, m::setContributor, actions);
                 case "department" -> enumCheck(MemberDepartment.class, v, errors, k);
                 case "title" -> enumCheck(MemberTitle.class, v, errors, k);
                 default -> errors.put(k, "수정할 수 없는 필드입니다.");
@@ -344,6 +345,22 @@ public class AdminBatchExecutor {
         Integer i = asInt(v);
         if (i == null) errors.put(key, "정수가 아닙니다.");
         else actions.add(() -> setter.accept(i));
+    }
+
+    private void boolField(Object v, Map<String, String> errors, String key,
+                           Consumer<Boolean> setter, List<Runnable> actions) {
+        Boolean b = asBool(v);
+        if (b == null) errors.put(key, "참/거짓이 아닙니다.");
+        else actions.add(() -> setter.accept(b));
+    }
+
+    private Boolean asBool(Object v) {
+        if (v instanceof Boolean b) return b;
+        if (v == null) return null;
+        String s = v.toString().trim();
+        if (s.equalsIgnoreCase("true")) return Boolean.TRUE;
+        if (s.equalsIgnoreCase("false")) return Boolean.FALSE;
+        return null;
     }
 
     private <E extends Enum<E>> void enumField(Class<E> type, Object v, Map<String, String> errors,

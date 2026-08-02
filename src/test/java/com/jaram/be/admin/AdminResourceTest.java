@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -244,5 +245,58 @@ class AdminResourceTest extends PostgresTest {
                 .body("created.size()", equalTo(0))
                 .body("errors.size()", equalTo(1))
                 .body("errors[0].id", equalTo("t1"));
+    }
+
+    @Test
+    void batchUpdateTogglesContributorFlag() {
+        Member m = approved("기여토글", "2023000031");
+        assertThat(m.isContributor()).isFalse();
+
+        Map<String, Object> on = new HashMap<>();
+        on.put("id", m.getId());
+        on.put("version", null);
+        on.put("fields", Map.of("contributor", true));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(on)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1))
+                .body("errors.size()", equalTo(0));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isTrue();
+
+        Map<String, Object> off = new HashMap<>();
+        off.put("id", m.getId());
+        off.put("version", null);
+        off.put("fields", Map.of("contributor", false));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(off)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isFalse();
+    }
+
+    @Test
+    void batchUpdateRejectsNonBooleanContributor() {
+        Member m = approved("잘못된값", "2023000032");
+        Map<String, Object> update = new HashMap<>();
+        update.put("id", m.getId());
+        update.put("version", null);
+        update.put("fields", Map.of("contributor", "예"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(update)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("errors.size()", equalTo(1))
+                .body("errors[0].fieldErrors.contributor", notNullValue())
+                .body("updated.size()", equalTo(0));
     }
 }
