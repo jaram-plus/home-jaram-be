@@ -52,26 +52,24 @@ class AdminMemberTest extends PostgresTest {
                 .isEqualTo(MemberApproval.APPROVED);
     }
 
+    // 등급은 가입 신청 때 이미 정해졌다 — 승인이 기수를 보고 다시 파생하지 않는다.
     @Test
-    void approveDerivesGradeFromGen() {
+    void approveKeepsTheGradeChosenAtSignup() {
         int currentGen = java.time.Year.now().getValue() - 1984;
-        Member newcomer = members.save(withGen("nc@hanyang.ac.kr", "2026000001", currentGen));
-        Member senior = members.save(withGen("sr@hanyang.ac.kr", "2020000001", currentGen - 5));
+        Member associate = members.save(
+                withGrade("sr@hanyang.ac.kr", "2020000001", currentGen, MemberGrade.ASSOCIATE));
 
-        approve(newcomer.getId());
-        approve(senior.getId());
+        approve(associate.getId());
 
         org.assertj.core.api.Assertions.assertThat(
-                members.findById(newcomer.getId()).orElseThrow().getGrade())
-                .isEqualTo(MemberGrade.NEWCOMER);
-        org.assertj.core.api.Assertions.assertThat(
-                members.findById(senior.getId()).orElseThrow().getGrade())
+                members.findById(associate.getId()).orElseThrow().getGrade())
                 .isEqualTo(MemberGrade.ASSOCIATE);
     }
 
-    private Member withGen(String email, String sid, int gen) {
+    private Member withGrade(String email, String sid, int gen, MemberGrade grade) {
         Member m = Member.newPending("가입자", sid, email, "hash");
         m.setGen(gen);
+        m.setGrade(grade);
         return m;
     }
 

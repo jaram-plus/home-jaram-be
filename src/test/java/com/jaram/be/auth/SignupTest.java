@@ -1,6 +1,8 @@
 package com.jaram.be.auth;
 
+import com.jaram.be.member.Gen;
 import com.jaram.be.member.MemberApproval;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.support.PostgresTest;
@@ -39,6 +41,7 @@ class SignupTest extends PostgresTest {
         m.put("faculty", "컴퓨터학부");
         m.put("phone", "010-1234-5678");
         m.put("enrolled", true);
+        m.put("newcomer", false);
         return m;
     }
 
@@ -111,6 +114,35 @@ class SignupTest extends PostgresTest {
     void zeroGenReturns422() {
         Map<String, Object> bad = valid();
         bad.put("gen", 0);
+        given().contentType("application/json").body(bad)
+                .when().post("/api/auth/signup")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void newcomerSignsUpAsNewcomerGrade() {
+        Map<String, Object> body = valid();
+        body.put("newcomer", true);
+        given().contentType("application/json").body(body).post("/api/auth/signup");
+        assertThat(members.findByEmail("hong@hanyang.ac.kr").orElseThrow().getGrade())
+                .isEqualTo(MemberGrade.NEWCOMER);
+    }
+
+    // 재학생은 기수와 무관하게 준회원이다 — 올해 들어온 재학생도 수습회원이 되지 않는다.
+    @Test
+    void currentStudentSignsUpAsAssociateEvenWithTheCurrentGen() {
+        Map<String, Object> body = valid();
+        body.put("newcomer", false);
+        body.put("gen", Gen.current());
+        given().contentType("application/json").body(body).post("/api/auth/signup");
+        assertThat(members.findByEmail("hong@hanyang.ac.kr").orElseThrow().getGrade())
+                .isEqualTo(MemberGrade.ASSOCIATE);
+    }
+
+    @Test
+    void missingNewcomerReturns422() {
+        Map<String, Object> bad = valid();
+        bad.remove("newcomer");
         given().contentType("application/json").body(bad)
                 .when().post("/api/auth/signup")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));

@@ -9,6 +9,7 @@ import com.jaram.be.auth.dto.UserSummary;
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
+import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.security.JwtProvider;
@@ -59,6 +60,8 @@ public class AuthService {
         m.setPhone(req.phone());
         // 활동축 파생: 재학 → ACTIVE, 휴학 → ON_LEAVE. 승인축은 PENDING (팩토리 기본).
         m.setStatus(req.enrolled() ? MemberStatus.ACTIVE : MemberStatus.ON_LEAVE);
+        // 등급은 본인이 고른 구분으로 정한다 — 신입생만 수습회원, 재학생은 기수와 무관하게 준회원.
+        m.setGrade(req.newcomer() ? MemberGrade.NEWCOMER : MemberGrade.ASSOCIATE);
         members.save(m);
     }
 

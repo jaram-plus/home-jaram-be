@@ -32,5 +32,9 @@ public record SignupRequest(
         String phone,
 
         @NotNull(message = "재학여부를 선택해 주세요.")
-        Boolean enrolled
+        Boolean enrolled,
+
+        // 신입생/재학생 구분. 등급을 정하는 데만 쓰고 저장하지는 않는다.
+        @NotNull(message = "구분을 선택해 주세요.")
+        Boolean newcomer
 ) { }

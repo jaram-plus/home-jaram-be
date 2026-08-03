@@ -3,10 +3,8 @@ package com.jaram.be.admin;
 import com.jaram.be.admin.dto.MemberDetail;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.common.ApiException;
-import com.jaram.be.member.Gen;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
-import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,21 +32,14 @@ public class AdminMemberService {
         return MemberDetail.of(load(id));
     }
 
+    // 등급은 가입 시점에 이미 정해져 있다(AuthService.signup) — 승인은 승인축만 건드린다.
     @Transactional
     public void approve(String id) {
-        Member m = load(id);
-        m.setApproval(MemberApproval.APPROVED);
-        m.setGrade(deriveGrade(m.getGen()));
+        load(id).setApproval(MemberApproval.APPROVED);
     }
 
     @Transactional
     public void reject(String id, String reason) { load(id).setApproval(MemberApproval.REJECTED); }
-
-    // 계약 MemberGrade.description: gen == 현재년도-1984 → NEWCOMER, 그 외 ASSOCIATE.
-    private MemberGrade deriveGrade(Integer gen) {
-        int currentGen = Gen.current();
-        return (gen != null && gen == currentGen) ? MemberGrade.NEWCOMER : MemberGrade.ASSOCIATE;
-    }
 
     private Member load(String id) {
         return members.findById(id)
