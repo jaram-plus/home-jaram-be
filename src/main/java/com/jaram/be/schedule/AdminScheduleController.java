@@ -20,6 +20,12 @@ public class AdminScheduleController {
         return service.create(req);
     }
 
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable String id) {
+        service.delete(id);
+    }
+
     @PatchMapping("/{id}/lock")
     public ScheduleResponse lock(@PathVariable String id) {
         return service.lock(id);

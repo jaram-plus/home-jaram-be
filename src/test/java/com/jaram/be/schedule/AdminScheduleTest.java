@@ -91,6 +91,39 @@ class AdminScheduleTest extends PostgresTest {
     }
 
     @Test
+    void officerDeletesEmptySchedule() {
+        Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().delete("/api/admin/schedules/" + s.getId()).then().statusCode(204);
+        assertThat(schedules.findById(s.getId())).isEmpty();
+    }
+
+    @Test
+    void deleteClaimedScheduleIs409() {
+        Schedule s = Schedule.create(Instant.now(), null, null, 3);
+        s.getSlots().get(0).claim("member-1");
+        schedules.save(s);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().delete("/api/admin/schedules/" + s.getId()).then().statusCode(409)
+                .body("code", equalTo("CONFLICT"));
+        assertThat(schedules.findById(s.getId())).isPresent();
+    }
+
+    @Test
+    void deleteMissingScheduleIs404() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().delete("/api/admin/schedules/nope").then().statusCode(404);
+    }
+
+    @Test
+    void memberCannotDelete() {
+        Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
+        given().header("Authorization", "Bearer " + memberToken)
+                .when().delete("/api/admin/schedules/" + s.getId()).then().statusCode(403);
+    }
+
+    @Test
     void forceReleaseEmptySlot() {
         Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
         given().header("Authorization", "Bearer " + officerToken)

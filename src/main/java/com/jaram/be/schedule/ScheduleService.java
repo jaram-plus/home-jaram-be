@@ -118,6 +118,19 @@ public class ScheduleService {
         return toResponse(schedules.save(sch));
     }
 
+    /**
+     * 일정 삭제 — 아무도 맡지 않은 일정만. 누군가 맡고 있으면 그 슬롯의 세미나까지 함께
+     * 사라지므로, 임원이 슬롯을 먼저 해제(forceRelease)하도록 409로 막는다.
+     */
+    @Transactional
+    public void delete(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        if (sch.getSlots().stream().anyMatch(s -> s.getMemberId() != null)) {
+            throw conflict("맡은 사람이 있는 일정은 삭제할 수 없습니다. 먼저 슬롯을 해제하세요.");
+        }
+        schedules.delete(sch);
+    }
+
     @Transactional
     public ScheduleResponse lock(String scheduleId) {
         Schedule sch = load(scheduleId);

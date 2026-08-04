@@ -116,6 +116,13 @@ class ScheduleContractTest extends PostgresTest {
     }
 
     @Test
+    void deleteMatchesContract() {
+        Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().delete("/api/admin/schedules/" + s.getId()).then().statusCode(204);
+    }
+
+    @Test
     void forceReleaseMatchesContract() {
         Schedule s = schedules.save(Schedule.create(Instant.now(), null, null, 3));
         given().filter(validation).header("Authorization", "Bearer " + officerToken)
