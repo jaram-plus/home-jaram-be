@@ -7,6 +7,7 @@ import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.member.MemberTerm;
 import com.jaram.be.member.MemberTitle;
+import com.jaram.be.member.dto.MemberCareerResponse;
 import com.jaram.be.member.dto.MemberTermResponse;
 
 import java.util.Comparator;
@@ -32,6 +33,8 @@ public record MemberDetail(
         MemberDepartment department,
         MemberTitle title,
         List<MemberTermResponse> terms,
+        Integer gradYear,
+        List<MemberCareerResponse> careers,
         String bio,
         String githubUrl,
         String blogUrl,
@@ -48,6 +51,8 @@ public record MemberDetail(
                         .sorted(Comparator.comparingInt(MemberTerm::getStartGen))
                         .map(MemberTermResponse::of)
                         .toList(),
+                m.getGradYear(),
+                m.getCareers().stream().map(MemberCareerResponse::of).toList(),
                 m.getBio(), m.getGithubUrl(), m.getBlogUrl(),
                 m.getCreatedAt().toString());
     }

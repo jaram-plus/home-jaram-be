@@ -41,6 +41,14 @@ public class Member {
     @OrderBy("startGen ASC")
     private List<MemberTerm> terms = new ArrayList<>();
 
+    // 졸업 후 이력. 임기(terms)와 달리 관리자가 통째로 고쳐 넣는다 — 자람 밖 일이라
+    // 서버가 지켜야 할 불변식이 없고, 표에 보이는 순서 그대로 저장한다.
+    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true,
+               fetch = FetchType.EAGER)
+    private List<MemberCareer> careers = new ArrayList<>();
+
+    private Integer gradYear;     // 졸업연도. 졸업생만 채워지며 그전에는 null.
+
     private Integer gen;          // 기수 정수 (응답은 "{gen}기")
     @Column(length = 1000)
     private String bio;
@@ -135,6 +143,30 @@ public class Member {
     public void endCurrentTerm(int currentGen) {
         currentTerm().ifPresent(t -> t.end(currentGen));
     }
+
+    public List<MemberCareer> getCareers() { return Collections.unmodifiableList(careers); }
+
+    /**
+     * 이력을 통째로 갈아 끼운다. 줄마다 고치지 않고 교체하는 이유는 화면이 표 전체를
+     * 한 번에 저장하기 때문이다 — orphanRemoval 이 빠진 줄을 지운다.
+     */
+    public void replaceCareers(List<CareerEntry> entries) {
+        careers.clear();
+        entries.forEach(e -> careers.add(MemberCareer.of(this, e.at(), e.org(), e.job())));
+    }
+
+    /** 가장 최근 이력. at 은 'YYYY.MM' 꼴이라 사전순 내림차순이 곧 최신순이다. */
+    public Optional<MemberCareer> latestCareer() {
+        return careers.stream()
+                .filter(c -> c.getAt() != null)
+                .max(Comparator.comparing(MemberCareer::getAt));
+    }
+
+    /** replaceCareers 의 입력 한 줄. 저장 전이라 엔티티가 아니다. */
+    public record CareerEntry(String at, String org, String job) { }
+
+    public Integer getGradYear() { return gradYear; }
+    public void setGradYear(Integer y) { this.gradYear = y; }
 
     public Integer getGen() { return gen; }
     public void setGen(Integer g) { this.gen = g; }

@@ -1,5 +1,6 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.admin.dto.GraduationUpdate;
 import com.jaram.be.admin.dto.MemberDetail;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.common.ApiException;
@@ -40,6 +41,22 @@ public class AdminMemberService {
 
     @Transactional
     public void reject(String id, String reason) { load(id).setApproval(MemberApproval.REJECTED); }
+
+    /**
+     * 졸업생 상세의 저장 — 졸업연도와 졸업 후 이력. 이력은 보낸 목록으로 통째로 교체한다.
+     * 표의 일괄 저장(:batch)에 얹지 않은 이유는 이력이 스칼라 칸이 아니라 줄 목록이라
+     * 한 요청 안에서 통째로 맞춰야 하기 때문이다.
+     */
+    @Transactional
+    public MemberDetail updateGraduation(String id, GraduationUpdate req) {
+        Member m = load(id);
+        m.setGradYear(req.gradYear());
+        List<GraduationUpdate.Career> careers = req.careers() == null ? List.of() : req.careers();
+        m.replaceCareers(careers.stream()
+                .map(c -> new Member.CareerEntry(c.at(), c.org(), c.job()))
+                .toList());
+        return MemberDetail.of(m);
+    }
 
     private Member load(String id) {
         return members.findById(id)
