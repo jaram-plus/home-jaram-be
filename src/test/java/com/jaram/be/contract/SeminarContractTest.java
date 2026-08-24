@@ -161,6 +161,38 @@ class SeminarContractTest extends PostgresTest {
                 .when().post("/api/admin/seminars/" + s.getId() + "/reject").then().statusCode(200);
     }
 
+    @Test
+    void attendanceCodeMatchesContract() {
+        Seminar s = seminars.save(Seminar.create("세미나", null, null, Instant.now(),
+                null, null, null, null, null, "officer-1"));
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().post("/api/admin/seminars/" + s.getId() + "/attendance-code").then().statusCode(200);
+    }
+
+    @Test
+    void closeAttendanceMatchesContract() {
+        Seminar s = seminars.save(Seminar.create("세미나", null, null, Instant.now(),
+                null, null, "CODE", null, null, "officer-1"));
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().post("/api/admin/seminars/" + s.getId() + "/close-attendance").then().statusCode(200);
+    }
+
+    @Test
+    void adminAttendeesMatchesContract() {
+        Member m = members.save(activeMember());
+        Seminar s = seminars.save(Seminar.create("세미나", null, null, Instant.now(),
+                null, null, "CODE", null, 30, "officer-1"));
+
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json").body(Map.of("memberId", m.getId()))
+                .when().post("/api/admin/seminars/" + s.getId() + "/attendees").then().statusCode(200);
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/seminars/" + s.getId() + "/attendees").then().statusCode(200);
+        given().filter(validation).header("Authorization", "Bearer " + officerToken)
+                .when().delete("/api/admin/seminars/" + s.getId() + "/attendees/" + m.getId())
+                .then().statusCode(200);
+    }
+
     private Member activeMember() {
         Member m = Member.newPending("김출석", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);

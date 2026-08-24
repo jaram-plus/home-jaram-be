@@ -17,7 +17,8 @@ public class Seminar {
     private Instant startsAt;
     private String place;
     private String mode;
-    private String attendanceCode;   // never serialized to clients
+    private String attendanceCode;   // 공개 응답엔 없다. 임원 관리 화면에만 내려간다.
+    private Instant attendanceClosedAt;  // 임원이 앞당겨 마감한 시각. null이면 출석창(startsAt+window)을 그대로 쓴다.
     private String materialUrl;
     private Integer capacity;
     private String description;      // nullable, free-text detail (set via setter, not the factory)
@@ -71,6 +72,14 @@ public class Seminar {
     public String getMode() { return mode; }
     public void setMode(String v) { this.mode = v; }
     public String getAttendanceCode() { return attendanceCode; }
+    public void setAttendanceCode(String v) { this.attendanceCode = v; }
+    public Instant getAttendanceClosedAt() { return attendanceClosedAt; }
+
+    /** 출석을 지금 닫는다. 이미 닫혀 있으면 처음 닫은 시각을 유지한다(다시 눌러도 같은 상태). */
+    public void closeAttendance(Instant at) {
+        if (this.attendanceClosedAt == null) this.attendanceClosedAt = at;
+    }
+
     public String getMaterialUrl() { return materialUrl; }
     public void setMaterialUrl(String v) { this.materialUrl = v; }
     public Integer getCapacity() { return capacity; }

@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -83,9 +84,25 @@ public class SeminarService {
         return toResponse(saved, createdById);
     }
 
+    /**
+     * 출석 인정 마감 시각 — 기본은 startsAt + 출석창이고, 임원이 앞당겨 마감했다면 그 시각.
+     * 마감을 늦추는 쪽으로는 쓰지 않는다(늘 둘 중 이른 쪽).
+     */
+    private Instant closesAt(Seminar s) {
+        Instant window = s.getStartsAt().plus(Duration.ofMinutes(windowMinutes));
+        Instant closed = s.getAttendanceClosedAt();
+        return closed != null && closed.isBefore(window) ? closed : window;
+    }
+
+    /** 표시·출석 판정에 쓰는 상태. 임원이 마감했으면 출석창이 남아 있어도 ENDED다. */
+    private SeminarStatus statusOf(Seminar s, Instant now) {
+        if (now.isBefore(s.getStartsAt())) return SeminarStatus.UPCOMING;
+        return now.isAfter(closesAt(s)) ? SeminarStatus.ENDED : SeminarStatus.ONGOING;
+    }
+
     public SeminarResponse toResponse(Seminar s, String callerId) {
         ZonedDateTime t = s.getStartsAt().atZone(SEOUL);
-        Instant closesAt = s.getStartsAt().plus(Duration.ofMinutes(windowMinutes));
+        Instant closesAt = closesAt(s);
         String attendedAt = callerId == null ? null :
                 attendances.findBySeminarIdAndMemberId(s.getId(), callerId)
                         .map(a -> formatTime(a.getAt())).orElse(null);
@@ -101,7 +118,7 @@ public class SeminarService {
                 t.format(HHMM),
                 s.getPlace(),
                 s.getMode(),
-                SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes),
+                statusOf(s, Instant.now()),
                 s.getMaterialUrl(),
                 s.getDescription(),
                 closesAt.toString(),
@@ -182,7 +199,7 @@ public class SeminarService {
             return new AttendResult(seminarId, formatTime(existing.getAt()));  // idempotent
         }
 
-        boolean ongoing = SeminarStatus.of(s.getStartsAt(), Instant.now(), windowMinutes) == SeminarStatus.ONGOING;
+        boolean ongoing = statusOf(s, Instant.now()) == SeminarStatus.ONGOING;
         // code is @NotBlank (never null); compare from it so a code-less seminar yields
         // INVALID_CODE rather than an NPE/500.
         if (!ongoing || !code.equals(s.getAttendanceCode())) {
@@ -191,6 +208,64 @@ public class SeminarService {
 
         Attendance saved = attendances.save(Attendance.create(seminarId, memberId, Instant.now()));
         return new AttendResult(seminarId, formatTime(saved.getAt()));
+    }
+
+    /**
+     * 출석 코드 재발급 (임원). 표에서 손으로 적어 넣지 않고 여기서 만들어 바로 저장한다 —
+     * 누르는 즉시 유효해지므로, 이미 코드를 알려 준 뒤에 다시 누르면 이전 코드는 못 쓴다.
+     */
+    @Transactional
+    public String regenerateAttendanceCode(String seminarId) {
+        Seminar s = load(seminarId);
+        s.setAttendanceCode(newCode());
+        return s.getAttendanceCode();
+    }
+
+    /** 헷갈리는 글자(0/O, 1/I)를 뺀 6자리. 손으로 받아 적고 부르기 쉬워야 한다. */
+    private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private String newCode() {
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) sb.append(CODE_ALPHABET[RANDOM.nextInt(CODE_ALPHABET.length)]);
+        return sb.toString();
+    }
+
+    /** 출석 마감 (임원). 출석창이 남아 있어도 지금부터 출석을 받지 않는다. */
+    @Transactional
+    public SeminarResponse closeAttendance(String seminarId) {
+        Seminar s = load(seminarId);
+        s.closeAttendance(Instant.now());
+        return toResponse(s, null);
+    }
+
+    /**
+     * 수기 출석 처리 (임원). 코드를 놓친 회원을 명단에 넣는 경로라 출석창·코드를 보지 않는다.
+     * 이미 출석한 회원이면 그대로 둔다(멱등).
+     */
+    @Transactional
+    public RosterResponse addAttendee(String seminarId, String memberId) {
+        load(seminarId);
+        if (members.findById(memberId).isEmpty()) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "회원을 찾을 수 없습니다.");
+        }
+        if (attendances.findBySeminarIdAndMemberId(seminarId, memberId).isEmpty()) {
+            attendances.save(Attendance.create(seminarId, memberId, Instant.now()));
+        }
+        return roster(seminarId);
+    }
+
+    /** 출석 취소 (임원). 없는 출석을 지우라고 해도 결과는 같으므로 멱등하게 둔다. */
+    @Transactional
+    public RosterResponse removeAttendee(String seminarId, String memberId) {
+        load(seminarId);
+        attendances.findBySeminarIdAndMemberId(seminarId, memberId).ifPresent(attendances::delete);
+        return roster(seminarId);
+    }
+
+    private Seminar load(String id) {
+        return seminars.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
     }
 
     @Transactional(readOnly = true)
@@ -206,6 +281,7 @@ public class SeminarService {
         List<RosterEntry> list = rows.stream().map(a -> {
             Member m = byId.get(a.getMemberId());
             return new RosterEntry(
+                    a.getMemberId(),
                     m == null ? null : m.getName(),
                     m == null ? null : m.getStudentId(),
                     formatTime(a.getAt()));

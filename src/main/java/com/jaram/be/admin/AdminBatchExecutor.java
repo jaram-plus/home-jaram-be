@@ -233,6 +233,8 @@ public class AdminBatchExecutor {
                 case "topic" -> actions.add(() -> s.setTopic(str(v)));
                 case "place" -> actions.add(() -> s.setPlace(str(v)));
                 case "mode" -> actions.add(() -> s.setMode(str(v)));
+                case "description" -> actions.add(() -> s.setDescription(str(v)));
+                case "materialUrl" -> actions.add(() -> s.setMaterialUrl(str(v)));
                 case "capacity" -> intField(v, errors, k, s::setCapacity, actions);
                 default -> errors.put(k, "수정할 수 없는 필드입니다.");
             }

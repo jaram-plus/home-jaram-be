@@ -11,6 +11,8 @@ import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberTerm;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.seminar.SeminarService;
+import com.jaram.be.seminar.dto.SeminarResponse;
 import com.jaram.be.study.Study;
 import com.jaram.be.study.StudyRepository;
 import org.springframework.stereotype.Service;
@@ -30,13 +32,16 @@ public class AdminResourceService {
     private final SeminarRepository seminars;
     private final StudyRepository studies;
     private final AdminBatchExecutor executor;
+    private final SeminarService seminarService;
 
     public AdminResourceService(MemberRepository members, SeminarRepository seminars,
-                                StudyRepository studies, AdminBatchExecutor executor) {
+                                StudyRepository studies, AdminBatchExecutor executor,
+                                SeminarService seminarService) {
         this.members = members;
         this.seminars = seminars;
         this.studies = studies;
         this.executor = executor;
+        this.seminarService = seminarService;
     }
 
     // ── A1: 목록 ──
@@ -134,15 +139,33 @@ public class AdminResourceService {
         return r;
     }
 
+    /**
+     * 세미나 관리 화면의 행. 표는 이 중 다섯 칸(세미나명·발표자·일시·장소·상태)만 보여주고,
+     * 나머지는 상세 모달이 쓴다. 상태·표시용 날짜는 저장값이 아니라 파생값이라 공개 응답과
+     * 같은 계산(SeminarService.toResponse)을 그대로 빌려 쓴다 — 두 화면이 갈리지 않게.
+     * attendanceCode는 여기서만 나간다 — 임원 전용 경로(/api/admin/**)이기 때문이다.
+     */
     private Map<String, Object> seminarRow(Seminar s) {
+        // 일시가 비면 상태도 표시용 날짜도 파생할 수 없다(배치 생성은 startsAt 없이도 통과한다).
+        SeminarResponse v = s.getStartsAt() == null ? null : seminarService.toResponse(s, null);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("id", s.getId());
         r.put("title", s.getTitle());
         r.put("speaker", s.getSpeaker());
         r.put("topic", s.getTopic());
-        r.put("startsAt", s.getStartsAt() == null ? null : s.getStartsAt().toString());
+        r.put("startsAt", v == null ? null : v.startsAt());
+        r.put("day", v == null ? null : v.day());
+        r.put("month", v == null ? null : v.month());
+        r.put("weekday", v == null ? null : v.weekday());
+        r.put("time", v == null ? null : v.time());
         r.put("place", s.getPlace());
         r.put("mode", s.getMode());
+        r.put("status", v == null ? null : v.status().name());
+        r.put("description", s.getDescription());
+        r.put("materialUrl", s.getMaterialUrl());
+        r.put("attendanceCode", s.getAttendanceCode());
+        r.put("attendanceClosesAt", v == null ? null : v.attendanceClosesAt());
+        r.put("attendanceClosedAt", s.getAttendanceClosedAt() == null ? null : s.getAttendanceClosedAt().toString());
         r.put("capacity", s.getCapacity());
         r.put("version", s.getVersion());
         return r;
