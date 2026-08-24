@@ -6,6 +6,7 @@ import com.jaram.be.admin.dto.AdminBatchResponse;
 import com.jaram.be.admin.dto.AdminBatchResponse.*;
 import com.jaram.be.admin.dto.AdminListResponse;
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberCareer;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberTerm;
@@ -135,6 +136,10 @@ public class AdminResourceService {
         r.put("termDepartment", last == null ? null : last.getDepartment().name());
         r.put("termTitle", last == null ? null : last.getTitle().name());
         r.put("termEndGen", last == null ? null : last.getEndGen());
+        // 졸업생 표의 「졸업연도·현재 소속·직무」 — 소속·직무는 가장 최근 이력에서 파생한다.
+        r.put("gradYear", m.getGradYear());
+        r.put("org", m.latestCareer().map(MemberCareer::getOrg).orElse(null));
+        r.put("job", m.latestCareer().map(MemberCareer::getJob).orElse(null));
         r.put("version", m.getVersion());
         return r;
     }
