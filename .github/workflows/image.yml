@@ -13,8 +13,36 @@ jobs:
     # 이미 깔려 있어 별도 service container 없이 동작함. 단, 통합 테스트 비중이
     # 높아 (~23개 @SpringBootTest) 첫 실행은 2~4분 소요됨.
     steps:
+      # 계약 테스트(src/test/resources/openapi/openapi.yaml)는 FE 저장소의 스펙을
+      # 가리키는 심볼릭 링크다 — 원본을 한 벌만 두려는 것이라 CI에서도 FE를 옆에
+      # 받아 둔다. 링크가 저장소 바깥(../home-jaram-fe)을 보므로 두 저장소를
+      # 작업공간 아래 형제로 놓는다.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          path: home-jaram-be
+
+      - name: Checkout frontend spec
+        uses: actions/checkout@v4
+        with:
+          repository: jaram-plus/home-jaram-fe
+          ref: develop
+          path: home-jaram-fe
+
+      # 계약을 함께 고치는 작업은 두 저장소가 같은 브랜치 이름을 쓴다. 그런 브랜치가
+      # 있으면 그쪽 스펙을 봐야 한다 — develop 만 보면 아직 머지되지 않은 새 경로가
+      # 스펙에 없어 짝 PR 이 늘 빨간불이 된다.
+      - name: Pick matching spec branch
+        working-directory: home-jaram-fe
+        run: |
+          branch="${{ github.head_ref || github.ref_name }}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch --depth 1 origin "$branch"
+            git checkout FETCH_HEAD
+            echo "스펙 출처: home-jaram-fe@$branch"
+          else
+            echo "스펙 출처: home-jaram-fe@develop"
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -24,8 +52,11 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: home-jaram-be
 
       - name: Run tests
+        working-directory: home-jaram-be
         run: ./gradlew test --no-daemon
 
   docker:
