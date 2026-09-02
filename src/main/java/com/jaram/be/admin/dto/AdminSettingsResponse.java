@@ -6,5 +6,6 @@ public record AdminSettingsResponse(
         int currentGen,
         boolean autoPromote,
         boolean driveConnected,
-        String driveFolder) {
+        String driveFolder,
+        SiteLinks links) {
 }
