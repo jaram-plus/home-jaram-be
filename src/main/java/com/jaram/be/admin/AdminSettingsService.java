@@ -33,6 +33,19 @@ public class AdminSettingsService {
         return toResponse(s);
     }
 
+    /**
+     * 푸터가 읽는 공개 링크 (GET /api/site/links).
+     *
+     * 임원 화면과 달리 설정 로우를 만들지 않는다 — 아무나 부를 수 있는 읽기가 쓰기를
+     * 일으키면 곤란하고, 로우가 없다는 건 등록된 채널이 없다는 뜻이라 답도 정해져 있다.
+     */
+    @Transactional(readOnly = true)
+    public SiteLinks links() {
+        return repo.findById(AdminSettings.SINGLETON_ID)
+                .map(AdminSettingsService::toLinks)
+                .orElseGet(SiteLinks::empty);
+    }
+
     private AdminSettings loadOrCreate() {
         return repo.findById(AdminSettings.SINGLETON_ID)
                 .orElseGet(() -> repo.save(AdminSettings.defaults()));
