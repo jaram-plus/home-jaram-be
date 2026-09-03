@@ -1,6 +1,9 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.member.Gen;
 import jakarta.persistence.*;
+
+import java.time.LocalDate;
 
 /**
  * 학회 단일 설정 로우 (id 고정 SINGLETON). driveConnected/driveFolder는 Drive 연동(P7)
@@ -15,8 +18,13 @@ public class AdminSettings {
     @Id
     private String id = SINGLETON_ID;
 
-    private String semester;         // 예 "2026-2학기"
-    private Integer currentCohort;   // 예 41
+    private Integer currentCohort;   // 예 41. 0/null 이면 '자동'
+    private Integer semesterTerm;    // 1|2. null 이면 '자동'
+
+    // override 를 언제 눌렀는지. 그래야 기수는 해가 바뀔 때마다 한 칸 올리고,
+    // 학기는 다음 학기가 오면 자동값으로 돌아갈 수 있다.
+    private LocalDate cohortSetOn;
+    private LocalDate semesterTermSetOn;
     private boolean autoPromote;
     private boolean driveConnected;
     private String driveFolder;      // nullable
@@ -32,8 +40,10 @@ public class AdminSettings {
     static AdminSettings defaults() {
         AdminSettings s = new AdminSettings();
         s.id = SINGLETON_ID;
-        s.semester = "";
         s.currentCohort = 0;
+        s.semesterTerm = null;
+        s.cohortSetOn = null;
+        s.semesterTermSetOn = null;
         s.autoPromote = false;
         s.driveConnected = false;
         s.driveFolder = null;
@@ -44,10 +54,40 @@ public class AdminSettings {
         return s;
     }
 
-    public String getSemester() { return semester; }
-    public void setSemester(String v) { this.semester = v; }
-    public Integer getCurrentCohort() { return currentCohort; }
-    public void setCurrentCohort(Integer v) { this.currentCohort = v; }
+    /** 3~8월은 1학기, 9~2월은 2학기. 1~2월은 아직 3월 전이라 직전 2학기가 이어진다. */
+    static int autoTerm(LocalDate on) {
+        int month = on.getMonthValue();
+        return (month >= 3 && month <= 8) ? 1 : 2;
+    }
+
+    /** 운영이 눌러 둔 학기를 쓰되, 그 학기를 벗어나면 자동값으로 돌아간다. */
+    int effectiveTerm(LocalDate today) {
+        if (semesterTerm == null || semesterTermSetOn == null) return autoTerm(today);
+        boolean sameTerm = semesterTermSetOn.getYear() == today.getYear()
+                && autoTerm(semesterTermSetOn) == autoTerm(today);
+        return sameTerm ? semesterTerm : autoTerm(today);
+    }
+
+    /** 설정해 둔 기수는 해가 바뀔 때마다 한 칸 오른다. 미설정이면 창립 연도 기준 계산값. */
+    int effectiveGen(LocalDate today) {
+        if (currentCohort == null || currentCohort <= 0 || cohortSetOn == null) {
+            return Gen.at(today.getYear());
+        }
+        return currentCohort + (today.getYear() - cohortSetOn.getYear());
+    }
+
+    void overrideTerm(int term, LocalDate on) {
+        this.semesterTerm = term;
+        this.semesterTermSetOn = on;
+    }
+
+    /** 0 이하·null 은 '자동으로 되돌린다'는 뜻이다. */
+    void overrideGen(Integer gen, LocalDate on) {
+        boolean auto = gen == null || gen <= 0;
+        this.currentCohort = auto ? 0 : gen;
+        this.cohortSetOn = auto ? null : on;
+    }
+
     public boolean isAutoPromote() { return autoPromote; }
     public void setAutoPromote(boolean v) { this.autoPromote = v; }
     public boolean isDriveConnected() { return driveConnected; }

@@ -38,13 +38,13 @@ public class AdminBatchExecutor {
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
     private final ScheduleRepository schedules;
-    private final AdminSettingsRepository settings;
+    private final AdminSettingsService settings;
 
     public AdminBatchExecutor(MemberRepository members, SeminarRepository seminars,
                               AttendanceRepository attendances, StudyRepository studies,
                               StudyApplicationRepository applications,
                               ScheduleRepository schedules,
-                              AdminSettingsRepository settings) {
+                              AdminSettingsService settings) {
         this.members = members;
         this.seminars = seminars;
         this.attendances = attendances;
@@ -54,11 +54,9 @@ public class AdminBatchExecutor {
         this.settings = settings;
     }
 
-    /** 임기 전환 기준 기수. 운영이 설정한 현재 기수를 우선하고, 미설정(0)이면 올해 기준으로 계산한다. */
+    /** 임기 전환 기준 기수. 설정값과 자동 계산의 규칙은 AdminSettingsService 가 갖는다. */
     private int currentGen() {
-        Integer c = settings.findById(AdminSettings.SINGLETON_ID)
-                .map(AdminSettings::getCurrentCohort).orElse(null);
-        return (c != null && c > 0) ? c : Gen.current();
+        return settings.currentGen();
     }
 
     // ── 행 결과 타입 ──

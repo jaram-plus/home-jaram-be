@@ -1,6 +1,7 @@
 package com.jaram.be.admin;
 
 import com.jaram.be.member.Authority;
+import com.jaram.be.member.Gen;
 import com.jaram.be.security.JwtProvider;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import java.time.LocalDate;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
@@ -38,6 +40,9 @@ class AdminSettingsTest extends PostgresTest {
                 .then().statusCode(200)
                 .body("autoPromote", equalTo(false))
                 .body("driveConnected", equalTo(false))
+                .body("semesterYear", equalTo(LocalDate.now().getYear()))
+                .body("semesterTerm", equalTo(autoTerm()))
+                .body("currentGen", equalTo(Gen.current()))
                 .body("links.github", nullValue())
                 .body("links.instagram", nullValue())
                 .body("links.blog", nullValue())
@@ -124,12 +129,85 @@ class AdminSettingsTest extends PostgresTest {
     void patchUpdatesProvidedFieldsOnly() {
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
-                .body(Map.of("semester", "2026-2학기", "currentGen", 42, "autoPromote", true))
+                .body(Map.of("currentGen", 42, "autoPromote", true))
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200)
-                .body("semester", equalTo("2026-2학기"))
                 .body("currentGen", equalTo(42))
                 .body("autoPromote", equalTo(true));
+    }
+
+    /** 연도는 서버가 오늘에서 계산한다 — 요청에 실어도 반영되지 않는다. */
+    @Test
+    void patchCannotChangeSemesterYear() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("semesterYear", 1999))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("semesterYear", equalTo(LocalDate.now().getYear()));
+    }
+
+    /** 학기는 자동값을 덮어쓸 수 있다. */
+    @Test
+    void patchOverridesSemesterTerm() {
+        int other = autoTerm() == 1 ? 2 : 1;
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("semesterTerm", other))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("semesterTerm", equalTo(other));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/settings")
+                .then().statusCode(200)
+                .body("semesterTerm", equalTo(other));
+    }
+
+    @Test
+    void patchRejectsSemesterTermOutOfRange() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("semesterTerm", 3))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(422)
+                .body("code", equalTo("VALIDATION"))
+                .body("fieldErrors.semesterTerm", org.hamcrest.Matchers.notNullValue());
+    }
+
+    /** 0 은 '자동 계산으로 되돌린다'는 뜻이다. */
+    @Test
+    void patchWithZeroGenReturnsToAuto() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("currentGen", 30))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("currentGen", equalTo(30));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("currentGen", 0))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("currentGen", equalTo(Gen.current()));
+    }
+
+    @Test
+    void patchRejectsNegativeGen() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("currentGen", -1))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(422)
+                .body("code", equalTo("VALIDATION"))
+                .body("fieldErrors.currentGen", org.hamcrest.Matchers.notNullValue());
+    }
+
+    /** 3~8월은 1학기, 나머지는 2학기 (AdminSettings.autoTerm 과 같은 규칙). */
+    private static int autoTerm() {
+        int month = LocalDate.now().getMonthValue();
+        return (month >= 3 && month <= 8) ? 1 : 2;
     }
 
     @Test
