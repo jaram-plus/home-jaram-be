@@ -101,6 +101,22 @@ class AdminSettingsTest extends PostgresTest {
                 .body("fieldErrors.'links.github'", org.hamcrest.Matchers.notNullValue());
     }
 
+    /**
+     * 형식은 맞지만 저장 컬럼(varchar(255))을 넘는 주소. 길이를 막지 않으면 검증을
+     * 통과한 뒤 저장 단계에서 터져 422 가 아니라 500 이 나간다.
+     */
+    @Test
+    void patchRejectsLinkLongerThanColumn() {
+        String tooLong = "https://blog.jaram.net/" + "a".repeat(240);
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("links", Map.of("blog", tooLong)))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(422)
+                .body("code", equalTo("VALIDATION"))
+                .body("fieldErrors.'links.blog'", org.hamcrest.Matchers.notNullValue());
+    }
+
     /** links 를 안 보내면 기존 값이 그대로 남는다 (부분 수정). */
     @Test
     void patchWithoutLinksKeepsThem() {
