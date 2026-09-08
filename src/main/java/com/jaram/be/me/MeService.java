@@ -75,6 +75,7 @@ public class MeService {
                 m.getAuthority(),
                 m.getGrade(),
                 m.getStatus(),
+                m.getReregisterRequestedAt() == null ? null : m.getReregisterRequestedAt().toString(),
                 m.getDepartment(),
                 m.getTitle(),
                 m.getTerms().stream().map(MemberTermResponse::of).toList(),
