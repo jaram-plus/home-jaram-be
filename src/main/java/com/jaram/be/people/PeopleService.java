@@ -37,9 +37,11 @@ public class PeopleService {
 
     @Transactional(readOnly = true)
     public PeopleResponse list() {
-        // 승인된 회원 중 탈퇴자(WITHDRAWN)를 제외한 현 회원(재학/휴학)만 노출.
+        // 승인된 회원 중 현 회원(재학/휴학)만 노출. 재등록 필요·탈퇴는 빠지고,
+        // 파기된 회원은 이력이 남아 있어도 공개 목록에 내지 않는다.
         List<Member> active = members.findByApproval(MemberApproval.APPROVED).stream()
-                .filter(m -> m.getStatus() != MemberStatus.WITHDRAWN)
+                .filter(m -> m.getStatus() == MemberStatus.ACTIVE || m.getStatus() == MemberStatus.ON_LEAVE)
+                .filter(m -> m.getPurgedAt() == null)
                 .toList();
         return new PeopleResponse(
                 execTab(active.stream().filter(m -> m.currentTerm().isPresent()).toList()),

@@ -51,6 +51,7 @@ public class AdminResourceService {
                                   int page, int size) {
         List<Map<String, Object>> rows = switch (resource) {
             case members -> members.findAll().stream()
+                    .filter(m -> m.getPurgedAt() == null)   // 파기된 회원은 관리 표에도 내지 않는다
                     .filter(m -> matchesMemberTab(m, tab))
                     .map(this::memberRow).toList();
             case seminars -> seminars.findAllByOrderByStartsAtDesc().stream()
@@ -107,7 +108,9 @@ public class AdminResourceService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> allRows(AdminResource resource) {
         return switch (resource) {
-            case members -> members.findAll().stream().map(this::memberRow).toList();
+            case members -> members.findAll().stream()
+                    .filter(m -> m.getPurgedAt() == null)
+                    .map(this::memberRow).toList();
             case seminars -> seminars.findAllByOrderByStartsAtDesc().stream().map(this::seminarRow).toList();
             case studies -> studies.findAll().stream().map(this::studyRow).toList();
         };
