@@ -25,6 +25,10 @@ public class AdminSettings {
     // 학기는 다음 학기가 오면 자동값으로 돌아갈 수 있다.
     private LocalDate cohortSetOn;
     private LocalDate semesterTermSetOn;
+    // 마지막으로 학기 전환 스윕을 실행한 학기. 둘 다 null 이면 아직 한 번도 돌지 않았다.
+    private Integer lastRolloverYear;
+    private Integer lastRolloverTerm;
+
     private boolean autoPromote;
     private boolean driveConnected;
     private String driveFolder;      // nullable
@@ -44,6 +48,8 @@ public class AdminSettings {
         s.semesterTerm = null;
         s.cohortSetOn = null;
         s.semesterTermSetOn = null;
+        s.lastRolloverYear = null;
+        s.lastRolloverTerm = null;
         s.autoPromote = false;
         s.driveConnected = false;
         s.driveFolder = null;
@@ -66,6 +72,17 @@ public class AdminSettings {
         boolean sameTerm = semesterTermSetOn.getYear() == today.getYear()
                 && autoTerm(semesterTermSetOn) == autoTerm(today);
         return sameTerm ? semesterTerm : autoTerm(today);
+    }
+
+    /** 마지막으로 전환을 실행한 학기. null 이면 아직 한 번도 돌지 않았다. */
+    Semester lastRollover() {
+        if (lastRolloverYear == null || lastRolloverTerm == null) return null;
+        return new Semester(lastRolloverYear, lastRolloverTerm);
+    }
+
+    void setLastRollover(Semester s) {
+        this.lastRolloverYear = s.year();
+        this.lastRolloverTerm = s.term();
     }
 
     /** 설정해 둔 기수는 해가 바뀔 때마다 한 칸 오른다. 미설정이면 창립 연도 기준 계산값. */
