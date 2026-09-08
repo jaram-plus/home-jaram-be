@@ -74,6 +74,36 @@ class MeReregistrationTest extends PostgresTest {
         assertThat(reload().getReregisterRequestedAt()).isEqualTo(first);
     }
 
+    /**
+     * 탈퇴해도 발급된 토큰은 ttl 동안 살아 있다. 로그인만 막으면 방금 탈퇴한 회원이
+     * 손에 든 토큰으로 신청류를 계속 쓸 수 있다.
+     */
+    @Test
+    void withdrawnMemberIsBlockedFromActivityWithALiveToken() {
+        given().header("Authorization", "Bearer " + token)
+                .when().post("/api/me/withdraw")
+                .then().statusCode(204);
+
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json").body(Map.of("motive", "배우고 싶습니다"))
+                .when().post("/api/studies/any-id/apply")
+                .then().statusCode(403).body("code", org.hamcrest.Matchers.equalTo("WITHDRAWN"));
+    }
+
+    /** 탈퇴는 멱등하다 — 두 번 불러도 6개월 파기 시계가 뒤로 밀리지 않는다. */
+    @Test
+    void withdrawalIsIdempotent() {
+        given().header("Authorization", "Bearer " + token)
+                .when().post("/api/me/withdraw").then().statusCode(204);
+        java.time.Instant first = reload().getWithdrawnAt();
+        assertThat(first).isNotNull();
+
+        given().header("Authorization", "Bearer " + token)
+                .when().post("/api/me/withdraw").then().statusCode(204);
+
+        assertThat(reload().getWithdrawnAt()).isEqualTo(first);
+    }
+
     @Test
     void activeMemberCannotRequestReregistration() {
         given().header("Authorization", "Bearer " + token)
