@@ -2,6 +2,7 @@ package com.jaram.be.seminar;
 
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberActivityGuard;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.seminar.dto.AttendResult;
 import com.jaram.be.seminar.dto.AttendeePreviewEntry;
@@ -41,15 +42,18 @@ public class SeminarService {
     private final SeminarRepository seminars;
     private final AttendanceRepository attendances;
     private final MemberRepository members;
+    private final MemberActivityGuard guard;
     private final long windowMinutes;
 
     public SeminarService(SeminarRepository seminars,
                           AttendanceRepository attendances,
                           MemberRepository members,
+                          MemberActivityGuard guard,
                           @Value("${seminar.attendance-window-minutes:120}") long windowMinutes) {
         this.seminars = seminars;
         this.attendances = attendances;
         this.members = members;
+        this.guard = guard;
         this.windowMinutes = windowMinutes;
     }
 
@@ -191,6 +195,7 @@ public class SeminarService {
 
     @Transactional
     public AttendResult attend(String seminarId, String memberId, String code) {
+        guard.requireRegistered(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Seminar s = seminars.findById(seminarId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
 
