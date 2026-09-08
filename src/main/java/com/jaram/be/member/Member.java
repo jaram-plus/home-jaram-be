@@ -101,9 +101,17 @@ public class Member {
     // 권한은 저장하지 않는다 — 진행 중인 임기가 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
     public Authority getAuthority() { return currentTerm().isPresent() ? Authority.OFFICER : Authority.MEMBER; }
 
-    /** 학기 전환 대상. 휴학·OB·현직 임원은 면제한다. */
+    /**
+     * 학기 전환 대상. 휴학·OB·현직 임원은 면제한다.
+     *
+     * 승인축도 함께 본다. 가입 대기 회원은 status 기본값이 ACTIVE 라, 승인을 보지 않으면
+     * 아직 승인되지 않은 신청자까지 재등록 대상이 된다 — 그러면 임원이 가입을 승인해도
+     * (approve 는 승인축만 바꾼다) 활동축이 REREGISTER 로 남아, 방금 들어온 신입이
+     * 첫 로그인에서 재등록 팝업을 보고 신청류가 막힌다.
+     */
     public boolean isRolloverTarget() {
-        return status == MemberStatus.ACTIVE
+        return approval == MemberApproval.APPROVED
+                && status == MemberStatus.ACTIVE
                 && grade != MemberGrade.OB
                 && currentTerm().isEmpty();
     }

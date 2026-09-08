@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -81,6 +82,43 @@ class MemberRolloverSweepTest extends PostgresTest {
         assertThat(statusOf(onLeave)).isEqualTo(MemberStatus.ON_LEAVE);
         assertThat(statusOf(ob)).isEqualTo(MemberStatus.ACTIVE);
         assertThat(statusOf(officer)).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    /** 승인을 기다리는 신청자는 휩쓸리지 않는다 — 승인 직후 재등록 팝업을 보면 안 된다. */
+    @Test
+    void pendingSignupIsNotRolled() {
+        Member pending = members.save(
+                Member.newPending("김신청", "2026011111", "new@hanyang.ac.kr", "hash"));
+
+        lifecycle.sweep(OCT_2026);
+        lifecycle.sweep(MAR_2027);
+
+        assertThat(statusOf(pending)).isEqualTo(MemberStatus.ACTIVE);
+    }
+
+    /**
+     * 이력이 남은 회원은 파기해도 REREGISTER 로 남는다(Member.purge 는 상태를 건드리지
+     * 않는다). 그대로 두면 학기마다 다시 파기되어 '언제 지웠는가'가 계속 밀린다.
+     */
+    @Test
+    void alreadyPurgedMemberIsNotPurgedAgain() {
+        Member m = active("이임원", "2022022222", "exec@hanyang.ac.kr");
+        m.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 41);
+        m.endCurrentTerm(42);          // 이력은 남고 현직은 아니다 → 전환 대상
+        members.save(m);
+
+        lifecycle.sweep(OCT_2026);
+        lifecycle.sweep(MAR_2027);     // ACTIVE → REREGISTER
+        lifecycle.sweep(LocalDate.of(2027, 9, 1));   // 넘기지 않았으므로 파기
+
+        Member purged = members.findById(m.getId()).orElseThrow();
+        assertThat(purged.getPurgedAt()).isNotNull();
+        assertThat(purged.getStatus()).isEqualTo(MemberStatus.REREGISTER);
+        Instant firstPurge = purged.getPurgedAt();
+
+        lifecycle.sweep(LocalDate.of(2028, 3, 1));   // 다음 전환
+
+        assertThat(members.findById(m.getId()).orElseThrow().getPurgedAt()).isEqualTo(firstPurge);
     }
 
     /** 새해 첫날은 학기 경계가 아니다. */
