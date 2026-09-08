@@ -73,6 +73,7 @@ public class AdminSettingsService {
         return new AdminSettingsResponse(
                 today.getYear(),
                 s.effectiveTerm(today),
+                s.isTermAuto(today),
                 s.effectiveGen(today),
                 s.isAutoPromote(),
                 s.isDriveConnected(),

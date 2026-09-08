@@ -54,18 +54,34 @@ public class AdminSettings {
         return s;
     }
 
-    /** 3~8월은 1학기, 9~2월은 2학기. 1~2월은 아직 3월 전이라 직전 2학기가 이어진다. */
+    /**
+     * 3~8월은 1학기, 9~2월은 2학기. 1~2월은 아직 3월 전이라 직전 2학기가 이어진다.
+     * 규칙은 Semester 하나가 갖는다 — 학기 경계가 두 곳에 따로 있으면 어긋난다.
+     */
     static int autoTerm(LocalDate on) {
-        int month = on.getMonthValue();
-        return (month >= 3 && month <= 8) ? 1 : 2;
+        return Semester.autoAt(on).term();
     }
 
     /** 운영이 눌러 둔 학기를 쓰되, 그 학기를 벗어나면 자동값으로 돌아간다. */
     int effectiveTerm(LocalDate today) {
-        if (semesterTerm == null || semesterTermSetOn == null) return autoTerm(today);
-        boolean sameTerm = semesterTermSetOn.getYear() == today.getYear()
-                && autoTerm(semesterTermSetOn) == autoTerm(today);
-        return sameTerm ? semesterTerm : autoTerm(today);
+        return termOverride(today) != null ? semesterTerm : autoTerm(today);
+    }
+
+    /** 지금 학기가 자동값인가. 화면이 '자동'과 '눌러 둔 값'을 구분해 보여 줘야 한다. */
+    boolean isTermAuto(LocalDate today) {
+        return termOverride(today) == null;
+    }
+
+    /**
+     * 아직 유효한 override. 만료됐으면 null.
+     *
+     * '같은 학기'는 달력 연도가 아니라 학년도로 본다 — 2학기는 9월부터 다음 해 2월까지라,
+     * 연도로 비교하면 10월에 눌러 둔 값이 1월 1일에 만료된다. 학기 경계는 3월 1일과
+     * 9월 1일뿐이라는 규칙이 Semester 에 있다.
+     */
+    private Integer termOverride(LocalDate today) {
+        if (semesterTerm == null || semesterTermSetOn == null) return null;
+        return Semester.autoAt(semesterTermSetOn).equals(Semester.autoAt(today)) ? semesterTerm : null;
     }
 
     /** 설정해 둔 기수는 해가 바뀔 때마다 한 칸 오른다. 미설정이면 창립 연도 기준 계산값. */
@@ -76,9 +92,11 @@ public class AdminSettings {
         return currentCohort + (today.getYear() - cohortSetOn.getYear());
     }
 
-    void overrideTerm(int term, LocalDate on) {
-        this.semesterTerm = term;
-        this.semesterTermSetOn = on;
+    /** 0 이하·null 은 '자동으로 되돌린다'는 뜻이다 (기수와 같은 규약). */
+    void overrideTerm(Integer term, LocalDate on) {
+        boolean auto = term == null || term <= 0;
+        this.semesterTerm = auto ? null : term;
+        this.semesterTermSetOn = auto ? null : on;
     }
 
     /** 0 이하·null 은 '자동으로 되돌린다'는 뜻이다. */

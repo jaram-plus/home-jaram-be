@@ -42,6 +42,7 @@ class AdminSettingsTest extends PostgresTest {
                 .body("driveConnected", equalTo(false))
                 .body("semesterYear", equalTo(ClubTime.today().getYear()))
                 .body("semesterTerm", equalTo(autoTerm()))
+                .body("semesterTermAuto", equalTo(true))
                 .body("currentGen", equalTo(Gen.current()))
                 .body("links.github", nullValue())
                 .body("links.instagram", nullValue())
@@ -181,6 +182,27 @@ class AdminSettingsTest extends PostgresTest {
                 .when().get("/api/admin/settings")
                 .then().statusCode(200)
                 .body("semesterTerm", equalTo(other));
+    }
+
+    /** 0 은 '자동으로 되돌린다'는 뜻이다 — 기수와 같은 규약이다. */
+    @Test
+    void patchWithZeroTermReturnsToAuto() {
+        int other = autoTerm() == 1 ? 2 : 1;
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("semesterTerm", other))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("semesterTerm", equalTo(other))
+                .body("semesterTermAuto", equalTo(false));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("semesterTerm", 0))
+                .when().patch("/api/admin/settings")
+                .then().statusCode(200)
+                .body("semesterTerm", equalTo(autoTerm()))
+                .body("semesterTermAuto", equalTo(true));
     }
 
     @Test
