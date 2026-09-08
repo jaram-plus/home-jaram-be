@@ -56,12 +56,52 @@ class AdminSettingsPeriodTest {
         assertThat(s.effectiveTerm(LocalDate.of(2027, 3, 5))).isEqualTo(1);
     }
 
-    /** 해가 바뀌면 같은 2학기라도 다른 학기다. */
+    /**
+     * 새해 첫날은 학기 경계가 아니다. 2학기는 9월부터 다음 해 2월까지 이어지므로
+     * 10월에 눌러 둔 값은 1월에도 살아 있다 — 달력 연도로 비교하면 여기서 만료된다.
+     */
     @Test
-    void termOverrideExpiresOnYearRollover() {
+    void termOverrideSurvivesTheNewYearWithinTheSameSemester() {
         AdminSettings s = AdminSettings.defaults();
         s.overrideTerm(1, LocalDate.of(2026, 10, 4));
-        assertThat(s.effectiveTerm(LocalDate.of(2027, 1, 9))).isEqualTo(2);
+        assertThat(s.effectiveTerm(LocalDate.of(2027, 1, 9))).isEqualTo(1);
+    }
+
+    /** 만료는 3월 1일에 온다 — 그때가 다음 학기다. */
+    @Test
+    void termOverrideExpiresAtTheMarchBoundary() {
+        AdminSettings s = AdminSettings.defaults();
+        s.overrideTerm(1, LocalDate.of(2026, 10, 4));
+        assertThat(s.effectiveTerm(LocalDate.of(2027, 3, 1))).isEqualTo(1);   // 자동값도 1
+        s.overrideTerm(2, LocalDate.of(2026, 10, 4));
+        assertThat(s.effectiveTerm(LocalDate.of(2027, 3, 1))).isEqualTo(1);   // 눌러 둔 2 는 만료
+    }
+
+    /** 0 은 '지금 바로 자동으로 되돌린다'는 뜻이다 (기수와 같은 규약). */
+    @Test
+    void termReturnsToAutoWhenClearedWithZero() {
+        AdminSettings s = AdminSettings.defaults();
+        LocalDate april = LocalDate.of(2026, 4, 10);
+        s.overrideTerm(2, april);
+        assertThat(s.effectiveTerm(april)).isEqualTo(2);
+
+        s.overrideTerm(0, april);
+        assertThat(s.effectiveTerm(april)).isEqualTo(1);
+    }
+
+    /** 화면이 '자동'과 '눌러 둔 값'을 구분해 보여 주려면 이 칸이 필요하다. */
+    @Test
+    void termAutoFlagTracksTheOverride() {
+        AdminSettings s = AdminSettings.defaults();
+        LocalDate april = LocalDate.of(2026, 4, 10);
+        assertThat(s.isTermAuto(april)).isTrue();
+
+        s.overrideTerm(2, april);
+        assertThat(s.isTermAuto(april)).isFalse();
+        assertThat(s.isTermAuto(LocalDate.of(2027, 3, 5))).isTrue();   // 다음 학기엔 만료
+
+        s.overrideTerm(0, april);
+        assertThat(s.isTermAuto(april)).isTrue();
     }
 
     // ── 기수: 미설정이면 계산, 설정해 두면 해마다 +1 ──
