@@ -7,10 +7,12 @@ import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -22,10 +24,27 @@ public class AdminMemberService {
 
     @Transactional(readOnly = true)
     public List<PendingMember> listPending() {
-        return members.findByApproval(MemberApproval.PENDING).stream()
-                .map(m -> new PendingMember(m.getId(), m.getName(), m.getStudentId(),
-                        m.getEmail(), m.getCreatedAt().toString()))
-                .toList();
+        List<PendingMember> rows = new ArrayList<>();
+        for (Member m : members.findByApproval(MemberApproval.PENDING)) {
+            rows.add(new PendingMember(m.getId(), m.getName(), m.getStudentId(), m.getEmail(),
+                    m.getCreatedAt().toString(), "SIGNUP", null));
+        }
+        for (Member m : members.findByApprovalAndStatus(MemberApproval.APPROVED, MemberStatus.REREGISTER)) {
+            rows.add(new PendingMember(m.getId(), m.getName(), m.getStudentId(), m.getEmail(),
+                    m.getCreatedAt().toString(), "REREGISTER",
+                    m.getReregisterRequestedAt() == null ? null : m.getReregisterRequestedAt().toString()));
+        }
+        return rows;
+    }
+
+    /** 재등록 승인. 활동축만 되돌리고 승인축은 건드리지 않는다. */
+    @Transactional
+    public void approveReregistration(String id) {
+        Member m = load(id);
+        if (m.getStatus() != MemberStatus.REREGISTER) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "재등록 대상이 아닙니다.");
+        }
+        m.completeReregistration();
     }
 
     @Transactional(readOnly = true)

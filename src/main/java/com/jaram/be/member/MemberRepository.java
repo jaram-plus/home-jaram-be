@@ -9,4 +9,5 @@ public interface MemberRepository extends JpaRepository<Member, String> {
     boolean existsByEmail(String email);
     boolean existsByStudentId(String studentId);
     List<Member> findByApproval(MemberApproval approval);
+    List<Member> findByApprovalAndStatus(MemberApproval approval, MemberStatus status);
 }
