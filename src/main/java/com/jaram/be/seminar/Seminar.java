@@ -87,6 +87,9 @@ public class Seminar {
     public String getDescription() { return description; }
     public void setDescription(String v) { this.description = v; }
     public String getCreatedById() { return createdById; }
+
+    /** 개설자만 떼고 세미나는 남긴다 — 연 사람이 사라져도 기록은 남아야 한다. */
+    public void detachCreator() { this.createdById = null; }
     public Instant getCreatedAt() { return createdAt; }
     public Long getVersion() { return version; }
 
