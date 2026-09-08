@@ -108,6 +108,17 @@ class MemberRolloverSweepTest extends PostgresTest {
         assertThat(statusOf(m)).isEqualTo(MemberStatus.ACTIVE);
     }
 
+    /**
+     * 스케줄러가 실제로 부르는 입구로도 저장이 되는지 본다. sweepToday 가 sweep 을
+     * 자기 자신에게서 부르면 프록시를 타지 않아 트랜잭션이 사라지고, 변경이 조용히
+     * 버려진다 — 애노테이션만 확인하는 테스트로는 잡히지 않는다.
+     */
+    @Test
+    void scheduledEntryPointPersists() {
+        lifecycle.sweepToday();
+        assertThat(settings.findById("SINGLETON").orElseThrow().lastRollover()).isNotNull();
+    }
+
     /** 서버가 한 학기 내내 꺼져 있었어도 켜질 때 한 번에 따라잡는다. */
     @Test
     void catchesUpAfterSkippedSemesters() {

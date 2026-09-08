@@ -3,6 +3,7 @@ package com.jaram.be.admin;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,20 @@ public class MemberLifecycleService {
         this.members = members;
         this.settings = settings;
         this.purger = purger;
+    }
+
+    /**
+     * 하루 한 번. 학기 전환이 실제로 일하는 건 1년에 두 번뿐이고 나머지 날은 설정
+     * 로우 한 줄을 읽고 끝난다. 주기를 정하는 건 탈퇴 6개월 파기 쪽이다 — 주 1회로
+     * 늘리면 파기가 최대 7일 늦어진다.
+     *
+     * 인스턴스가 여럿이면 같은 날 여러 번 돌 수 있지만 lastRollover 비교가 멱등해
+     * 무해하다. 서버가 며칠 꺼져 있었어도 켜질 때 밀린 전환을 따라잡는다.
+     */
+    @Scheduled(cron = "0 0 4 * * *")
+    @Transactional   // sweep 을 자기 자신에게서 부르면 프록시를 타지 않는다. 입구에 걸어야 한다
+    public void sweepToday() {
+        sweep(LocalDate.now());
     }
 
     @Transactional
