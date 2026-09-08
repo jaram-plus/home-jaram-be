@@ -26,9 +26,14 @@
 
 BEGIN;
 
--- 사전 점검 — 현재 허용값. 따로 실행해 눈으로 확인한다.
---   SELECT pg_get_constraintdef(oid) FROM pg_constraint
---    WHERE conname = 'member_status_check';
+-- 사전 점검 — 현재 허용값과 제약 이름. 따로 실행해 눈으로 확인한다.
+--   SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+--    WHERE conrelid = 'member'::regclass AND contype = 'c';
+--
+-- 이름 'member_status_check' 는 지금 쓰는 Hibernate(6.6 / Boot 3.4)가 enum 컬럼에
+-- 붙이는 규칙(<table>_<column>_check)을 그대로 따른 것이다. 버전을 올린 뒤에는
+-- 규칙이 달라질 수 있으니 위 쿼리로 실제 이름을 먼저 확인할 것 — 이름이 어긋나면
+-- 아래 DROP 이 조용히 지나가고 옛 제약이 그대로 남는다.
 
 ALTER TABLE member DROP CONSTRAINT IF EXISTS member_status_check;
 
