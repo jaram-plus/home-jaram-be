@@ -3,6 +3,7 @@ package com.jaram.be.admin;
 import com.jaram.be.admin.dto.AdminSettingsResponse;
 import com.jaram.be.admin.dto.AdminSettingsUpdate;
 import com.jaram.be.admin.dto.SiteLinks;
+import com.jaram.be.common.ClubTime;
 import com.jaram.be.member.Gen;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +25,7 @@ public class AdminSettingsService {
     @Transactional
     public AdminSettingsResponse update(AdminSettingsUpdate req) {
         AdminSettings s = loadOrCreate();
-        LocalDate today = LocalDate.now();
+        LocalDate today = ClubTime.today();
         if (req.semesterTerm() != null) s.overrideTerm(req.semesterTerm(), today);
         if (req.currentGen() != null) s.overrideGen(req.currentGen(), today);
         if (req.autoPromote() != null) s.setAutoPromote(req.autoPromote());
@@ -56,7 +57,7 @@ public class AdminSettingsService {
      */
     @Transactional(readOnly = true)
     public int currentGen() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = ClubTime.today();
         return repo.findById(AdminSettings.SINGLETON_ID)
                 .map(s -> s.effectiveGen(today))
                 .orElseGet(() -> Gen.at(today.getYear()));
@@ -68,7 +69,7 @@ public class AdminSettingsService {
     }
 
     private AdminSettingsResponse toResponse(AdminSettings s) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = ClubTime.today();
         return new AdminSettingsResponse(
                 today.getYear(),
                 s.effectiveTerm(today),

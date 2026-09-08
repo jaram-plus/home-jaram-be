@@ -1,5 +1,6 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.common.ClubTime;
 import com.jaram.be.member.Authority;
 import com.jaram.be.member.Gen;
 import com.jaram.be.security.JwtProvider;
@@ -11,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
-import java.time.LocalDate;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
@@ -40,7 +40,7 @@ class AdminSettingsTest extends PostgresTest {
                 .then().statusCode(200)
                 .body("autoPromote", equalTo(false))
                 .body("driveConnected", equalTo(false))
-                .body("semesterYear", equalTo(LocalDate.now().getYear()))
+                .body("semesterYear", equalTo(ClubTime.today().getYear()))
                 .body("semesterTerm", equalTo(autoTerm()))
                 .body("currentGen", equalTo(Gen.current()))
                 .body("links.github", nullValue())
@@ -133,11 +133,14 @@ class AdminSettingsTest extends PostgresTest {
                       """)
                 .when().patch("/api/admin/settings").then().statusCode(200);
 
+        // semester 는 이 계약에서 없어진 필드다. 그걸 보내면 Jackson 이 조용히 버려
+        // 사실상 빈 요청이 되므로, 살아 있는 다른 필드를 바꿔서 확인한다.
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")
-                .body(Map.of("semester", "2027-1학기"))
+                .body(Map.of("autoPromote", true))
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200)
+                .body("autoPromote", equalTo(true))
                 .body("links.github", equalTo("https://github.com/jaram-plus"));
     }
 
@@ -160,7 +163,7 @@ class AdminSettingsTest extends PostgresTest {
                 .body(Map.of("semesterYear", 1999))
                 .when().patch("/api/admin/settings")
                 .then().statusCode(200)
-                .body("semesterYear", equalTo(LocalDate.now().getYear()));
+                .body("semesterYear", equalTo(ClubTime.today().getYear()));
     }
 
     /** 학기는 자동값을 덮어쓸 수 있다. */
@@ -222,7 +225,7 @@ class AdminSettingsTest extends PostgresTest {
 
     /** 3~8월은 1학기, 나머지는 2학기 (AdminSettings.autoTerm 과 같은 규칙). */
     private static int autoTerm() {
-        int month = LocalDate.now().getMonthValue();
+        int month = ClubTime.today().getMonthValue();
         return (month >= 3 && month <= 8) ? 1 : 2;
     }
 
