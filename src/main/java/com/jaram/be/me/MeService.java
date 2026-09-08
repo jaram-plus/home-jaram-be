@@ -50,10 +50,16 @@ public class MeService {
         m.requestReregistration(Instant.now());
     }
 
-    /** 본인 탈퇴. 개인정보는 6개월 뒤 스윕이 파기한다. */
+    /**
+     * 본인 탈퇴. 개인정보는 6개월 뒤 스윕이 파기한다.
+     *
+     * 멱등하다. 탈퇴해도 발급된 토큰은 ttl 동안 살아 있어 다시 부를 수 있는데, 그때
+     * withdrawnAt 을 덮으면 6개월 파기 시계가 그만큼 뒤로 밀린다.
+     */
     @Transactional
     public void withdraw(String memberId) {
         Member m = find(memberId);
+        if (m.getStatus() == MemberStatus.WITHDRAWN) return;
         if (m.currentTerm().isPresent()) {
             throw new ApiException(HttpStatus.CONFLICT, "CONFLICT",
                     "현직 임기가 있어 탈퇴할 수 없습니다. 임기를 먼저 정리해 주세요.");

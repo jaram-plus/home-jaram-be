@@ -60,6 +60,26 @@ class AdminReregistrationTest extends PostgresTest {
                 .body("kind", containsInAnyOrder("SIGNUP", "REREGISTER"));
     }
 
+    /**
+     * 파기된 회원은 승인 탭에도 뜨지 않는다. Member.purge 가 상태를 건드리지 않아
+     * 이력이 남은 회원은 파기 뒤에도 APPROVED+REREGISTER 로 남는데, 그대로 두면
+     * 학번·이메일이 빈 줄이 목록에 영원히 남는다 — 삭제를 눌러도 파기가 행을 남겨
+     * 사라지지 않는다. 인원 관리 표는 이미 같은 기준으로 거른다.
+     */
+    @Test
+    void pendingListHidesPurgedMembers() {
+        Member purged = saved("파기됨", "2020033333", "gone@hanyang.ac.kr",
+                MemberStatus.REREGISTER, MemberApproval.APPROVED);
+        purged.purge(Instant.now());
+        members.save(purged);
+        saved("재등록", "2023022222", "re@hanyang.ac.kr", MemberStatus.REREGISTER, MemberApproval.APPROVED);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members/pending")
+                .then().statusCode(200)
+                .body("name", containsInAnyOrder("재등록"));
+    }
+
     /** 신청하지 않은 재등록 대상은 requestedAt 이 null 이다. */
     @Test
     void unrequestedReregistrationHasNullRequestedAt() {

@@ -61,6 +61,27 @@ class MemberRolloverTargetTest {
         assertThat(m.isRolloverTarget()).isFalse();
     }
 
+    /**
+     * 가입 대기 회원은 status 기본값이 ACTIVE 다. 승인축을 보지 않으면 아직 승인되지
+     * 않은 신청자까지 넘어가고, 임원이 가입을 승인해도(승인축만 바뀐다) 활동축이
+     * REREGISTER 로 남아 방금 들어온 신입이 첫 로그인에서 막힌다.
+     */
+    @Test
+    void pendingSignupIsExempt() {
+        Member m = Member.newPending("김신청", "2026011111", "new@hanyang.ac.kr", "hash");
+        assertThat(m.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(m.getApproval()).isEqualTo(MemberApproval.PENDING);
+        assertThat(m.isRolloverTarget()).isFalse();
+    }
+
+    /** 반려된 신청도 마찬가지다. */
+    @Test
+    void rejectedSignupIsExempt() {
+        Member m = member();
+        m.setApproval(MemberApproval.REJECTED);
+        assertThat(m.isRolloverTarget()).isFalse();
+    }
+
     @Test
     void withdrawnIsExempt() {
         Member m = member();

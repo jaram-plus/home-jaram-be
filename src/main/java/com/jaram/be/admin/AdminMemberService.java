@@ -30,6 +30,11 @@ public class AdminMemberService {
                     m.getCreatedAt().toString(), "SIGNUP", null));
         }
         for (Member m : members.findByApprovalAndStatus(MemberApproval.APPROVED, MemberStatus.REREGISTER)) {
+            // 파기된 회원은 빼야 한다. Member.purge 가 상태를 건드리지 않아 이력이 남은
+            // 회원은 파기 뒤에도 APPROVED+REREGISTER 로 남는데, 그대로 두면 학번·이메일이
+            // 빈 줄이 승인 탭에 영원히 뜬다 — 삭제를 눌러도 파기가 행을 남겨 사라지지 않는다.
+            // 인원 관리 표(AdminResourceService)는 이미 같은 기준으로 거른다.
+            if (m.getPurgedAt() != null) continue;
             rows.add(new PendingMember(m.getId(), m.getName(), m.getStudentId(), m.getEmail(),
                     m.getCreatedAt().toString(), "REREGISTER",
                     m.getReregisterRequestedAt() == null ? null : m.getReregisterRequestedAt().toString()));
