@@ -2,7 +2,6 @@ package com.jaram.be.admin;
 
 import com.jaram.be.admin.dto.DashboardStats;
 import com.jaram.be.admin.dto.DashboardStats.*;
-import com.jaram.be.member.Gen;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberGrade;
@@ -31,14 +30,17 @@ public class AdminDashboardService {
     private final SeminarRepository seminars;
     private final AttendanceRepository attendances;
     private final StudyApplicationRepository applications;
+    private final AdminSettingsService settings;
 
     public AdminDashboardService(MemberRepository members, SeminarRepository seminars,
                                  AttendanceRepository attendances,
-                                 StudyApplicationRepository applications) {
+                                 StudyApplicationRepository applications,
+                                 AdminSettingsService settings) {
         this.members = members;
         this.seminars = seminars;
         this.attendances = attendances;
         this.applications = applications;
+        this.settings = settings;
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +96,7 @@ public class AdminDashboardService {
     }
 
     private PendingBreakdown pendingBreakdown(List<Member> pending) {
-        int currentGen = Gen.current();
+        int currentGen = settings.currentGen();
         int freshman = (int) pending.stream()
                 .filter(m -> m.getGen() != null && m.getGen() == currentGen).count();
         int enrolled = (int) pending.stream()
