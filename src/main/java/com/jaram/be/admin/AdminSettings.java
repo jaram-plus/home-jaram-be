@@ -21,6 +21,12 @@ public class AdminSettings {
     private boolean driveConnected;
     private String driveFolder;      // nullable
 
+    // 푸터가 쓰는 학회 외부 채널 주소. 등록하지 않은 채널은 null (빈 문자열이 아니다).
+    private String linkGithub;
+    private String linkInstagram;
+    private String linkBlog;
+    private String linkDiscord;
+
     protected AdminSettings() { }
 
     static AdminSettings defaults() {
@@ -31,6 +37,10 @@ public class AdminSettings {
         s.autoPromote = false;
         s.driveConnected = false;
         s.driveFolder = null;
+        s.linkGithub = null;
+        s.linkInstagram = null;
+        s.linkBlog = null;
+        s.linkDiscord = null;
         return s;
     }
 
@@ -44,4 +54,12 @@ public class AdminSettings {
     public void setDriveConnected(boolean v) { this.driveConnected = v; }
     public String getDriveFolder() { return driveFolder; }
     public void setDriveFolder(String v) { this.driveFolder = v; }
+    public String getLinkGithub() { return linkGithub; }
+    public void setLinkGithub(String v) { this.linkGithub = v; }
+    public String getLinkInstagram() { return linkInstagram; }
+    public void setLinkInstagram(String v) { this.linkInstagram = v; }
+    public String getLinkBlog() { return linkBlog; }
+    public void setLinkBlog(String v) { this.linkBlog = v; }
+    public String getLinkDiscord() { return linkDiscord; }
+    public void setLinkDiscord(String v) { this.linkDiscord = v; }
 }

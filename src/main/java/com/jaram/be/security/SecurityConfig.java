@@ -50,6 +50,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(reg -> reg
                 .requestMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/people", "/api/seminars", "/api/studies").permitAll()
+                // 푸터의 외부 링크 — 비로그인 방문자도 보는 화면이라 읽기는 열어 둔다 (수정은 /api/admin).
+                .requestMatchers(HttpMethod.GET, "/api/site/links").permitAll()
                 .requestMatchers("/api/admin/**").hasAuthority("OFFICER")
                 .requestMatchers(HttpMethod.GET, "/api/studies/pending", "/api/studies/applicants").hasAuthority("OFFICER")
                 .requestMatchers("/api/studies/applicants/**").hasAuthority("OFFICER")
