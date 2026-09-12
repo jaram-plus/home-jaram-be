@@ -21,6 +21,8 @@ import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MeReregistrationTest extends PostgresTest {
@@ -72,6 +74,21 @@ class MeReregistrationTest extends PostgresTest {
                 .when().post("/api/me/reregister")
                 .then().statusCode(204);
         assertThat(reload().getReregisterRequestedAt()).isEqualTo(first);
+    }
+
+    /** 공지 팝업이 '아직 안 냈다'와 '내고 기다린다'를 가르는 값이다. */
+    @Test
+    void meProfileCarriesReregistrationRequestTime() {
+        becomeReregister();
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/me")
+                .then().statusCode(200).body("reregisterRequestedAt", nullValue());
+
+        given().header("Authorization", "Bearer " + token).post("/api/me/reregister");
+
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/me")
+                .then().statusCode(200).body("reregisterRequestedAt", notNullValue());
     }
 
     /**

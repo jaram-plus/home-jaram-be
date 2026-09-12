@@ -17,6 +17,7 @@ public record MeProfile(
         Authority authority,
         MemberGrade grade,            // enum name, nullable (승인 전)
         MemberStatus status,          // 활동축 enum name
+        String reregisterRequestedAt, // ISO-8601, nullable. null 이면 재등록 미신청
         MemberDepartment department,  // enum name, nullable
         MemberTitle title,            // enum name, nullable
         List<MemberTermResponse> terms,   // 임기 이력(오래된 순), 없으면 빈 배열
