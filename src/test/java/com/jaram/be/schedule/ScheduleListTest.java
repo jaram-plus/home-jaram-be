@@ -33,6 +33,7 @@ class ScheduleListTest extends PostgresTest {
     void listsSchedulesWithDerivedFieldsAndSlots() {
         Member m = Member.newPending("김회원", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
+        m.setGen(41);
         m = members.save(m);
         // 2026-06-27T10:00:00Z == 2026-06-27 19:00 KST (토)
         Schedule s = Schedule.create(Instant.parse("2026-06-27T10:00:00Z"), "IT관 401", "offline", 3);
@@ -50,8 +51,27 @@ class ScheduleListTest extends PostgresTest {
                 .body("[0].slots.size()", equalTo(3))
                 .body("[0].slots[0].index", equalTo(0))
                 .body("[0].slots[0].member.name", equalTo("김회원"))
+                .body("[0].slots[0].member.gen", equalTo(41))
                 .body("[0].slots[1].member", nullValue())
                 .body("[0].slots[0].seminarId", nullValue());
+    }
+
+    /**
+     * 기수는 승인 시 파생되므로 아직 없는 회원이 슬롯을 맡고 있을 수 있다. gen 을
+     * Collectors.toMap 의 값으로 뽑으면 이 자리에서 NPE 가 나 목록 전체가 죽는다.
+     */
+    @Test
+    void slotMemberWithoutGenIsStillListed() {
+        Member m = Member.newPending("무기수", "2026000002", "b@hanyang.ac.kr", "hash");
+        m.setStatus(MemberStatus.ACTIVE);
+        m = members.save(m);
+        Schedule s = Schedule.create(Instant.parse("2026-06-27T10:00:00Z"), "IT관 401", "offline", 3);
+        s.getSlots().get(0).claim(m.getId());
+        schedules.save(s);
+
+        given().when().get("/api/schedules").then().statusCode(200)
+                .body("[0].slots[0].member.name", equalTo("무기수"))
+                .body("[0].slots[0].member.gen", nullValue());
     }
 
     @Test

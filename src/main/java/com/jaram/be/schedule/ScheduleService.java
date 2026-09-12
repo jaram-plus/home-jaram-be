@@ -185,16 +185,21 @@ public class ScheduleService {
 
     ScheduleResponse toResponse(Schedule s) {
         List<ScheduleSlot> slots = s.getSlots();
-        Map<String, String> names = members.findAllById(
+        // 기수까지 실어야 해서 이름만 뽑지 않고 엔티티를 들고 있는다. gen 은 null 일 수
+        // 있는데 Collectors.toMap 은 null 값에 NPE 를 낸다.
+        Map<String, Member> byId = members.findAllById(
                         slots.stream().map(ScheduleSlot::getMemberId).filter(Objects::nonNull).toList()).stream()
-                .collect(Collectors.toMap(Member::getId, Member::getName));
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
         Map<String, Seminar> semById = seminars.findAllById(
                         slots.stream().map(ScheduleSlot::getSeminarId).filter(Objects::nonNull).toList()).stream()
                 .collect(Collectors.toMap(Seminar::getId, Function.identity()));
 
         List<ScheduleSlotResponse> slotDtos = slots.stream().map(slot -> {
+            Member holder = slot.getMemberId() == null ? null : byId.get(slot.getMemberId());
             SlotMember member = slot.getMemberId() == null ? null
-                    : new SlotMember(slot.getMemberId(), names.getOrDefault(slot.getMemberId(), null));
+                    : new SlotMember(slot.getMemberId(),
+                            holder == null ? null : holder.getName(),
+                            holder == null ? null : holder.getGen());
             Seminar sem = slot.getSeminarId() == null ? null : semById.get(slot.getSeminarId());
             return new ScheduleSlotResponse(
                     slot.getIndex(), member, slot.getSeminarId(),
