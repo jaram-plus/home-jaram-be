@@ -1,5 +1,6 @@
 package com.jaram.be.admin;
 
+import com.jaram.be.common.ClubTime;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberGrade;
@@ -13,7 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,7 +42,7 @@ class MemberPurgeSweepTest extends PostgresTest {
     }
 
     private static Instant atStartOf(LocalDate d) {
-        return d.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return ClubTime.startOfDay(d);
     }
 
     /** 재등록하지 않고 한 학기를 더 넘기면 사라진다. */
