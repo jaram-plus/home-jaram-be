@@ -7,10 +7,12 @@ import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.member.MemberStatus;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -22,10 +24,32 @@ public class AdminMemberService {
 
     @Transactional(readOnly = true)
     public List<PendingMember> listPending() {
-        return members.findByApproval(MemberApproval.PENDING).stream()
-                .map(m -> new PendingMember(m.getId(), m.getName(), m.getStudentId(),
-                        m.getEmail(), m.getCreatedAt().toString()))
-                .toList();
+        List<PendingMember> rows = new ArrayList<>();
+        for (Member m : members.findByApproval(MemberApproval.PENDING)) {
+            rows.add(new PendingMember(m.getId(), m.getName(), m.getStudentId(), m.getEmail(),
+                    m.getCreatedAt().toString(), "SIGNUP", null));
+        }
+        for (Member m : members.findByApprovalAndStatus(MemberApproval.APPROVED, MemberStatus.REREGISTER)) {
+            // 파기된 회원은 빼야 한다. Member.purge 가 상태를 건드리지 않아 이력이 남은
+            // 회원은 파기 뒤에도 APPROVED+REREGISTER 로 남는데, 그대로 두면 학번·이메일이
+            // 빈 줄이 승인 탭에 영원히 뜬다 — 삭제를 눌러도 파기가 행을 남겨 사라지지 않는다.
+            // 인원 관리 표(AdminResourceService)는 이미 같은 기준으로 거른다.
+            if (m.getPurgedAt() != null) continue;
+            rows.add(new PendingMember(m.getId(), m.getName(), m.getStudentId(), m.getEmail(),
+                    m.getCreatedAt().toString(), "REREGISTER",
+                    m.getReregisterRequestedAt() == null ? null : m.getReregisterRequestedAt().toString()));
+        }
+        return rows;
+    }
+
+    /** 재등록 승인. 활동축만 되돌리고 승인축은 건드리지 않는다. */
+    @Transactional
+    public void approveReregistration(String id) {
+        Member m = load(id);
+        if (m.getStatus() != MemberStatus.REREGISTER) {
+            throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "재등록 대상이 아닙니다.");
+        }
+        m.completeReregistration();
     }
 
     @Transactional(readOnly = true)

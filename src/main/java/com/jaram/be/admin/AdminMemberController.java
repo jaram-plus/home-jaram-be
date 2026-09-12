@@ -5,6 +5,7 @@ import com.jaram.be.admin.dto.MemberDetail;
 import com.jaram.be.admin.dto.PendingMember;
 import com.jaram.be.admin.dto.RejectRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,6 +27,10 @@ public class AdminMemberController {
 
     @PostMapping("/{id}/approve")
     public void approve(@PathVariable String id) { service.approve(id); }
+
+    @PostMapping("/{id}/reregister")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reregister(@PathVariable String id) { service.approveReregistration(id); }
 
     // 졸업연도·졸업 후 이력. 목록 칸이 섞여 있어 :batch 가 아니라 단건 PUT 으로 통째로 맞춘다.
     @PutMapping("/{id}/graduation")

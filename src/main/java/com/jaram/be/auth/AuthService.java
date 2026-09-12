@@ -72,6 +72,9 @@ public class AuthService {
         if (m.getApproval() != MemberApproval.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN, "PENDING", "가입 승인을 기다리는 중입니다.");
         }
+        if (m.getStatus() == MemberStatus.WITHDRAWN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "WITHDRAWN", "탈퇴한 계정입니다.");
+        }
         if (!encoder.matches(req.password(), m.getPasswordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID", "이메일 또는 비밀번호가 일치하지 않습니다.");
         }

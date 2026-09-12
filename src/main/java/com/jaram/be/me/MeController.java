@@ -4,6 +4,7 @@ import com.jaram.be.me.dto.MeProfile;
 import com.jaram.be.me.dto.MeUpdateRequest;
 import com.jaram.be.security.CurrentMember;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,5 +25,17 @@ public class MeController {
     public MeProfile update(@Valid @RequestBody MeUpdateRequest req,
                             @AuthenticationPrincipal CurrentMember me) {
         return service.update(me.id(), req);
+    }
+
+    @PostMapping("/reregister")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reregister(@AuthenticationPrincipal CurrentMember me) {
+        service.requestReregistration(me.id());
+    }
+
+    @PostMapping("/withdraw")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@AuthenticationPrincipal CurrentMember me) {
+        service.withdraw(me.id());
     }
 }
