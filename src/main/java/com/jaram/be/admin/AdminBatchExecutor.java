@@ -39,12 +39,14 @@ public class AdminBatchExecutor {
     private final StudyApplicationRepository applications;
     private final ScheduleRepository schedules;
     private final AdminSettingsService settings;
+    private final MemberPurger purger;
 
     public AdminBatchExecutor(MemberRepository members, SeminarRepository seminars,
                               AttendanceRepository attendances, StudyRepository studies,
                               StudyApplicationRepository applications,
                               ScheduleRepository schedules,
-                              AdminSettingsService settings) {
+                              AdminSettingsService settings,
+                              MemberPurger purger) {
         this.members = members;
         this.seminars = seminars;
         this.attendances = attendances;
@@ -52,6 +54,7 @@ public class AdminBatchExecutor {
         this.applications = applications;
         this.schedules = schedules;
         this.settings = settings;
+        this.purger = purger;
     }
 
     /** 임기 전환 기준 기수. 설정값과 자동 계산의 규칙은 AdminSettingsService 가 갖는다. */
@@ -147,7 +150,14 @@ public class AdminBatchExecutor {
                 case "name" -> actions.add(() -> m.setName(str(v)));
                 case "gen" -> intField(v, errors, k, m::setGen, actions);
                 case "grade" -> enumField(MemberGrade.class, v, errors, k, g -> applyGrade(m, g), actions, false);
-                case "status" -> enumField(MemberStatus.class, v, errors, k, m::setStatus, actions, false);
+                case "status" -> {
+                    // 재등록 상태는 학기 전환 스윕만 설정한다. 손으로 고르면 스윕과 어긋난다.
+                    if (MemberStatus.REREGISTER.name().equals(String.valueOf(v))) {
+                        errors.put(k, "재등록 상태는 직접 지정할 수 없습니다.");
+                    } else {
+                        enumField(MemberStatus.class, v, errors, k, m::setStatus, actions, false);
+                    }
+                }
                 case "approval" -> enumField(MemberApproval.class, v, errors, k, m::setApproval, actions, false);
                 case "contributor" -> boolField(v, errors, k, m::setContributor, actions);
                 case "department" -> enumCheck(MemberDepartment.class, v, errors, k);
@@ -289,14 +299,13 @@ public class AdminBatchExecutor {
         Map<String, String> errors = new LinkedHashMap<>();
         switch (resource) {
             case members -> {
-                if (members.findById(id).isEmpty()) { errors.put("id", "대상을 찾을 수 없습니다."); return errors; }
-                if (!studies.findByLeaderIdOrderByCreatedAtDesc(id).isEmpty()) {
+                Member m = members.findById(id).orElse(null);
+                if (m == null) { errors.put("id", "대상을 찾을 수 없습니다."); return errors; }
+                // 스윕의 파기와 같은 규칙을 쓴다 — 어느 쪽이 돌았느냐에 따라
+                // 기여자 목록이 달라지면 안 된다.
+                if (purger.purge(m, Instant.now()) == MemberPurger.Outcome.SKIPPED_LEADER) {
                     errors.put("id", "스터디 리더인 회원은 삭제할 수 없습니다.");
-                    return errors;
                 }
-                applications.deleteAll(applications.findByApplicantIdOrderByCreatedAtDesc(id));
-                attendances.deleteAll(attendances.findByMemberId(id));
-                members.deleteById(id);
             }
             case seminars -> {
                 if (seminars.findById(id).isEmpty()) { errors.put("id", "대상을 찾을 수 없습니다."); return errors; }

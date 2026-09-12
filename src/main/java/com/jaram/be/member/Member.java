@@ -66,6 +66,11 @@ public class Member {
     @Enumerated(EnumType.STRING)
     private MemberStatus status = MemberStatus.ACTIVE;
 
+    // 생애주기. 전부 nullable 이며 스윕(MemberLifecycleService)과 본인 요청이 채운다.
+    private Instant reregisterRequestedAt;   // null = 재등록 미신청
+    private Instant withdrawnAt;             // 6개월 뒤 파기의 기준
+    private Instant purgedAt;                // 개인정보 파기 시각. 이력만 남은 회원
+
     private Instant createdAt = Instant.now();
 
     @Version
@@ -95,6 +100,65 @@ public class Member {
     public void setPasswordHash(String h) { this.passwordHash = h; }
     // 권한은 저장하지 않는다 — 진행 중인 임기가 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
     public Authority getAuthority() { return currentTerm().isPresent() ? Authority.OFFICER : Authority.MEMBER; }
+
+    /**
+     * 학기 전환 대상. 휴학·OB·현직 임원은 면제한다.
+     *
+     * 승인축도 함께 본다. 가입 대기 회원은 status 기본값이 ACTIVE 라, 승인을 보지 않으면
+     * 아직 승인되지 않은 신청자까지 재등록 대상이 된다 — 그러면 임원이 가입을 승인해도
+     * (approve 는 승인축만 바꾼다) 활동축이 REREGISTER 로 남아, 방금 들어온 신입이
+     * 첫 로그인에서 재등록 팝업을 보고 신청류가 막힌다.
+     */
+    public boolean isRolloverTarget() {
+        return approval == MemberApproval.APPROVED
+                && status == MemberStatus.ACTIVE
+                && grade != MemberGrade.OB
+                && currentTerm().isEmpty();
+    }
+
+    public void markReregistrationRequired() { this.status = MemberStatus.REREGISTER; }
+
+    public Instant getReregisterRequestedAt() { return reregisterRequestedAt; }
+    public Instant getWithdrawnAt() { return withdrawnAt; }
+    public Instant getPurgedAt() { return purgedAt; }
+
+    /** 재등록 신청. 이미 신청했으면 시각을 덮지 않는다 — 다시 눌러도 처음 신청이 남는다. */
+    public void requestReregistration(Instant at) {
+        if (reregisterRequestedAt == null) reregisterRequestedAt = at;
+    }
+
+    public void completeReregistration() {
+        this.status = MemberStatus.ACTIVE;
+        this.reregisterRequestedAt = null;
+    }
+
+    public void withdraw(Instant at) {
+        this.status = MemberStatus.WITHDRAWN;
+        this.withdrawnAt = at;
+    }
+
+    /** 남길 이력이 있는가. 있으면 행을 지우지 않고 개인정보만 파기한다. */
+    public boolean hasHistory() { return contributor || !terms.isEmpty(); }
+
+    /**
+     * 개인정보 파기. 이름·기수·임기 이력은 남는다 — 임기 기록과 출석·신청 기록의
+     * 참조가 끊기지 않게 하는 것이 목적이다.
+     *
+     * email 이 비면 findByEmail 로 찾히지 않아 로그인이 막힌다. studentId·email 은
+     * UNIQUE 지만 PostgreSQL 은 NULL 을 중복으로 보지 않아 여러 행이 비어 있어도 된다.
+     */
+    public void purge(Instant at) {
+        this.studentId = null;
+        this.email = null;
+        this.passwordHash = null;
+        this.phone = null;
+        this.faculty = null;
+        this.bio = null;
+        this.githubUrl = null;
+        this.blogUrl = null;
+        this.purgedAt = at;
+    }
+
     public MemberStatus getStatus() { return status; }
     public void setStatus(MemberStatus s) { this.status = s; }
     public MemberApproval getApproval() { return approval; }
