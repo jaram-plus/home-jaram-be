@@ -237,7 +237,9 @@ unique (studyId, weekNo)
 삼는다. 둘을 따로 두면 화면의 "3주차"가 커리큘럼 3주차와 같은 것인지 보장할 수 없다.
 
 `weekNo` 는 1부터 빈칸 없이 이어진다. 검증은 저장 시점에 한다 —
-`[1,2,4]` 같은 입력은 `400`.
+`[1,2,4]` 같은 입력은 `422 VALIDATION`. (이 코드베이스의 검증 실패는 400 이 아니라
+422 다 — `GlobalExceptionHandler` 가 `MethodArgumentNotValidException` 을
+`UNPROCESSABLE_ENTITY` 로 돌리고, 계약의 `POST /api/studies` 도 `422` 를 선언한다.)
 
 ### 주차는 도중에 늘고 준다 (D14)
 
@@ -670,8 +672,8 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 | 명단 규칙 | 반려 제외, 스터디장 제외, 기수·이름 정렬, 상태 필드 부재 |
 | 상세 인증 | 비로그인 `GET /api/studies/{id}` → `401`; 목록은 `200` |
 | 토글 권한 | 학술부장(`ACADEMIC_LEAD`)이 `PUT /api/studies/recruitment` → `200`; 홍보부장(`PR_LEAD`)·일반 멤버 → `403` |
-| 커리큘럼 | 빈 `weeks[]` → `400`; `weekNo` 가 `[1,2,4]` → `400` |
-| 임원 편집 (D12) | `PATCH :batch` 로 `FINISHED → RECRUITING` 처럼 임의 전이가 통과; 없는 값은 `400` |
+| 커리큘럼 | 빈 `weeks[]` → `422`; `weekNo` 가 `[1,2,4]` → `422` |
+| 임원 편집 (D12) | `PATCH :batch` 로 `FINISHED → RECRUITING` 처럼 임의 전이가 통과; 없는 값은 행별 `errors` 로 돌아온다 |
 
 ### 애너테이션 누락은 무엇이 잡는가
 
