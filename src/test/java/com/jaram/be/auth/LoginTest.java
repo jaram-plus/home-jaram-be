@@ -44,7 +44,7 @@ class LoginTest extends PostgresTest {
                 .then().statusCode(200)
                 .body("accessToken", notNullValue())
                 .body("user.email", equalTo("hong@hanyang.ac.kr"))
-                .body("user.authority", equalTo("MEMBER"));
+                .body("user.roles", hasItem("MEMBER"));
     }
 
     @Test

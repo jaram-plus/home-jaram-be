@@ -85,7 +85,6 @@ public class MeService {
                 m.getName(),
                 m.getStudentId(),
                 m.getEmail(),
-                m.getAuthority(),
                 m.getGrade(),
                 m.getStatus(),
                 m.getReregisterRequestedAt() == null ? null : m.getReregisterRequestedAt().toString(),

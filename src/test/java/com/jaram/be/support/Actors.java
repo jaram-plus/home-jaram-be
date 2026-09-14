@@ -61,7 +61,7 @@ public class Actors {
     }
 
     /**
-     * 지금까지 Authority.OFFICER 토큰이 뜻하던 것 — 관리자 화면 전부를 쓸 수 있는 사람.
+     * 관리자 화면 전부를 쓸 수 있는 사람.
      * 권한이 좁은 Role 로 막히는지 보려는 테스트는 token(Role.X) 를 직접 쓴다.
      */
     public String officer() { return token(Role.PRESIDENT); }
