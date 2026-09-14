@@ -12,10 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -25,12 +28,14 @@ class StudyTest extends PostgresTest {
     @Autowired MemberRepository members;
     @Autowired StudyRepository studies;
     @Autowired StudyApplicationRepository applications;
+    @Autowired StudyWeekRepository weeks;
     @Autowired Actors actors;
 
     private String officerToken;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
+        weeks.deleteAll();
         applications.deleteAll();
         studies.deleteAll();
         members.deleteAll();
@@ -49,6 +54,22 @@ class StudyTest extends PostgresTest {
 
     private String token(Member m) {
         return actors.tokenFor(m);
+    }
+
+    private Map<String, Object> createBody() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("title", "알고리즘");
+        body.put("fields", List.of("PS"));
+        body.put("capacity", 6);
+        body.put("intro", "함께 풉니다");
+        body.put("schedule", "매주 화 19:00");
+        body.put("place", "공학관 401");
+        body.put("mode", "오프라인");
+        body.put("contact", "010-0000-0000");
+        body.put("weeks", List.of(
+                Map.of("weekNo", 1, "title", "완전탐색"),
+                Map.of("weekNo", 2, "title", "이분탐색", "content", "파라메트릭 서치까지")));
+        return body;
     }
 
     private Study pendingStudy(String leaderId, int cap) {
@@ -71,7 +92,7 @@ class StudyTest extends PostgresTest {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
         given().header("Authorization", "Bearer " + token(leader))
                 .contentType("application/json")
-                .body(Map.of("title", "알고리즘", "fields", List.of("PS"), "capacity", 6))
+                .body(createBody())
                 .when().post("/api/studies")
                 .then().statusCode(201)
                 .body("title", equalTo("알고리즘"))
@@ -88,11 +109,61 @@ class StudyTest extends PostgresTest {
     @Test
     void createWithoutCapacityReturns422() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Map<String, Object> body = createBody();
+        body.remove("capacity");
         given().header("Authorization", "Bearer " + token(leader))
-                .contentType("application/json")
-                .body(Map.of("title", "알고리즘", "fields", List.of("PS")))
+                .contentType("application/json").body(body)
                 .when().post("/api/studies")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void createStoresCurriculumWeeks() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        String id = given().header("Authorization", "Bearer " + token(leader))
+                .contentType("application/json").body(createBody())
+                .when().post("/api/studies")
+                .then().statusCode(201).extract().path("id");
+
+        assertThat(weeks.findByStudyIdOrderByWeekNoAsc(id))
+                .extracting(StudyWeek::getWeekNo, StudyWeek::getTitle)
+                .containsExactly(tuple(1, "완전탐색"), tuple(2, "이분탐색"));
+    }
+
+    @Test
+    void createRejectsEmptyCurriculum() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Map<String, Object> body = createBody();
+        body.put("weeks", List.of());
+        given().header("Authorization", "Bearer " + token(leader))
+                .contentType("application/json").body(body)
+                .when().post("/api/studies")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void createRejectsWeekNumbersWithAGap() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Map<String, Object> body = createBody();
+        body.put("weeks", List.of(
+                Map.of("weekNo", 1, "title", "a"),
+                Map.of("weekNo", 2, "title", "b"),
+                Map.of("weekNo", 4, "title", "d")));
+        given().header("Authorization", "Bearer " + token(leader))
+                .contentType("application/json").body(body)
+                .when().post("/api/studies")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void createRejectsMissingContact() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Map<String, Object> body = createBody();
+        body.remove("contact");
+        given().header("Authorization", "Bearer " + token(leader))
+                .contentType("application/json").body(body)
+                .when().post("/api/studies")
+                .then().statusCode(422);
     }
 
     // ── UC-T1 목록 ──

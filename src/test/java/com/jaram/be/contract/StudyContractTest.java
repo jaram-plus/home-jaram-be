@@ -71,7 +71,16 @@ class StudyContractTest extends PostgresTest {
         given().filter(validation)
                 .header("Authorization", "Bearer " + token(leader))
                 .contentType("application/json")
-                .body(Map.of("title", "알고리즘", "fields", List.of("PS"), "capacity", 6))
+                .body(Map.of(
+                        "title", "알고리즘",
+                        "fields", List.of("PS"),
+                        "capacity", 6,
+                        "intro", "함께 풉니다",
+                        "schedule", "매주 화 19:00",
+                        "place", "공학관 401",
+                        "mode", "오프라인",
+                        "contact", "010-0000-0000",
+                        "weeks", List.of(Map.of("weekNo", 1, "title", "완전탐색"))))
                 .when().post("/api/studies")
                 .then().statusCode(201);
     }

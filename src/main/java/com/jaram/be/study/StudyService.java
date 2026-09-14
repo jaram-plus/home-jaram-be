@@ -26,13 +26,16 @@ public class StudyService {
 
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
+    private final StudyWeekRepository weeks;
     private final MemberRepository members;
     private final Eligibility eligibility;
 
     public StudyService(StudyRepository studies, StudyApplicationRepository applications,
-                        MemberRepository members, Eligibility eligibility) {
+                        StudyWeekRepository weeks, MemberRepository members,
+                        Eligibility eligibility) {
         this.studies = studies;
         this.applications = applications;
+        this.weeks = weeks;
         this.members = members;
         this.eligibility = eligibility;
     }
@@ -41,10 +44,28 @@ public class StudyService {
     @Transactional
     public StudyResponse create(StudyCreateRequest req, String leaderId) {
         eligibility.requireActive(leaderId);
+        requireContiguousWeeks(req.weeks());
         Study saved = studies.save(Study.create(
                 req.title(), req.fields(), req.capacity(),
-                req.schedule(), null, req.mode(), req.intro(), null, leaderId));
+                req.schedule(), req.place(), req.mode(), req.intro(), req.contact(), leaderId));
+        req.weeks().forEach(w -> weeks.save(
+                StudyWeek.create(saved.getId(), w.weekNo(), w.title(), w.content())));
         return toResponse(saved, members.findById(leaderId).orElse(null), leaderId);
+    }
+
+    /**
+     * 1부터 빈칸 없이. 구멍이 있으면 ② 의 "가장 빠른 빈 주차" 가 흔들리고, 중복이 있으면
+     * unique 제약이 500 으로 터진다 — 둘 다 여기서 422 로 막는다.
+     */
+    private void requireContiguousWeeks(List<StudyCreateRequest.WeekInput> input) {
+        List<Integer> nos = input.stream().map(StudyCreateRequest.WeekInput::weekNo).sorted().toList();
+        for (int i = 0; i < nos.size(); i++) {
+            if (nos.get(i) != i + 1) {
+                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION",
+                        "커리큘럼 주차는 1부터 빈칸 없이 이어져야 합니다.",
+                        Map.of("weeks", "주차 번호가 1..%d 가 아닙니다.".formatted(nos.size())));
+            }
+        }
     }
 
     // ── UC-T1: 목록 (기본 RECRUITING + ONGOING, 미인증 시 userId=null) ──
