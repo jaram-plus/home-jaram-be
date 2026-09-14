@@ -31,7 +31,7 @@
 |---|---|---|
 | D1 | 상태 | **축 하나에 5값**을 저장한다 — `PENDING`/`REJECTED`/`RECRUITING`/`ONGOING`/`FINISHED`. `approvalStatus` 는 여기로 접는다 |
 | D2 | 신청 가능 시점 | `RECRUITING` 에서만 |
-| D3 | 모집 토글 | 관리자 설정의 boolean. **'스터디 개설' 버튼의 표시와 동작만** 가른다. 상태는 안 건드린다 |
+| D3 | 모집 토글 | 스터디 도메인의 단일 행 boolean(`StudyRecruitment`). **'스터디 개설' 버튼의 표시와 동작만** 가른다. 상태는 안 건드린다 |
 | D4 | 개설 승인 | 임원 유지 (`STUDY_APPROVE`) |
 | D5 | 커리큘럼 | 주차별. **개설 시 최소 1주차 필수** |
 | D6 | 문의처 | 개설 시 **별도 필수 입력**. 회원 `phone` 을 쓰지 않는다 |
@@ -124,12 +124,35 @@ D9 에 따라 `capacity` 는 희망 인원이다. 승인 인원이 그 숫자를
 
 ## 4. 모집 토글 — 개설 버튼 하나만 가른다
 
-`AdminSettings` 에 `studyRecruiting boolean` 하나를 더한다. 이 값이 하는 일은
-**딱 하나**다:
+스터디 도메인에 단일 행 엔티티 `StudyRecruitment` 를 둔다 (`id` 고정 `SINGLETON`,
+`open boolean`). 이 값이 하는 일은 **딱 하나**다:
 
 > `POST /api/studies`(개설 신청)를 열고 닫는다. OFF 면 `409 RECRUIT_CLOSED`.
 
 상태는 건드리지 않는다. 승인 시 상태를 고를 때도 이 값을 보지 않는다(§3).
+
+### 왜 `AdminSettings` 에 두지 않는가
+
+초안은 `AdminSettings.studyRecruiting` 이었다. 매트릭스를 보면 그 자리가 틀렸다:
+
+```java
+MATRIX.put(Role.ACADEMIC_LEAD, EnumSet.of(
+        …, STUDY_APPROVE, STUDY_APPLICANT_MANAGE, STUDY_EDIT,
+        SCHEDULE_MANAGE, DASHBOARD_READ));   // SETTINGS_* 가 하나도 없다
+```
+
+`SettingsAccess.canApply` 는 필드별 분기를 다 통과한 뒤 마지막에
+`SETTINGS_READ | SETTINGS_EDIT | SITE_LINKS_EDIT` 중 하나를 요구한다. 그래서
+`studyRecruiting → STUDY_EDIT` 분기를 더해도 **학술부장은 403** 이고,
+`GET /api/admin/settings`(`SETTINGS_READ`)로 현재 값을 읽지도 못한다. 토글을 쓸 수
+있는 사람이 회장·부회장뿐인데, 바로 아래 스터디 표는 `AdminResourceAccess`
+(`studies → STUDY_EDIT`)라 학술부장이 읽고 고친다. 한 화면에서 위아래 권한이 엇갈린다.
+
+`canApply` 의 마지막 OR 에 `STUDY_EDIT` 을 끼워 넣어 고칠 수도 있다. 그러면 스터디와
+무관한 설정 필드들이 `STUDY_EDIT` 하나로 함께 열리지 않도록 그 메서드 안에서 매번
+관리해야 한다 — 설정 필드가 늘 때마다 다시 따져야 하는 종류의 부담이다. 값을 스터디
+쪽으로 옮기면 게이트가 `hasAuthority('STUDY_EDIT')` 한 줄이고, `SettingsAccess` 는
+손대지 않는다.
 
 **왜 일괄 전이를 두지 않는가.** 초안은 토글 OFF 가 `RECRUITING` 을 전부 `ONGOING`
 으로 옮기게 했었다. 그러면 학회 전체가 한날에 모집을 닫는 셈이라, 아직 사람을 더
@@ -138,8 +161,8 @@ D9 에 따라 `capacity` 는 희망 인원이다. 승인 인원이 그 숫자를
 있고(D13), 토글은 "이번 학기에 새 스터디를 더 받을 것인가" 만 답한다.
 
 **화면이 버튼을 숨기는 것은 통제가 아니다.** 토글이 꺼져 있으면 서버가 개설 신청을
-거절해야 한다. FE 의 버튼 숨김은 편의일 뿐이다 — 이 둘이 `studyRecruiting` 하나를
-같이 읽는다.
+거절해야 한다. FE 의 버튼 숨김은 편의일 뿐이다 — 이 둘이 `StudyRecruitment.open`
+하나를 같이 읽는다.
 
 ### 임원의 상태 변경은 정규 경로다 (D12)
 
@@ -158,27 +181,29 @@ case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, action
 ③ 단계는 이 위에 화면만 얹는다. 게이트는 기존 `AdminResourceAccess.canEdit`
 (`studies → STUDY_EDIT`) 그대로라 새 권한도 없다.
 
-### 토글 상태를 화면이 어떻게 읽는가
+### 토글을 읽고 쓰는 길
 
-`GET /api/admin/settings` 는 임원 전용이라 일반 회원이 못 읽는다. 그렇다고
-공개 설정 엔드포인트를 새로 만들 일은 아니다.
+**쓰기 — `PUT /api/studies/recruitment`**, 본문 `{ "open": true }`, 게이트
+`hasAuthority('STUDY_EDIT')`. 값이 하나뿐이라 부분 수정할 것이 없으므로 `PATCH` 가
+아니라 `PUT` 이다.
 
-→ **`GET /api/studies` 의 응답을 감싼다.**
+**읽기 — `GET /api/studies` 의 응답을 감싼다.**
 
 ```json
 { "recruiting": true, "items": [ ... ] }
 ```
 
-스터디 페이지가 어차피 첫 화면에서 부르는 엔드포인트고, 모집 여부는 비밀이 아니다.
-새 경로도, `SecurityConfig` 변경도 필요 없다. ① 단계가 이 응답을 어차피 바꾸므로
-(항목에 `status`·`leaderGen` 추가) 감싸는 비용이 지금 가장 싸다.
+토글 전용 GET 은 만들지 않는다. 스터디 페이지도 관리자 '스터디 관리' 탭도 어차피
+목록을 부르고, 모집 여부는 비밀이 아니다. `SecurityConfig` 변경도 필요 없다 —
+`GET /api/studies` 는 이미 `permitAll` 이고 경로가 그대로다. ① 단계가 이 응답을
+어차피 바꾸므로(항목에 `status`·`leaderGen` 추가) 감싸는 비용이 지금 가장 싸다.
 
 ## 5. 데이터 모델
 
 ### `Study` 변경
 
 ```
-+ status         StudyStatus  5값. 기본 PENDING. non-null
++ status         StudyStatus  5값. 기본 PENDING. **DB 컬럼은 nullable** (§11)
 + contact        String       문의처. 개설 시 필수 (자유 텍스트)
 + place          String       장소. 개설 시 필수
 - approvalStatus ApprovalStatus  삭제 — status 로 접힌다 (D1)
@@ -191,6 +216,10 @@ case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, action
 
 `fields`(분야)·`schedule`(일시)·`mode`(방식)·`intro`(설명)·`capacity`(희망 인원)는
 그대로 쓴다.
+
+`setStatus` 세터가 필요하다 — D12 의 `s::setStatus` 가 쓴다.
+`AdminResourceService.studyRow` 의 `s.getApprovalStatus().name()` 도 `getStatus()` 로
+바뀌며, 이행 중 `null` 을 견뎌야 한다(§11).
 
 ### `StudyWeek` — 새 엔티티
 
@@ -380,6 +409,32 @@ static String maskStudentId(String id) {
 제목 · 분야 칩 · 스터디장(기수·이름) · 설명 · 모집 인원 · 진행 방식(일시·장소·방식) ·
 커리큘럼(주차별) · 문의 · **지원 인원 명단** · 신청하기 버튼.
 
+계약 PR 이 BE 보다 먼저 머지되어야 하므로(§12) 응답 이름을 여기서 굳힌다 —
+스키마 이름은 `StudyDetail`:
+
+```json
+{
+  "id": "…", "title": "알고리즘 스터디",
+  "fields": ["알고리즘", "Python"],
+  "intro": "기초부터 백준 골드까지 함께 풉니다.",
+  "leader": "이준호", "leaderGen": 40,
+  "schedule": "매주 화 19:00", "place": "공학관 401", "mode": "오프라인",
+  "contact": "010-0000-0000",
+  "cur": 3, "cap": 8,
+  "status": "RECRUITING", "apply": "OPEN",
+  "weeks":  [ { "weekNo": 1, "title": "완전탐색", "content": "…" } ],
+  "roster": [ { "studentId": "2022*****9", "gen": 40, "name": "이준호" } ]
+}
+```
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `leader`·`leaderGen` | `string` · `int?` | 목록 카드와 같은 이름·같은 모양. `Member.gen` 은 nullable 이라 `null` 이 올 수 있다 |
+| `schedule`·`place`·`mode`·`contact` | `string?` | 이행 이전 스터디는 `place`·`contact` 가 `null` (§11) |
+| `cur`·`cap` | `int` | `정원 / 희망` (D15) |
+| `weeks[]` | `{weekNo:int, title:string, content:string?}` | `weekNo` 오름차순 |
+| `roster[]` | `{studentId:string, gen:int?, name:string}` | `studentId` 는 **마스킹된 값**(§7). 승인 상태 필드는 없다. 기수 → 이름 정렬 |
+
 **이 엔드포인트는 인증이 필요하다.** `GET /api/studies`(목록)는 지금처럼 공개로 두고,
 상세부터 로그인을 요구한다. 이유가 둘이다:
 
@@ -391,6 +446,8 @@ static String maskStudentId(String id) {
   `AdminAuthorizationCoverageTest` 는 애너테이션만 지킨다. 매처를 다시 늘리지 않는다.
 
 비로그인 방문자는 목록 카드까지 본다. 학회 홍보라는 목적에는 그것으로 충분하다.
+**대신 화면은 비로그인일 때 카드 클릭을 모달이 아니라 로그인 안내로 보낸다** — 열어
+두고 401 을 받게 하면 이유 없는 실패로 보인다.
 
 ### 개설 폼 (`POST /api/studies`)
 
@@ -423,7 +480,7 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | **종료** | `@studyAccess.isLeader(#id, …)` **or** `hasAuthority('STUDY_EDIT')` | ① |
 | 상태 임의 지정 | `AdminResourceAccess.canEdit` (`studies → STUDY_EDIT`) | ① |
 | 신청 승인·반려 | `@studyAccess.isLeaderOfApplication(#id, …)` **or** `hasAuthority('STUDY_APPLICANT_MANAGE')` | ② |
-| 모집 토글 | `SettingsAccess.canApply` 에 `studyRecruiting → STUDY_EDIT` 분기 | ① |
+| 모집 토글 | `hasAuthority('STUDY_EDIT')` — `PUT /api/studies/recruitment` | ① |
 
 **`StudyAccess` 가 ① 로 앞당겨진다.** 원래 ② 단계에 두려던 소유자 조건 빈인데,
 상태 전이 둘이 스터디장 손에 있으므로 ① 에서 필요해졌다.
@@ -470,10 +527,9 @@ public class StudyAccess {
 
 한 사람이 여는 스터디 수에도 제한을 두지 않는다.
 
-`SettingsAccess.canApply` 는 이미 PATCH 한 건을 필드별로 가른다
-(`currentGen → SETTINGS_ROLLOVER`, `links → SETTINGS_EDIT | SITE_LINKS_EDIT`).
-`studyRecruiting` 은 스터디 관리 탭의 손잡이라 `STUDY_EDIT` 로 가른다. 설정 화면에
-얹혀 있다고 설정 권한으로 가르면, 홍보부장이 스터디 모집을 닫을 수 있게 된다.
+모집 토글은 `SettingsAccess` 를 지나지 않는다 — `AdminSettings` 에서 뺐다(§4).
+`PUT /api/studies/recruitment` 가 `hasAuthority('STUDY_EDIT')` 하나로 갈린다.
+`SettingsAccess.canApply` 는 이 단계에서 손대지 않는다.
 
 이 변경으로 `STUDY_EDIT` 이 `AdminResourceAccess` 밖에서 처음으로 쓰인다.
 
@@ -486,6 +542,7 @@ public class StudyAccess {
 | `GET` | `/api/studies/{id}` | 인증 |
 | `POST` | `/api/studies/{id}/close-recruiting` | 스터디장 or `STUDY_EDIT` (D13) |
 | `POST` | `/api/studies/{id}/finish` | 스터디장 or `STUDY_EDIT` |
+| `PUT` | `/api/studies/recruitment` | `STUDY_EDIT` — 모집 토글 (§4) |
 
 전이 API 둘은 **현재 상태를 검사한다** — `close-recruiting` 은 `RECRUITING` 에서만,
 `finish` 는 `ONGOING` 에서만 통과하고 아니면 `409 INVALID_STATE`. 상태를 건너뛰거나
@@ -502,8 +559,6 @@ public class StudyAccess {
 | `POST /api/studies/{id}/reject` | `status = REJECTED` |
 | `GET /api/studies/pending` | `findByStatus(PENDING)`. 응답에서 `period` 제거 |
 | `GET /api/studies/my` | `MyStudy` 에서 `approvalStatus` 제거 — `status` 하나로 (D1) |
-| `PATCH /api/admin/settings` | `studyRecruiting` 필드. **상태는 건드리지 않는다** |
-| `GET /api/admin/settings` | `studyRecruiting` 필드 |
 | `GET /api/admin/studies` | 행의 `approvalStatus` → `status` (`studyRow` 에 `period` 는 원래 없다) |
 | `PATCH /api/admin/studies:batch` | `updateStudy` 가 `status` 를 받는다 (D12) |
 
@@ -514,25 +569,49 @@ public class StudyAccess {
 
 `ddl-auto: update` 라서 **추가는 자동, 삭제는 수동**이다.
 
-자동으로 되는 것: `study.status`·`study.contact`·`study.place` 컬럼 추가,
-`study_week` 테이블 생성, `admin_settings.study_recruiting` 추가.
+자동으로 되는 것: `study.contact`·`study.place` 컬럼 추가, `study_week` 테이블 생성,
+`study_recruitment` 테이블 생성. **`study.status` 는 손으로 먼저 만든다**(아래).
 
-`contact`·`place` 는 **DB 에서 nullable** 이다. 기존 행이 있는 테이블에 NOT NULL 컬럼을
-붙이면 Hibernate 가 실패한다. 필수 여부는 요청 DTO 의 `@NotBlank` 가 지킨다 —
-기존 스터디는 값이 비어 있어도 화면에 "미등록" 으로 뜬다.
+`status`·`contact`·`place` 는 **DB 에서 nullable** 이다. 엔티티에
+`@Column(nullable = false)` 를 쓰지 않는다. 필수 여부는 도메인 불변식과 요청 DTO 의
+`@NotBlank` 가 지킨다 — 이행 이전 스터디는 `contact`·`place` 가 비어 있어도 화면에
+"미등록" 으로 뜬다.
+
+**NOT NULL 로 매핑하면 컬럼이 아예 안 생긴다.** 셋이 겹친다. (a) Postgres 는 행이 있는
+테이블에 `ADD COLUMN … not null` 을 거부한다 — `column "status" of relation "study"
+contains null values`. (b) Hibernate 의 `SchemaUpdate` 는 그 예외를 **로그 한 줄로
+삼키고 넘어간다** (`GenerationTarget encountered exception accepting command`).
+기동은 정상 종료되고 헬스체크도 통과한다. (c) 그래서 컬럼이 없는 채로 트래픽을 받아
+모든 스터디 질의가 `column s1_0.status does not exist` 로 500 이 된다. 빈 목록보다
+나쁘고, 원인은 이미 지나간 기동 로그에 있다.
 
 손으로 돌릴 SQL (`docs/migrations/2026-09-15-study-lifecycle.sql`):
 
-**축을 접는 것이 이 단계에서 가장 조심할 대목이다.** `approval_status` 의 값을
-새 `status` 컬럼으로 옮긴 뒤에야 옛 컬럼을 버릴 수 있고, 그 사이에 배포가 끼어 있다.
+**축을 접는 것이 이 단계에서 가장 조심할 대목인데, 배포 파이프라인이 그 틈을 주지
+않는다.** 배포는 `develop` push 한 번에 `compose pull + up` 이다
+(`.github/workflows/image.yml` 의 `deploy-dev`). 컬럼 생성과 트래픽 수용이 **같은
+컨테이너 기동**이라 "`ddl-auto` 가 만든 직후, 새 코드가 받기 전" 이라는 창이 아예
+존재하지 않는다.
 
-**배포 전** (`ddl-auto` 가 `status` 컬럼을 만든 직후, 새 코드가 트래픽을 받기 전):
+→ **`ddl-auto` 보다 먼저 손으로 컬럼을 만들고 채운다.** `update` 는 이미 있는 컬럼을
+건드리지 않으므로, 배포가 와도 이 컬럼에 대해서는 아무 DDL 도 내지 않는다.
+
+**배포 전** (BE PR 을 `develop` 에 머지하기 **전**, 운영 DB 에 직접):
 
 ```sql
--- 개설 승인축을 생애축으로 접는다. 승인된 것은 진행 중으로 본다.
+-- 1. 컬럼을 손으로 만든다. not null 도, check 제약도 붙이지 않는다.
+--    Hibernate 6.2+ 는 enum 컬럼을 만들 때 값 목록 check 를 같이 만들지만, 이미
+--    있는 컬럼에 뒤늦게 붙이지는 않는다. 손으로 붙여 두면 나중에 enum 값이 늘 때
+--    update 가 그 제약을 고쳐 주지 않아 INSERT 가 막힌다.
+ALTER TABLE study ADD COLUMN status varchar(255);
+
+-- 2. 개설 승인축을 생애축으로 접는다. 승인된 것은 진행 중으로 본다.
 UPDATE study SET status = 'PENDING'  WHERE approval_status = 'PENDING';
 UPDATE study SET status = 'REJECTED' WHERE approval_status = 'REJECTED';
 UPDATE study SET status = 'ONGOING'  WHERE approval_status = 'APPROVED';
+
+-- 3. 0 이 아니면 배포하지 않는다.
+SELECT count(*) FROM study WHERE status IS NULL;
 ```
 
 **배포 후** (코드가 두 컬럼을 읽지 않는 것을 확인한 뒤):
@@ -542,9 +621,9 @@ ALTER TABLE study DROP COLUMN approval_status;
 ALTER TABLE study DROP COLUMN period;
 ```
 
-먼저 지우면 구버전 인스턴스가 뜨는 동안 매핑이 깨진다. 반대로 `UPDATE` 를 빼먹고
-배포하면 모든 스터디가 `status = NULL` 이라 목록이 통째로 빈다 — **`UPDATE` 가
-`ALTER` 보다 먼저이고 배포보다도 먼저다.**
+먼저 지우면 구버전 인스턴스가 뜨는 동안 매핑이 깨진다. 반대로 3번을 확인하지 않고
+배포하면 그 스터디들은 `status = NULL` 이라 `status in (…)` 필터에 하나도 걸리지 않고
+목록에서 조용히 사라진다 — **컬럼 생성과 backfill 이 배포보다 먼저다.**
 
 승인된 스터디에 `ONGOING` 을 고르는 것은 보수적인 선택이다. 지난 학기 것들은 사실
 `FINISHED` 에 가깝지만, 틀리면 목록에서 사라져 눈에 안 띈다. `ONGOING` 으로 두면
@@ -561,8 +640,15 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 
 1. home-jaram-fe 에 `feat/study-lifecycle` 브랜치를 같은 이름으로 만든다.
 2. 계약 PR 을 먼저 머지한다.
-3. BE PR 을 머지한다.
-4. 배포 후 `ALTER TABLE study DROP COLUMN period` 를 실행한다.
+3. **운영 DB 에 `status` 컬럼을 손으로 만들고 backfill 한다** (§11 의 '배포 전' SQL).
+4. BE PR 을 머지한다 — 여기서 배포가 자동으로 돈다.
+5. 배포 후 `approval_status`·`period` 컬럼을 떨어뜨린다.
+
+**계약에서 지우는 것은 `MyStudy.approvalStatus` 참조 한 줄뿐이다.** `ApprovalStatus`
+스키마 자체는 남긴다 — 세미나가 같은 스키마를 두 곳에서 쓴다(`approvalStatus`,
+`seminarApprovalStatus`). "축을 합쳤으니 `ApprovalStatus` 를 지운다" 로 읽으면 세미나
+계약이 깨진다. 통째로 갈리는 것은 `StudyStatus` 쪽이다 — `CLOSED` 제거,
+`PENDING`·`REJECTED`·`FINISHED` 추가.
 
 ## 13. 테스트
 
@@ -570,7 +656,7 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 |---|---|
 | 상태 전이 | 승인 → `RECRUITING`, 반려 → `REJECTED` + `reason` (토글 값과 무관) |
 | 축 접기 | 목록·상세·신청 어디에도 `PENDING`·`REJECTED` 스터디가 새지 않음 |
-| 토글 격리 | `studyRecruiting` 을 `true↔false` 로 바꿔도 **어떤 스터디의 `status` 도 안 바뀜** |
+| 토글 격리 | `StudyRecruitment.open` 을 `true↔false` 로 바꿔도 **어떤 스터디의 `status` 도 안 바뀜** |
 | 모집 완료 | 스터디장이 `close-recruiting` → `ONGOING`; 남이 부르면 `403` |
 | 잘못된 전이 | `ONGOING` 에 `close-recruiting`, `RECRUITING` 에 `finish` → `409 INVALID_STATE` |
 | 임원 우회 | `STUDY_EDIT` 을 가진 임원은 남의 스터디에도 두 전이를 부를 수 있음 |
@@ -583,11 +669,50 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 | 마스킹 | 8자리·10자리 각각, 그리고 `roster` 에 전체 학번이 없음 |
 | 명단 규칙 | 반려 제외, 스터디장 제외, 기수·이름 정렬, 상태 필드 부재 |
 | 상세 인증 | 비로그인 `GET /api/studies/{id}` → `401`; 목록은 `200` |
-| 토글 권한 | `SITE_LINKS_EDIT` 만 가진 홍보부가 `studyRecruiting` 저장 → `403` |
+| 토글 권한 | 학술부장(`ACADEMIC_LEAD`)이 `PUT /api/studies/recruitment` → `200`; 홍보부장(`PR_LEAD`)·일반 멤버 → `403` |
 | 커리큘럼 | 빈 `weeks[]` → `400`; `weekNo` 가 `[1,2,4]` → `400` |
 | 임원 편집 (D12) | `PATCH :batch` 로 `FINISHED → RECRUITING` 처럼 임의 전이가 통과; 없는 값은 `400` |
 
-`AdminAuthorizationCoverageTest` 가 새 핸들러의 애너테이션 누락을 자동으로 잡는다.
+### 애너테이션 누락은 무엇이 잡는가
+
+지금은 아무것도 잡지 않는다. `AdminAuthorizationCoverageTest` 는 **`/api/admin` 으로
+시작하는 핸들러만** 본다:
+
+```java
+if (patterns.stream().noneMatch(p -> p.startsWith("/api/admin"))) return;
+```
+
+`close-recruiting`·`finish`·`recruitment` 는 `/api/studies` 아래라 이 그물에 안 걸린다.
+`SecurityConfig` 의 마지막 줄이 `anyRequest().authenticated()` 이므로 `@PreAuthorize`
+를 빠뜨리면 **로그인한 아무나 남의 스터디를 종료**시킬 수 있다. 그물이 있다고 적어 둔
+자리에 그물이 없었다.
+
+**접두사를 넓히지 않고 기본값을 뒤집는다.** 지켜야 할 경로를 테스트에 열거하는 방식은
+애너테이션을 잊는 것과 똑같이 목록을 잊을 수 있어서, 잊었을 때 조용한 성질이 그대로
+남는다. 대신 **"인증만으로 통과하는 것이 의도인 핸들러"** 를 명시적 allowlist 로 적고,
+그 밖의 모든 핸들러에 `@PreAuthorize` 를 요구한다:
+
+```java
+/** 로그인만으로 통과하는 것이 의도인 핸들러. 여기 없으면서 @PreAuthorize 도 없으면 실패. */
+private static final Set<String> AUTHENTICATED_ONLY = Set.of(
+        "StudyController#apply", "StudyController#my", "StudyController#detail", …);
+```
+
+애너테이션 없이 새 엔드포인트를 추가하면 테스트가 **기본적으로** 깨진다. 작성자는
+게이트를 달거나 allowlist 에 한 줄을 더하면서 "이건 로그인한 아무나 해도 된다" 를
+눈으로 확인하게 된다. 그 목록 자체가 "누가 권한 없이 통과하는가" 의 표라서 리뷰에서도
+읽힌다. 이름은 `AuthorizationCoverageTest` 로 바꾼다 — 더 이상 관리자 전용이 아니다.
+
+### 다시 쓰는 기존 테스트
+
+새로 쓰는 것 말고 **철거·개작**이 583줄 있다. 계획에서 이 몫을 빠뜨리지 않는다.
+
+| 파일 | 줄 | 무엇이 깨지나 |
+|---|---|---|
+| `study/StudyTest.java` | 318 | `CAPACITY_FULL`·정원 기반 `RECRUIT_CLOSED`·`apply == "CLOSED"` 단언을 D9 이 전제째 지운다. `studies[0].approvalStatus` 단언은 D1 |
+| `contract/StudyContractTest.java` | 141 | 목록 응답이 배열에서 `{recruiting, items[]}` 로 바뀐다 |
+| `study/StudyPermissionTest.java` | 70 | 새 엔드포인트 셋의 게이트가 는다 |
+| `study/StudyRepositoryTest.java` | 54 | `findByApprovalStatusOrderByCreatedAtDesc` 를 직접 부른다 |
 
 ## 14. 범위 밖 — ②·③ 단계
 
