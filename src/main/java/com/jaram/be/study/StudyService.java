@@ -9,8 +9,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,6 +25,10 @@ public class StudyService {
 
     private static final List<StudyStatus> DEFAULT_LIST =
             List.of(StudyStatus.RECRUITING, StudyStatus.ONGOING);
+
+    /** 목록에서 고를 수 있는 상태. PENDING·REJECTED 는 남의 개설 신청이라 새면 안 된다. */
+    private static final Set<StudyStatus> BROWSABLE =
+            EnumSet.of(StudyStatus.RECRUITING, StudyStatus.ONGOING, StudyStatus.FINISHED);
 
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
@@ -95,12 +101,36 @@ public class StudyService {
 
     // ── UC-T1: 목록 (기본 RECRUITING + ONGOING, 미인증 시 userId=null) ──
     @Transactional(readOnly = true)
-    public List<StudyResponse> list(String userId) {
-        List<Study> rows = studies.findByStatusInOrderByCreatedAtDesc(DEFAULT_LIST);
+    public StudyList list(String userId, String statusParam) {
+        List<StudyStatus> want = statusParam == null || statusParam.isBlank()
+                ? DEFAULT_LIST
+                : List.of(browsable(statusParam));
+        List<Study> rows = studies.findByStatusInOrderByCreatedAtDesc(want);
         Map<String, Member> leaders = leadersOf(rows);
-        return rows.stream()
+        List<StudyResponse> items = rows.stream()
                 .map(s -> toResponse(s, leaders.get(s.getLeaderId()), userId))
                 .toList();
+        return new StudyList(recruitmentOpen(), items);
+    }
+
+    /**
+     * 파라미터를 열거형으로 바인딩하지 않고 직접 파싱한다. 바인딩에 맡기면 오타 하나가
+     * MethodArgumentTypeMismatchException 이 되고, GlobalExceptionHandler 의 포괄
+     * 핸들러가 그것을 500 으로 만든다.
+     */
+    private StudyStatus browsable(String raw) {
+        StudyStatus s;
+        try {
+            s = StudyStatus.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            s = null;
+        }
+        if (s == null || !BROWSABLE.contains(s)) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "VALIDATION",
+                    "조회할 수 없는 상태입니다.",
+                    Map.of("status", "RECRUITING, ONGOING, FINISHED 중 하나여야 합니다."));
+        }
+        return s;
     }
 
     // ── UC-T2: 지원 ──

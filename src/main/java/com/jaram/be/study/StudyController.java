@@ -20,8 +20,9 @@ public class StudyController {
 
     // UC-T1: public. 미인증 시 principal null → apply 파생 null.
     @GetMapping
-    public List<StudyResponse> list(@AuthenticationPrincipal CurrentMember me) {
-        return service.list(me == null ? null : me.id());
+    public StudyList list(@RequestParam(required = false) String status,
+                          @AuthenticationPrincipal CurrentMember me) {
+        return service.list(me == null ? null : me.id(), status);
     }
 
     // 모집 토글. 스터디 관리 탭의 손잡이라 STUDY_EDIT 으로 가른다.

@@ -107,7 +107,7 @@ class StudyTest extends PostgresTest {
                 .body("apply", equalTo("JOINED"));
 
         // status=PENDING → not in public list
-        given().when().get("/api/studies").then().statusCode(200).body("size()", equalTo(0));
+        given().when().get("/api/studies").then().statusCode(200).body("items.size()", equalTo(0));
     }
 
     @Test
@@ -188,9 +188,9 @@ class StudyTest extends PostgresTest {
         approvedStudy(leader.getId(), 5);
 
         given().when().get("/api/studies").then().statusCode(200)
-                .body("size()", equalTo(1))
-                .body("[0].leader", equalTo("리더"))
-                .body("[0].apply", nullValue());
+                .body("items.size()", equalTo(1))
+                .body("items[0].leader", equalTo("리더"))
+                .body("items[0].apply", nullValue());
     }
 
     // ── UC-T2 지원 ──
@@ -268,7 +268,7 @@ class StudyTest extends PostgresTest {
         // 정원은 이제 아무것도 막지 않는다. 반려 기록이 막는다 → OPEN 이면 안 된다
         given().header("Authorization", "Bearer " + token(applicant))
                 .when().get("/api/studies").then().statusCode(200)
-                .body("[0].apply", equalTo("CLOSED"));
+                .body("items[0].apply", equalTo("CLOSED"));
     }
 
     // ── UC-T4 내 활동 ──
@@ -318,7 +318,7 @@ class StudyTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().post("/api/studies/" + s.getId() + "/approve").then().statusCode(200);
 
-        given().when().get("/api/studies").then().statusCode(200).body("size()", equalTo(1));
+        given().when().get("/api/studies").then().statusCode(200).body("items.size()", equalTo(1));
     }
 
     @Test
@@ -337,6 +337,54 @@ class StudyTest extends PostgresTest {
         org.assertj.core.api.Assertions.assertThat(
                 studies.findById(s.getId()).orElseThrow().getStatus())
                 .isEqualTo(StudyStatus.REJECTED);
+    }
+
+    // ── 목록 감싸기와 상태 거르기 ──
+
+    @Test
+    void listWrapsItemsWithTheRecruitingFlagAndHidesFinished() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        approvedStudy(leader.getId(), 6);                       // RECRUITING
+        Study ongoing = approvedStudy(leader.getId(), 6);
+        ongoing.closeRecruiting();
+        studies.save(ongoing);                                   // ONGOING
+        Study done = approvedStudy(leader.getId(), 6);
+        done.closeRecruiting();
+        done.finish();
+        studies.save(done);                                      // FINISHED
+
+        given().when().get("/api/studies").then().statusCode(200)
+                .body("recruiting", equalTo(true))
+                .body("items.size()", equalTo(2));
+
+        given().queryParam("status", "FINISHED").when().get("/api/studies")
+                .then().statusCode(200).body("items.size()", equalTo(1));
+
+        given().queryParam("status", "RECRUITING").when().get("/api/studies")
+                .then().statusCode(200).body("items.size()", equalTo(1));
+    }
+
+    @Test
+    void listRefusesStatusesThatMustNotBeBrowsable() {
+        given().queryParam("status", "PENDING").when().get("/api/studies")
+                .then().statusCode(422).body("code", equalTo("VALIDATION"));
+        given().queryParam("status", "REJECTED").when().get("/api/studies")
+                .then().statusCode(422);
+        given().queryParam("status", "NOT_A_STATUS").when().get("/api/studies")
+                .then().statusCode(422);
+    }
+
+    @Test
+    void listCarriesTheLeaderGenerationAndIntro() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        leader.setGen(40);
+        members.save(leader);
+        approvedStudy(leader.getId(), 6);
+
+        given().when().get("/api/studies").then().statusCode(200)
+                .body("items[0].leader", equalTo("리더"))
+                .body("items[0].leaderGen", equalTo(40))
+                .body("items[0].intro", equalTo("함께 풉니다"));
     }
 
     // ── 생애축 전이 ──
@@ -373,7 +421,7 @@ class StudyTest extends PostgresTest {
         rejected.reject("중복");
         studies.save(rejected);
 
-        given().when().get("/api/studies").then().statusCode(200).body("size()", equalTo(0));
+        given().when().get("/api/studies").then().statusCode(200).body("items.size()", equalTo(0));
     }
 
     // ── UC-T7 신청자 목록 ──

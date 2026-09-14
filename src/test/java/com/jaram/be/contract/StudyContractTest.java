@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StudyContractTest extends PostgresTest {
@@ -97,9 +98,13 @@ class StudyContractTest extends PostgresTest {
         s.approve();
         studies.save(s);
 
+        // 검증기가 응답 본문의 모양(배열 vs 객체)까지 잡아 주지는 않는다.
+        // 감싼 모양을 여기서 직접 고정한다.
         given().filter(validation)
                 .when().get("/api/studies")
-                .then().statusCode(200);
+                .then().statusCode(200)
+                .body("recruiting", equalTo(true))
+                .body("items.size()", equalTo(1));
     }
 
     @Test

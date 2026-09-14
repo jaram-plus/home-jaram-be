@@ -5,7 +5,6 @@ import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,7 +39,6 @@ class StudyRecruitmentTest extends PostgresTest {
     }
 
     @Test
-    @Disabled("Task 5 — 목록이 아직 배열이라 recruiting 을 실을 자리가 없다")
     void academicLeadCanFlipTheToggle() {
         put(actors.token(Role.ACADEMIC_LEAD), true, 204);
         given().when().get("/api/studies").then().statusCode(200)
@@ -54,7 +52,6 @@ class StudyRecruitmentTest extends PostgresTest {
     }
 
     @Test
-    @Disabled("Task 5 — 목록이 아직 배열이라 recruiting 을 실을 자리가 없다")
     void defaultsToClosedWhenNobodyHasFlippedIt() {
         given().when().get("/api/studies").then().statusCode(200)
                 .body("recruiting", equalTo(false));
