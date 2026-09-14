@@ -29,7 +29,7 @@
 
 | # | 항목 | 결정 |
 |---|---|---|
-| D1 | 상태 | `RECRUITING` / `ONGOING` / `FINISHED` 를 **저장**한다 |
+| D1 | 상태 | **축 하나에 5값**을 저장한다 — `PENDING`/`REJECTED`/`RECRUITING`/`ONGOING`/`FINISHED`. `approvalStatus` 는 여기로 접는다 |
 | D2 | 신청 가능 시점 | `RECRUITING` 에서만 |
 | D3 | 모집 토글 | 관리자 설정의 boolean. **'스터디 개설' 버튼의 표시와 동작만** 가른다. 상태는 안 건드린다 |
 | D4 | 개설 승인 | 임원 유지 (`STUDY_APPROVE`) |
@@ -48,31 +48,60 @@
 ## 3. 상태 기계
 
 ```
-                임원 승인          스터디장 '모집 완료'      스터디장 '종료'
-개설 신청 ─────────────────▶ 모집 중 ───────────────────▶ 진행 중 ───────────────▶ 종료
-(PENDING)   │              RECRUITING                  ONGOING                FINISHED
-            │                   ▲                         ▲                      │
-            │ 임원 반려          └─────────────────────────┴──────────────────────┘
-            ▼                      임원이 관리자 일괄 편집에서 임의 지정 (D12)
-         REJECTED
+            임원 승인          스터디장 '모집 완료'      스터디장 '종료'
+ PENDING ─────────────▶ RECRUITING ───────────────▶ ONGOING ───────────────▶ FINISHED
+    │      (개설 신청)    (모집 중)                   (진행 중)                 (종료)
+    │                         ▲                         ▲                        │
+    │ 임원 반려                └─────────────────────────┴────────────────────────┘
+    ▼                            임원이 관리자 일괄 편집에서 임의 지정 (D12)
+ REJECTED
 ```
 
 **모집 토글은 이 그림에 없다.** 토글은 개설 버튼만 가른다(§4). 상태를 움직이는 것은
 스터디장의 버튼 둘과 임원의 편집뿐이다.
 
-**축이 둘이다.** 기존 `approvalStatus`(개설 승인축, `PENDING`/`APPROVED`/`REJECTED`)는
-그대로 두고, 새 `status`(생애축)를 옆에 세운다. 합치지 않는 이유는 둘이 다른 질문에
-답하기 때문이다 — "이 스터디를 열어도 되는가" 와 "지금 어느 단계인가" 는
-같이 움직이지 않는다. 반려된 스터디에는 생애가 없고, 진행 중인 스터디의 개설 승인은
-이미 끝난 과거다.
+**축은 하나다.** 기존 `approvalStatus`(`PENDING`/`APPROVED`/`REJECTED`)를 `status`
+안으로 접어 5값 열거형 하나로 만든다. `APPROVED` 는 따로 남지 않는다 — 승인된
+스터디는 곧바로 `RECRUITING` 이고, "승인되었다" 는 사실은 `RECRUITING` 이상의
+어느 값이든 그 자체로 말해 준다.
 
-`status` 는 `approvalStatus == APPROVED` 일 때만 의미가 있다. 그 전에는 `null` 이다.
+### 왜 두 축으로 나누지 않는가
+
+초안은 둘을 나란히 뒀었다. 근거는 "둘이 다른 질문에 답한다" 였는데, 값을 세어 보면
+얻는 게 없다:
+
+```
+approvalStatus(3) × status(4, null 포함) = 12가지 조합, 합법은 5가지
+```
+
+**7가지가 표현 가능한 쓰레기 상태다.** `(REJECTED, ONGOING)` 이 저장되는 것을 막는
+것은 타입이 아니라 규율이고, 읽는 사람은 조합을 볼 때마다 "이게 가능한가"를 따져야
+한다. 하나로 접으면 불법 상태를 **표현할 수 없게** 된다.
+
+`status` 가 `approvalStatus == APPROVED` 일 때만 의미를 갖는 조건부 nullable 컬럼이
+된다는 것도 같은 신호다 — 한 가지를 두 컬럼에 나눠 담았을 때 나오는 모양이다.
+
+계약에 이미 증거가 있다. `MyStudy` 가 축 두 개를 함께 싣고 있고, 화면은 그걸 조합해
+칩 **하나**를 그린다:
+
+```java
+public record MyStudy(String id, String title,
+        ApprovalStatus approvalStatus,   // <-
+        StudyStatus status,              // <- 둘 다
+        String reason) { }
+```
+
+접으면 이 레코드가 필드 하나 줄고, 조합 규칙이 화면에서 사라진다.
+
+`reason`(반려 사유)은 그대로 둔다 — `status == REJECTED` 일 때만 채워지는 것은
+지금과 같다.
 
 ### 전이 규칙
 
 | 전이 | 계기 | 주체 |
 |---|---|---|
-| `null` → `RECRUITING` | 개설 승인 | 임원 (`STUDY_APPROVE`) |
+| `PENDING` → `RECRUITING` | 개설 승인 | 임원 (`STUDY_APPROVE`) |
+| `PENDING` → `REJECTED` | 개설 반려 (+ `reason`) | 임원 (`STUDY_APPROVE`) |
 | `RECRUITING` → `ONGOING` | '모집 완료' 버튼 (D13) | 스터디장, 또는 `STUDY_EDIT` |
 | `ONGOING` → `FINISHED` | '종료' 버튼 | 스터디장, 또는 `STUDY_EDIT` |
 | 임의 → 임의 | 관리자 일괄 편집의 `status` (D12) | 임원 (`STUDY_EDIT`) |
@@ -149,11 +178,16 @@ case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, action
 ### `Study` 변경
 
 ```
-+ status       StudyStatus?   생애축. approvalStatus == APPROVED 전에는 null
-+ contact      String         문의처. 개설 시 필수 (자유 텍스트)
-+ place        String         장소. 개설 시 필수
-- period       String         삭제 (D8)
++ status         StudyStatus  5값. 기본 PENDING. non-null
++ contact        String       문의처. 개설 시 필수 (자유 텍스트)
++ place          String       장소. 개설 시 필수
+- approvalStatus ApprovalStatus  삭제 — status 로 접힌다 (D1)
+- period         String       삭제 (D8)
 ```
+
+`Study.approve()` 는 `status = RECRUITING`, `reject(reason)` 은 `status = REJECTED`
+로 바뀐다. `com.jaram.be.study.ApprovalStatus` 는 지운다 —
+`com.jaram.be.seminar.ApprovalStatus` 는 이름만 같은 별개 열거형이라 손대지 않는다.
 
 `fields`(분야)·`schedule`(일시)·`mode`(방식)·`intro`(설명)·`capacity`(희망 인원)는
 그대로 쓴다.
@@ -202,8 +236,17 @@ unique (studyId, weekNo)
 ### `StudyStatus` 열거형 교체
 
 ```java
-public enum StudyStatus { RECRUITING, ONGOING, FINISHED }
+public enum StudyStatus {
+    PENDING,      // 개설 승인 대기
+    REJECTED,     // 개설 반려 (reason 이 채워진다)
+    RECRUITING,   // 모집 중
+    ONGOING,      // 진행 중
+    FINISHED      // 종료
+}
 ```
+
+선언 순서가 곧 생애 순서다. `PENDING`/`REJECTED` 는 `ApprovalStatus` 에서 접어 온
+값이고, 뒤 셋이 새로 생긴 값이다.
 
 기존 `CLOSED` 는 버린다. 그 값은 "정원이 찼다"는 뜻이었고, D9 으로 그 개념 자체가
 사라졌다. `CLOSED` 를 `FINISHED` 의 뜻으로 재사용하지 않는 이유는, 뜻이 달라진 값을
@@ -233,8 +276,8 @@ D9 에 따라 걷어내는 것:
 
 1. `eligibility.requireActive(applicantId)` — 조회보다 먼저. (기존 주석의 이유 그대로:
    없는 id 에 404 가 앞서면 안 된다)
-2. `approvalStatus == APPROVED` 그리고 `status == RECRUITING` → 아니면
-   `409 RECRUIT_CLOSED`
+2. `status == RECRUITING` → 아니면 `409 RECRUIT_CLOSED`
+   (축을 합쳤으므로 검사가 하나다 — 전에는 `approvalStatus` 까지 두 번 봐야 했다)
 3. 본인이 스터디장이면 `409 LEADER_SELF`
 4. 이미 신청 기록이 있으면 `409 ALREADY_APPLIED`
 
@@ -325,7 +368,12 @@ static String maskStudentId(String id) {
 
 상태 칩 필터는 화면에서 거르지 않고 서버가 거른다 — `?status=RECRUITING` 등.
 파라미터가 없으면 **`RECRUITING` + `ONGOING`** 만 준다(`전체` 칩). `FINISHED` 는
-`?status=FINISHED` 로만 나온다. 개설 대기·반려 스터디는 어느 경우에도 목록에 없다.
+`?status=FINISHED` 로만 나온다.
+
+`PENDING`·`REJECTED` 는 **`?status=` 로도 나오지 않는다.** 남의 개설 신청과 반려 사유가
+목록에 뜰 일은 없다 — 이 둘은 본인의 '내 스터디'에서만 보인다. 축을 합치면서 이 필터가
+`status in (…)` 한 줄이 되었고, 전에는 `approvalStatus == APPROVED` 를 모든 조회에
+같이 걸어야 했다.
 
 ### 상세 모달 (`GET /api/studies/{id}`)
 
@@ -420,11 +468,13 @@ public class StudyAccess {
 | `GET /api/studies` | 응답을 `{recruiting, items[]}` 로 감쌈. `?status=` 추가. 항목에 `intro`·`leaderGen` 추가, `period` 제거 |
 | `POST /api/studies` | `place`·`contact`·`weeks[]` 필수, `period` 제거. 토글 OFF 면 `409` |
 | `POST /api/studies/{id}/apply` | `status == RECRUITING` 검사 추가, 정원 검사 제거 |
-| `POST /api/studies/{id}/approve` | 승인 시 `status = RECRUITING` |
-| `GET /api/studies/pending` | 응답에서 `period` 제거 |
+| `POST /api/studies/{id}/approve` | `status = RECRUITING` |
+| `POST /api/studies/{id}/reject` | `status = REJECTED` |
+| `GET /api/studies/pending` | `findByStatus(PENDING)`. 응답에서 `period` 제거 |
+| `GET /api/studies/my` | `MyStudy` 에서 `approvalStatus` 제거 — `status` 하나로 (D1) |
 | `PATCH /api/admin/settings` | `studyRecruiting` 필드. **상태는 건드리지 않는다** |
 | `GET /api/admin/settings` | `studyRecruiting` 필드 |
-| `GET /api/admin/studies` | 행에 `status` 추가 (`studyRow` 에 `period` 는 원래 없다) |
+| `GET /api/admin/studies` | 행의 `approvalStatus` → `status` (`studyRow` 에 `period` 는 원래 없다) |
 | `PATCH /api/admin/studies:batch` | `updateStudy` 가 `status` 를 받는다 (D12) |
 
 `/api/studies/my`·`/pending`·`/applicants` 와 신청자 승인/거절은 ① 에서 손대지 않는다.
@@ -443,20 +493,33 @@ public class StudyAccess {
 
 손으로 돌릴 SQL (`docs/migrations/2026-09-15-study-lifecycle.sql`):
 
-```sql
--- 1. 승인된 기존 스터디에 생애 상태를 채운다. 모집 기간이 이미 끝났다고 보고 진행 중으로.
-UPDATE study SET status = 'ONGOING' WHERE approval_status = 'APPROVED' AND status IS NULL;
+**축을 접는 것이 이 단계에서 가장 조심할 대목이다.** `approval_status` 의 값을
+새 `status` 컬럼으로 옮긴 뒤에야 옛 컬럼을 버릴 수 있고, 그 사이에 배포가 끼어 있다.
 
--- 2. period 를 버린다 (D8). 배포가 끝나고 코드가 이 컬럼을 읽지 않는 것을 확인한 뒤 실행.
+**배포 전** (`ddl-auto` 가 `status` 컬럼을 만든 직후, 새 코드가 트래픽을 받기 전):
+
+```sql
+-- 개설 승인축을 생애축으로 접는다. 승인된 것은 진행 중으로 본다.
+UPDATE study SET status = 'PENDING'  WHERE approval_status = 'PENDING';
+UPDATE study SET status = 'REJECTED' WHERE approval_status = 'REJECTED';
+UPDATE study SET status = 'ONGOING'  WHERE approval_status = 'APPROVED';
+```
+
+**배포 후** (코드가 두 컬럼을 읽지 않는 것을 확인한 뒤):
+
+```sql
+ALTER TABLE study DROP COLUMN approval_status;
 ALTER TABLE study DROP COLUMN period;
 ```
 
-2번은 **배포 후**에 실행한다. 먼저 지우면 구버전 인스턴스가 뜨는 동안 매핑이 깨진다.
+먼저 지우면 구버전 인스턴스가 뜨는 동안 매핑이 깨진다. 반대로 `UPDATE` 를 빼먹고
+배포하면 모든 스터디가 `status = NULL` 이라 목록이 통째로 빈다 — **`UPDATE` 가
+`ALTER` 보다 먼저이고 배포보다도 먼저다.**
 
-1번이 `ONGOING` 을 고르는 것은 보수적인 선택이다 — 지난 학기 스터디는 사실 `FINISHED`
-에 가깝지만, 틀리면 목록에서 사라져 눈에 안 띈다. `ONGOING` 으로 두면 `전체` 칩에
-남아 있으니 임원이 보고 D12 의 일괄 편집으로 한 번에 `FINISHED` 로 내릴 수 있다.
-안 보이는 쪽으로 틀리는 것보다 보이는 쪽으로 틀리는 편이 고치기 쉽다.
+승인된 스터디에 `ONGOING` 을 고르는 것은 보수적인 선택이다. 지난 학기 것들은 사실
+`FINISHED` 에 가깝지만, 틀리면 목록에서 사라져 눈에 안 띈다. `ONGOING` 으로 두면
+`전체` 칩에 남아 있으니 임원이 보고 D12 의 일괄 편집으로 내릴 수 있다. **안 보이는
+쪽으로 틀리는 것보다 보이는 쪽으로 틀리는 편이 고치기 쉽다.**
 
 ## 12. 계약과 배포 순서
 
@@ -475,7 +538,8 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 
 | 대상 | 검증 |
 |---|---|
-| 상태 전이 | 승인 → `RECRUITING` (토글 값과 무관하게 둘 다) |
+| 상태 전이 | 승인 → `RECRUITING`, 반려 → `REJECTED` + `reason` (토글 값과 무관) |
+| 축 접기 | 목록·상세·신청 어디에도 `PENDING`·`REJECTED` 스터디가 새지 않음 |
 | 토글 격리 | `studyRecruiting` 을 `true↔false` 로 바꿔도 **어떤 스터디의 `status` 도 안 바뀜** |
 | 모집 완료 | 스터디장이 `close-recruiting` → `ONGOING`; 남이 부르면 `403` |
 | 잘못된 전이 | `ONGOING` 에 `close-recruiting`, `RECRUITING` 에 `finish` → `409 INVALID_STATE` |
