@@ -66,7 +66,7 @@ class AdminMemberDeleteRuleTest extends PostgresTest {
         Member m = saved("홍길동", "2023012345", "hong@hanyang.ac.kr");
 
         AdminBatchExecutor.UpdateOutcome outcome =
-                executor.updateRow(AdminResource.members, update(m, Map.of("status", "REREGISTER")));
+                executor.updateRow(AdminResource.members, update(m, Map.of("status", "REREGISTER")), null);
 
         assertThat(outcome).isInstanceOf(AdminBatchExecutor.Invalid.class);
         assertThat(((AdminBatchExecutor.Invalid) outcome).fieldErrors()).containsKey("status");
@@ -78,7 +78,7 @@ class AdminMemberDeleteRuleTest extends PostgresTest {
     void otherStatusesStillWork() {
         Member m = saved("홍길동", "2023012345", "hong@hanyang.ac.kr");
 
-        assertThat(executor.updateRow(AdminResource.members, update(m, Map.of("status", "ON_LEAVE"))))
+        assertThat(executor.updateRow(AdminResource.members, update(m, Map.of("status", "ON_LEAVE")), null))
                 .isInstanceOf(AdminBatchExecutor.Applied.class);
         assertThat(members.findById(m.getId()).orElseThrow().getStatus())
                 .isEqualTo(MemberStatus.ON_LEAVE);

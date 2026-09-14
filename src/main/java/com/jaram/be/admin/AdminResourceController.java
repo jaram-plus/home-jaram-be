@@ -3,6 +3,9 @@ package com.jaram.be.admin;
 import com.jaram.be.admin.dto.AdminBatchRequest;
 import com.jaram.be.admin.dto.AdminBatchResponse;
 import com.jaram.be.admin.dto.AdminListResponse;
+import com.jaram.be.security.CurrentMember;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -15,6 +18,7 @@ public class AdminResourceController {
 
     // UC-A1: 관리 목록 (검색·필터·정렬·페이지). page 기본 1, size 기본 8.
     @GetMapping("/{resource}")
+    @PreAuthorize("@adminResourceAccess.canList(#resource, authentication)")
     public AdminListResponse list(@PathVariable AdminResource resource,
                                   @RequestParam(required = false) String tab,
                                   @RequestParam(required = false) String q,
@@ -26,8 +30,10 @@ public class AdminResourceController {
 
     // UC-A2: 변경분 일괄 저장 (부분 성공). 콜론 경로 {resource}:batch.
     @PatchMapping("/{resource}:batch")
+    @PreAuthorize("@adminResourceAccess.canEdit(#resource, authentication)")
     public AdminBatchResponse batch(@PathVariable AdminResource resource,
-                                    @RequestBody AdminBatchRequest req) {
-        return service.batch(resource, req);
+                                    @RequestBody AdminBatchRequest req,
+                                    @AuthenticationPrincipal CurrentMember me) {
+        return service.batch(resource, req, me);
     }
 }

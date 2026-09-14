@@ -10,6 +10,7 @@ import com.jaram.be.member.MemberCareer;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberTerm;
+import com.jaram.be.security.CurrentMember;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
 import com.jaram.be.seminar.SeminarService;
@@ -75,7 +76,7 @@ public class AdminResourceService {
     // ── A2: 일괄 저장 (행별 독립 tx로 부분 성공) ──
     // 이 메서드 자체는 트랜잭션을 열지 않는다 — 각 행을 executor 의 REQUIRES_NEW 경계에서
     // 커밋해, 한 행의 충돌이 다른 행의 성공을 되돌리지 않게 한다.
-    public AdminBatchResponse batch(AdminResource resource, AdminBatchRequest req) {
+    public AdminBatchResponse batch(AdminResource resource, AdminBatchRequest req, CurrentMember actor) {
         List<Updated> updated = new ArrayList<>();
         List<Created> created = new ArrayList<>();
         List<String> deleted = new ArrayList<>();
@@ -83,7 +84,7 @@ public class AdminResourceService {
         List<RowError> errors = new ArrayList<>();
 
         for (AdminBatchRequest.Update u : req.updates()) {
-            switch (executor.updateRow(resource, u)) {
+            switch (executor.updateRow(resource, u, actor)) {
                 case Applied a -> updated.add(new Updated(a.id()));
                 case Conflicted c -> conflicts.add(new Conflict(c.id(), c.message()));
                 case Invalid i -> errors.add(new RowError(i.id(), i.fieldErrors()));
