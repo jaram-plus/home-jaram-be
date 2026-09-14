@@ -19,8 +19,9 @@
   운영자 손에 없다.
 - 커리큘럼·장소·문의처를 담을 자리가 없어, 화면이 스터디를 소개할 재료가 부족하다.
 
-① 단계는 **상태를 저장값으로 바꾸고, 그 상태를 움직이는 손잡이를 운영자에게
-주는 것**까지다. 출석과 관리자 도구는 ②·③ 단계다.
+① 단계는 **상태를 저장값으로 바꾸고, 그 상태를 움직이는 손잡이를 스터디장과 임원에게
+쥐여 주는 것**까지다 — 기계와 전이 API 전부. 그 손잡이가 붙는 화면(②)과
+임원 도구(③)는 다음 단계다.
 
 ## 2. 결정 요약
 
@@ -30,7 +31,7 @@
 |---|---|---|
 | D1 | 상태 | `RECRUITING` / `ONGOING` / `FINISHED` 를 **저장**한다 |
 | D2 | 신청 가능 시점 | `RECRUITING` 에서만 |
-| D3 | 모집 토글 | 관리자 설정의 boolean. **OFF 로 바뀌는 순간** 일괄 전이 |
+| D3 | 모집 토글 | 관리자 설정의 boolean. **'스터디 개설' 버튼의 표시와 동작만** 가른다. 상태는 안 건드린다 |
 | D4 | 개설 승인 | 임원 유지 (`STUDY_APPROVE`) |
 | D5 | 커리큘럼 | 주차별. **개설 시 최소 1주차 필수** |
 | D6 | 문의처 | 개설 시 **별도 필수 입력**. 회원 `phone` 을 쓰지 않는다 |
@@ -39,19 +40,25 @@
 | D9 | 정원 | **한도가 아니라 희망 인원**. 마감 판정을 없앤다 |
 | D10 | 지원 인원 공개 | 상세 모달에 명단. 학번 마스킹, 반려 제외, **로그인 필수** |
 | D11 | 반려 뒤 재신청 | **허용한다.** '삭제하기'가 신청 행을 하드 삭제해 제약이 풀린다 |
-| D12 | 상태 되돌리기 | 관리자 일괄 편집에서 `status` 를 고칠 수 있게 **① 로 당긴다** |
+| D12 | 임원의 상태 변경 | 관리자 일괄 편집에서 `status` 를 임의로 지정. **정규 경로다** |
+| D13 | 모집 완료 | 스터디장이 '관리하기' 모달의 **'모집 완료'** 로 `RECRUITING → ONGOING` |
+| D14 | 주차 유동성 | 주차는 도중에 늘고 준다. **맨 뒤에서만**, 출석이 기록된 주차는 못 자른다 |
+| D15 | 인원 카운터 | **`정원 / 희망`** 으로 표기 (`cur` / `cap`) |
 
 ## 3. 상태 기계
 
 ```
-                  임원 승인               토글 OFF           스터디장 '종료'(②)
-개설 신청 ──────────────────▶ 모집 중 ─────────────────▶ 진행 중 ─────────────────▶ 종료
-(PENDING)     │              RECRUITING                 ONGOING                  FINISHED
-              │                   ▲                        ▲                        │
-              │ 임원 반려          └────────────────────────┴────────────────────────┘
-              ▼                        임원이 관리자 상세에서 임의 지정 (③)
-           REJECTED
+                임원 승인          스터디장 '모집 완료'      스터디장 '종료'
+개설 신청 ─────────────────▶ 모집 중 ───────────────────▶ 진행 중 ───────────────▶ 종료
+(PENDING)   │              RECRUITING                  ONGOING                FINISHED
+            │                   ▲                         ▲                      │
+            │ 임원 반려          └─────────────────────────┴──────────────────────┘
+            ▼                      임원이 관리자 일괄 편집에서 임의 지정 (D12)
+         REJECTED
 ```
+
+**모집 토글은 이 그림에 없다.** 토글은 개설 버튼만 가른다(§4). 상태를 움직이는 것은
+스터디장의 버튼 둘과 임원의 편집뿐이다.
 
 **축이 둘이다.** 기존 `approvalStatus`(개설 승인축, `PENDING`/`APPROVED`/`REJECTED`)는
 그대로 두고, 새 `status`(생애축)를 옆에 세운다. 합치지 않는 이유는 둘이 다른 질문에
@@ -65,51 +72,52 @@
 
 | 전이 | 계기 | 주체 |
 |---|---|---|
-| `null` → `RECRUITING` | 개설 승인 **且** 모집 토글 ON | 임원 |
-| `null` → `ONGOING` | 개설 승인 **且** 모집 토글 OFF | 임원 |
-| `RECRUITING` → `ONGOING` | 모집 토글이 ON→OFF 로 바뀜 | 운영자 (일괄) |
-| `ONGOING` → `FINISHED` | 종료 버튼 (**② 단계**) | 스터디장 |
-| 임의 → 임의 | 관리자 상세 편집 (**③ 단계**) | 임원 |
+| `null` → `RECRUITING` | 개설 승인 | 임원 (`STUDY_APPROVE`) |
+| `RECRUITING` → `ONGOING` | '모집 완료' 버튼 (D13) | 스터디장, 또는 `STUDY_EDIT` |
+| `ONGOING` → `FINISHED` | '종료' 버튼 | 스터디장, 또는 `STUDY_EDIT` |
+| 임의 → 임의 | 관리자 일괄 편집의 `status` (D12) | 임원 (`STUDY_EDIT`) |
 
-토글이 꺼져 있는 동안 승인된 스터디가 곧바로 `ONGOING` 으로 들어가는 것은,
-모집이 끝난 뒤 승인된 스터디를 `모집 중` 으로 두면 **신청을 받을 수 없는데
-신청 버튼이 켜져 있는 상태**가 되기 때문이다.
+**승인된 스터디는 언제나 `RECRUITING` 으로 들어간다.** 토글 상태를 보지 않는다 —
+토글은 개설 신청을 받을지만 정하고, 이미 들어온 신청을 승인한다는 것은 그 스터디가
+사람을 모아도 좋다는 뜻이다.
+
+**모집을 끝내는 것은 스터디장이다.** 학회 전체가 한날에 모집을 닫는 구조였다면
+토글이 그 일을 했겠지만, 스터디마다 사람 모으는 속도가 다르다. 자기 스터디가
+찼는지는 스터디장이 가장 먼저 안다.
+
+세 전이 API 는 전부 ① 단계에 있다. 버튼이 붙는 화면은 ② 지만, 기계를 반쪽만 만들면
+① 배포 뒤 상태를 움직일 손이 임원의 일괄 편집밖에 안 남는다.
 
 ### 정원이 차는 것은 상태가 아니다
 
 D9 에 따라 `capacity` 는 희망 인원이다. 승인 인원이 그 숫자를 넘어도 상태는
 `RECRUITING` 그대로고, 신청도 계속 받는다. 스터디장이 판단한다(②).
 
-## 4. 모집 토글 — 경계에서만 전이한다
+## 4. 모집 토글 — 개설 버튼 하나만 가른다
 
-`AdminSettings` 에 `studyRecruiting boolean` 하나를 더한다. 이 값이 하는 일:
+`AdminSettings` 에 `studyRecruiting boolean` 하나를 더한다. 이 값이 하는 일은
+**딱 하나**다:
 
-1. `POST /api/studies`(개설 신청)를 열고 닫는다. **OFF 면 `409 RECRUIT_CLOSED`.**
-2. `PATCH /api/admin/settings` 로 **`true` → `false` 가 되는 순간**,
-   `approvalStatus == APPROVED && status == RECRUITING` 인 스터디를 전부
-   `ONGOING` 으로 옮긴다.
+> `POST /api/studies`(개설 신청)를 열고 닫는다. OFF 면 `409 RECRUIT_CLOSED`.
 
-**경계 트리거(edge-triggered)다.** 이미 `false` 인 값에 `false` 를 다시 써도 아무 일도
-일어나지 않는다. 그래야 설정 화면이 다른 필드를 저장할 때마다 전이가 다시 돌지 않는다.
+상태는 건드리지 않는다. 승인 시 상태를 고를 때도 이 값을 보지 않는다(§3).
 
-**되돌리지 않는다.** `false` → `true` 는 개설 버튼만 다시 켜고 `ONGOING` 을
-`RECRUITING` 으로 되돌리지 않는다. 일괄 전이를 양방향으로 만들면 토글 한 번 잘못
-눌러 종료 직전의 스터디들이 한꺼번에 모집 상태로 돌아간다. 되살릴 스터디는
-임원이 관리자 상세에서 하나씩 고른다(③).
+**왜 일괄 전이를 두지 않는가.** 초안은 토글 OFF 가 `RECRUITING` 을 전부 `ONGOING`
+으로 옮기게 했었다. 그러면 학회 전체가 한날에 모집을 닫는 셈이라, 아직 사람을 더
+받고 싶은 스터디까지 같이 닫힌다. 그리고 클릭 한 번이 그 학기 모든 스터디의 상태를
+바꾸는데 되돌릴 화면이 없다는 문제가 따라붙는다. 모집을 끝내는 판단은 스터디장에게
+있고(D13), 토글은 "이번 학기에 새 스터디를 더 받을 것인가" 만 답한다.
 
 **화면이 버튼을 숨기는 것은 통제가 아니다.** 토글이 꺼져 있으면 서버가 개설 신청을
-거절해야 한다. FE 의 버튼 숨김은 편의일 뿐이다.
+거절해야 한다. FE 의 버튼 숨김은 편의일 뿐이다 — 이 둘이 `studyRecruiting` 하나를
+같이 읽는다.
 
-### 되돌릴 손이 ① 안에 있어야 한다 (D12)
+### 임원의 상태 변경은 정규 경로다 (D12)
 
-위의 "되돌리지 않는다" 는 되살릴 스터디를 임원이 하나씩 고른다는 전제 위에 서 있는데,
-그 화면이 ③ 단계에 있다. 즉 **①·② 만 배포된 동안 토글을 잘못 끄면 되돌릴 방법이
-아무 데도 없다.** 관리자 일괄 편집(`AdminBatchExecutor.updateStudy`)이 지금 허용하는
-필드는 `title` 과 `capacity` 뿐이다.
-
-한 번의 클릭으로 그 학기 모든 스터디의 상태가 바뀌는데 되돌릴 수 없는 것은
-설계 결함이지 단계 분할의 문제가 아니다. `updateStudy` 의 `switch` 에 `status` 분기
-하나를 **① 로 당긴다**:
+스터디장이 '모집 완료'를 잘못 눌렀거나, 졸업·휴학으로 스터디장이 사라졌거나,
+운영이 학기 말에 남은 스터디를 정리해야 할 때 — 상태를 고칠 손이 임원에게 필요하다.
+관리자 일괄 편집(`AdminBatchExecutor.updateStudy`)이 지금 허용하는 필드는
+`title` 과 `capacity` 뿐이다. `switch` 에 `status` 분기를 더한다:
 
 ```java
 case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, actions, false);
@@ -167,6 +175,29 @@ unique (studyId, weekNo)
 
 `weekNo` 는 1부터 빈칸 없이 이어진다. 검증은 저장 시점에 한다 —
 `[1,2,4]` 같은 입력은 `400`.
+
+### 주차는 도중에 늘고 준다 (D14)
+
+8주로 열었다가 6주에 접기도 하고, 시험 기간에 한 주 쉬어 9주가 되기도 한다.
+주차 목록은 개설 시에 굳지 않는다.
+
+| 동작 | 규칙 |
+|---|---|
+| 제목·내용 수정 | **언제나 가능.** 출석이 기록된 주차도 마찬가지 |
+| 주차 추가 | **맨 뒤에만.** `weekNo = max + 1` |
+| 주차 삭제 | **맨 뒤에서만.** 출석이 기록된 주차(`takenAt != null`)는 `409` |
+
+**맨 뒤에서만 늘리고 줄인다.** 중간 삽입·삭제를 허용하면 뒤 번호를 당길지 말지를
+정해야 하는데, 당기면 이미 출석이 기록된 "3주차"가 가리키던 모임이 슬그머니 바뀌고,
+안 당기면 `[1,2,4]` 같은 구멍이 생겨 "가장 빠른 빈 주차"(②)가 흔들린다.
+
+이 규칙 하나로 실제 시나리오가 다 덮인다 — **한 주 쉼**은 뒤에 한 주 더하기,
+**일찍 접음**은 뒤에서 자르기다. 중간의 어떤 주에 뭘 했는지가 바뀌는 것은 제목·내용
+수정으로 끝난다. 실제로 중간 주차를 통째로 들어내야 하는 일이 생기면 그때 규칙을
+늘리는 편이, 지금 번호 재배열 로직을 만들어 두는 것보다 싸다.
+
+주차 편집 API 는 ② 단계다(출석 없이는 삭제 제한을 검사할 대상이 없다).
+① 단계는 개설 시의 최초 입력만 다룬다.
 
 ### `StudyStatus` 열거형 교체
 
@@ -253,11 +284,22 @@ static String maskStudentId(String id) {
 
 `2022123459`(10자리) → `2022*****9`, `20231234`(8자리) → `2023***4`.
 
-### 인원 카운터와의 불일치 — 의도한 것이다
+### 인원 카운터 — `정원 / 희망` (D15)
 
-카운터는 `승인 3 / 희망 8`, 명단은 대기 포함 5명일 수 있다. 보는 사람이 "2명은
-대기중" 까지 셈할 수 있으나 **누가** 대기인지는 모른다. 카운터를 명단 길이에 맞추면
-승인 인원이라는 운영 숫자가 사라진다. 카운터는 승인 인원 그대로 둔다.
+카운터는 **`정원 3 / 희망 8`** 로 읽는다.
+
+| 표기 | 값 | 필드 |
+|---|---|---|
+| 정원 | 승인되어 실제로 들어온 인원 | `cur` |
+| 희망 | 개설할 때 목표한 인원 | `cap` |
+
+여기서 **'정원'은 상한이 아니라 확정 인원**이다. D9 으로 상한이라는 개념 자체가
+사라졌으므로 `정원 9 / 희망 8` 도 정상이다. 흔한 용법과 반대라 화면 문구를 바꿀 때
+주의한다.
+
+**명단과 숫자가 안 맞는 것은 의도한 것이다.** 카운터는 `정원 3`, 명단은 대기 포함
+5명일 수 있다. 보는 사람이 "2명은 대기중" 까지 셈할 수 있으나 **누가** 대기인지는
+모른다. 카운터를 명단 길이에 맞추면 확정 인원이라는 운영 숫자가 사라진다.
 
 ## 8. 화면과 응답
 
@@ -329,8 +371,26 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | 개설 신청 | 인증 + `Eligibility.requireActive` + 토글 ON | ① |
 | 신청 | 인증 + `Eligibility.requireActive` | ① |
 | 개설 승인·반려 | `hasAuthority('STUDY_APPROVE')` | ① (기존) |
+| **모집 완료** | `@studyAccess.isLeader(#id, …)` **or** `hasAuthority('STUDY_EDIT')` | ① |
+| **종료** | `@studyAccess.isLeader(#id, …)` **or** `hasAuthority('STUDY_EDIT')` | ① |
+| 상태 임의 지정 | `AdminResourceAccess.canEdit` (`studies → STUDY_EDIT`) | ① |
 | 신청 승인·반려 | `hasAuthority('STUDY_APPLICANT_MANAGE')` | ① (기존, ②에서 스터디장으로 확장) |
 | 모집 토글 | `SettingsAccess.canApply` 에 `studyRecruiting → STUDY_EDIT` 분기 | ① |
+
+**`StudyAccess` 가 ① 로 앞당겨진다.** 원래 ② 단계에 두려던 소유자 조건 빈인데,
+상태 전이 둘이 스터디장 손에 있으므로 ① 에서 필요해졌다.
+
+```java
+@Component("studyAccess")
+public class StudyAccess {
+    public boolean isLeader(String studyId, Authentication auth) { … }
+}
+```
+
+`SeminarAccessPolicy` 와 같은 모양이다. 스터디장은 `Role` 이 **아니다** —
+`Role` 은 `member_term`(부서·직책)에서 파생되고, 스터디장은 스터디 한 건에 매인
+관계라 그 축에 올리면 "누구의 스터디장인가" 가 사라진다. 세미나 재제출
+(`SEMINAR_EDIT or @seminarAccess.isOwner`)이 이미 같은 자리를 이렇게 풀었다.
 
 `SettingsAccess.canApply` 는 이미 PATCH 한 건을 필드별로 가른다
 (`currentGen → SETTINGS_ROLLOVER`, `links → SETTINGS_EDIT | SITE_LINKS_EDIT`).
@@ -346,6 +406,12 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | 메서드 | 경로 | 권한 |
 |---|---|---|
 | `GET` | `/api/studies/{id}` | 인증 |
+| `POST` | `/api/studies/{id}/close-recruiting` | 스터디장 or `STUDY_EDIT` (D13) |
+| `POST` | `/api/studies/{id}/finish` | 스터디장 or `STUDY_EDIT` |
+
+전이 API 둘은 **현재 상태를 검사한다** — `close-recruiting` 은 `RECRUITING` 에서만,
+`finish` 는 `ONGOING` 에서만 통과하고 아니면 `409 INVALID_STATE`. 상태를 건너뛰거나
+되돌리는 것은 임원의 일괄 편집(D12)으로만 한다.
 
 ### 바뀌는 것
 
@@ -354,9 +420,9 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | `GET /api/studies` | 응답을 `{recruiting, items[]}` 로 감쌈. `?status=` 추가. 항목에 `intro`·`leaderGen` 추가, `period` 제거 |
 | `POST /api/studies` | `place`·`contact`·`weeks[]` 필수, `period` 제거. 토글 OFF 면 `409` |
 | `POST /api/studies/{id}/apply` | `status == RECRUITING` 검사 추가, 정원 검사 제거 |
-| `POST /api/studies/{id}/approve` | 승인 시 `status` 를 토글 상태에 맞춰 세팅 |
+| `POST /api/studies/{id}/approve` | 승인 시 `status = RECRUITING` |
 | `GET /api/studies/pending` | 응답에서 `period` 제거 |
-| `PATCH /api/admin/settings` | `studyRecruiting` 필드. `true→false` 경계에서 일괄 전이 |
+| `PATCH /api/admin/settings` | `studyRecruiting` 필드. **상태는 건드리지 않는다** |
 | `GET /api/admin/settings` | `studyRecruiting` 필드 |
 | `GET /api/admin/studies` | 행에 `status` 추가 (`studyRow` 에 `period` 는 원래 없다) |
 | `PATCH /api/admin/studies:batch` | `updateStudy` 가 `status` 를 받는다 (D12) |
@@ -387,6 +453,11 @@ ALTER TABLE study DROP COLUMN period;
 
 2번은 **배포 후**에 실행한다. 먼저 지우면 구버전 인스턴스가 뜨는 동안 매핑이 깨진다.
 
+1번이 `ONGOING` 을 고르는 것은 보수적인 선택이다 — 지난 학기 스터디는 사실 `FINISHED`
+에 가깝지만, 틀리면 목록에서 사라져 눈에 안 띈다. `ONGOING` 으로 두면 `전체` 칩에
+남아 있으니 임원이 보고 D12 의 일괄 편집으로 한 번에 `FINISHED` 로 내릴 수 있다.
+안 보이는 쪽으로 틀리는 것보다 보이는 쪽으로 틀리는 편이 고치기 쉽다.
+
 ## 12. 계약과 배포 순서
 
 `openapi.yaml` 은 home-jaram-fe 에만 있고 BE 의 두 경로는 그 파일로의 심볼릭 링크다.
@@ -404,10 +475,11 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 
 | 대상 | 검증 |
 |---|---|
-| 상태 전이 | 토글 ON 중 승인 → `RECRUITING`; OFF 중 승인 → `ONGOING` |
-| 일괄 전이 | `true→false` 로 `RECRUITING` 이 전부 `ONGOING`; `FINISHED`·`PENDING` 은 안 건드림 |
-| 경계 트리거 | `false→false` 재저장이 아무것도 옮기지 않음 |
-| 되돌리지 않음 | `false→true` 가 `ONGOING` 을 되돌리지 않음 |
+| 상태 전이 | 승인 → `RECRUITING` (토글 값과 무관하게 둘 다) |
+| 토글 격리 | `studyRecruiting` 을 `true↔false` 로 바꿔도 **어떤 스터디의 `status` 도 안 바뀜** |
+| 모집 완료 | 스터디장이 `close-recruiting` → `ONGOING`; 남이 부르면 `403` |
+| 잘못된 전이 | `ONGOING` 에 `close-recruiting`, `RECRUITING` 에 `finish` → `409 INVALID_STATE` |
+| 임원 우회 | `STUDY_EDIT` 을 가진 임원은 남의 스터디에도 두 전이를 부를 수 있음 |
 | 개설 차단 | 토글 OFF 에서 `POST /api/studies` → `409` |
 | 신청 시점 | `ONGOING`·`FINISHED` 스터디에 신청 → `409 RECRUIT_CLOSED` |
 | 정원 제거 | 승인 인원이 `capacity` 를 넘어도 신청·승인이 통과 |
@@ -417,20 +489,34 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 | 상세 인증 | 비로그인 `GET /api/studies/{id}` → `401`; 목록은 `200` |
 | 토글 권한 | `SITE_LINKS_EDIT` 만 가진 홍보부가 `studyRecruiting` 저장 → `403` |
 | 커리큘럼 | 빈 `weeks[]` → `400`; `weekNo` 가 `[1,2,4]` → `400` |
-| 되돌리기 (D12) | 일괄 전이 후 `PATCH :batch` 로 `status: RECRUITING` 을 써서 복구; 없는 값은 `400` |
+| 임원 편집 (D12) | `PATCH :batch` 로 `FINISHED → RECRUITING` 처럼 임의 전이가 통과; 없는 값은 `400` |
 
 `AdminAuthorizationCoverageTest` 가 새 핸들러의 애너테이션 누락을 자동으로 잡는다.
 
 ## 14. 범위 밖 — ②·③ 단계
 
-**② 운영** — 스터디장이 신청을 승인·반려(`StudyAccess.isLeader` 소유자 조건),
-`StudyWeek.takenAt` 추가와 `StudyAttendance` 신설(존재=출석), 첫 저장 +24h 편집 창,
-종료 버튼(`ONGOING → FINISHED`), '내 스터디' 탭 재정의(`FINISHED` 제외),
-반려 신청 '삭제하기'(§6 의 재신청 가정을 구현).
+**② 운영** — '내 스터디' 탭과 **'관리하기' 모달**. 이 모달은 상태에 따라 다른 것을 연다:
+
+| 스터디 상태 | 스터디장이 보는 것 | 일반 멤버가 보는 것 |
+|---|---|---|
+| `모집 중` | 신청 승인·반려 목록 + 우측 하단 **'모집 완료'** | (신청 대기 카드만, 모달 없음) |
+| `진행 중` | `출석` / `정보` 탭 + '종료' | 자기 주차별 출석 현황 |
+| `종료` | '내 스터디'에서 사라짐 | 사라짐 |
+
+함께 들어가는 것: 스터디장이 신청을 승인·반려(`STUDY_APPLICANT_MANAGE` 에
+소유자 조건 추가), `StudyWeek.takenAt` 과 `StudyAttendance` 신설(존재=출석),
+첫 저장 +24h 편집 창, 주차 추가·삭제 API(D14), 반려 신청 '삭제하기'(D11).
+
+① 이 만들어 둔 `close-recruiting`·`finish` 에 버튼만 붙인다.
 
 **③ 임원 도구** — 관리자 '스터디 관리' 탭, 모집 토글 UI, 표(스터디명·스터디장·인원·
 출석률·상태·상세·삭제), 상세 편집 **화면**(상태 편집 API 자체는 D12 로 ① 에 있다),
 멤버 직접 추가
 (진행 중 합류 시 지난 주차는 결석 — 존재=출석 모델에서 저절로 성립한다).
+
+**단계 경계가 초안에서 바뀌었다.** 상태를 움직이는 API 셋(`close-recruiting`,
+`finish`, 일괄 편집의 `status`)과 `StudyAccess` 가 ② ③ 에서 ① 로 올라왔다.
+토글이 전이를 몰지 않게 되면서, 상태 기계를 완성하는 일이 곧 ① 의 일이 되었기
+때문이다. ②·③ 은 그 위에 화면을 붙인다.
 
 **아예 안 하는 것** — 스터디 채팅·파일 공유·과제 제출. 이번 재설계에 없다.
