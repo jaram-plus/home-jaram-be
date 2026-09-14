@@ -29,6 +29,8 @@ class StudyTest extends PostgresTest {
     @Autowired StudyRepository studies;
     @Autowired StudyApplicationRepository applications;
     @Autowired StudyWeekRepository weeks;
+    @Autowired StudyRecruitmentRepository recruitment;
+    @Autowired StudyService studyService;
     @Autowired Actors actors;
 
     private String officerToken;
@@ -39,6 +41,8 @@ class StudyTest extends PostgresTest {
         applications.deleteAll();
         studies.deleteAll();
         members.deleteAll();
+        recruitment.deleteAll();
+        studyService.setRecruitmentOpen(true);
         officerToken = actors.officer();
     }
 
@@ -115,6 +119,16 @@ class StudyTest extends PostgresTest {
                 .contentType("application/json").body(body)
                 .when().post("/api/studies")
                 .then().statusCode(422).body("code", equalTo("VALIDATION"));
+    }
+
+    @Test
+    void createIsRefusedWhileRecruitmentIsClosed() {
+        studyService.setRecruitmentOpen(false);
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        given().header("Authorization", "Bearer " + token(leader))
+                .contentType("application/json").body(createBody())
+                .when().post("/api/studies")
+                .then().statusCode(409).body("code", equalTo("RECRUIT_CLOSED"));
     }
 
     @Test

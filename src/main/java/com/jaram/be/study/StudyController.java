@@ -24,6 +24,16 @@ public class StudyController {
         return service.list(me == null ? null : me.id());
     }
 
+    // 모집 토글. 스터디 관리 탭의 손잡이라 STUDY_EDIT 으로 가른다.
+    // literal 경로라 {id} 보다 먼저 선언한다 — Spring 의 매칭 우선순위 자체는 선언
+    // 순서와 무관하지만, 읽는 사람에게 이 자리가 고정 경로임을 보인다.
+    @PutMapping("/recruitment")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('STUDY_EDIT')")
+    public void recruitment(@Valid @RequestBody RecruitmentUpdate req) {
+        service.setRecruitmentOpen(req.open());
+    }
+
     // UC-T3: 개설 신청.
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

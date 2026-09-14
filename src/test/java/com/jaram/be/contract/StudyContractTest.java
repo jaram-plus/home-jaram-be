@@ -10,7 +10,9 @@ import com.jaram.be.member.MemberRepository;
 import com.jaram.be.study.Study;
 import com.jaram.be.study.StudyApplication;
 import com.jaram.be.study.StudyApplicationRepository;
+import com.jaram.be.study.StudyRecruitmentRepository;
 import com.jaram.be.study.StudyRepository;
+import com.jaram.be.study.StudyService;
 import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
@@ -32,6 +34,8 @@ class StudyContractTest extends PostgresTest {
     @Autowired MemberRepository members;
     @Autowired StudyRepository studies;
     @Autowired StudyApplicationRepository applications;
+    @Autowired StudyRecruitmentRepository recruitment;
+    @Autowired StudyService studyService;
     @Autowired Actors actors;
 
     // swagger-request-validator 2.43.0 mis-handles OAS 3.1 `type: string` path parameters
@@ -52,6 +56,8 @@ class StudyContractTest extends PostgresTest {
         applications.deleteAll();
         studies.deleteAll();
         members.deleteAll();
+        recruitment.deleteAll();
+        studyService.setRecruitmentOpen(true);
         officerToken = actors.officer();
         leader = approvedMember("리더", "2023000001", "leader@hanyang.ac.kr");
     }

@@ -27,15 +27,17 @@ public class StudyService {
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
     private final StudyWeekRepository weeks;
+    private final StudyRecruitmentRepository recruitment;
     private final MemberRepository members;
     private final Eligibility eligibility;
 
     public StudyService(StudyRepository studies, StudyApplicationRepository applications,
-                        StudyWeekRepository weeks, MemberRepository members,
-                        Eligibility eligibility) {
+                        StudyWeekRepository weeks, StudyRecruitmentRepository recruitment,
+                        MemberRepository members, Eligibility eligibility) {
         this.studies = studies;
         this.applications = applications;
         this.weeks = weeks;
+        this.recruitment = recruitment;
         this.members = members;
         this.eligibility = eligibility;
     }
@@ -44,6 +46,11 @@ public class StudyService {
     @Transactional
     public StudyResponse create(StudyCreateRequest req, String leaderId) {
         eligibility.requireActive(leaderId);
+        // 화면이 버튼을 숨기는 것은 통제가 아니다 — 서버가 거절해야 한다.
+        if (!recruitmentOpen()) {
+            throw new ApiException(HttpStatus.CONFLICT, "RECRUIT_CLOSED",
+                    "지금은 스터디 개설 신청을 받지 않습니다.");
+        }
         requireContiguousWeeks(req.weeks());
         Study saved = studies.save(Study.create(
                 req.title(), req.fields(), req.capacity(),
@@ -66,6 +73,24 @@ public class StudyService {
                         Map.of("weeks", "주차 번호가 1..%d 가 아닙니다.".formatted(nos.size())));
             }
         }
+    }
+
+    // ── 모집 토글 ──
+
+    /** 행이 없으면 '닫혀 있다'. 기본을 열어 두면 아무도 안 눌렀을 때 개설이 열린다. */
+    @Transactional(readOnly = true)
+    public boolean recruitmentOpen() {
+        return recruitment.findById(StudyRecruitment.SINGLETON_ID)
+                .map(StudyRecruitment::isOpen)
+                .orElse(false);
+    }
+
+    @Transactional
+    public void setRecruitmentOpen(boolean open) {
+        StudyRecruitment r = recruitment.findById(StudyRecruitment.SINGLETON_ID)
+                .orElseGet(StudyRecruitment::closed);
+        r.setOpen(open);
+        recruitment.save(r);
     }
 
     // ── UC-T1: 목록 (기본 RECRUITING + ONGOING, 미인증 시 userId=null) ──
