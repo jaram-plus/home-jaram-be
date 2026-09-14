@@ -7,11 +7,14 @@ import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.member.dto.MemberTermResponse;
+import com.jaram.be.security.authz.Policy;
+import com.jaram.be.security.authz.RoleResolver;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * GET/PATCH /api/me: the authenticated member's own profile. gen goes out as a
@@ -22,8 +25,12 @@ import java.time.Instant;
 public class MeService {
 
     private final MemberRepository members;
+    private final RoleResolver roles;
 
-    public MeService(MemberRepository members) { this.members = members; }
+    public MeService(MemberRepository members, RoleResolver roles) {
+        this.members = members;
+        this.roles = roles;
+    }
 
     @Transactional(readOnly = true)
     public MeProfile get(String memberId) {
@@ -91,6 +98,16 @@ public class MeService {
                 m.isContributor(),
                 m.getBio(),
                 m.getGithubUrl(),
-                m.getBlogUrl());
+                m.getBlogUrl(),
+                roleNames(m),
+                permissionNames(m));
+    }
+
+    private List<String> roleNames(Member m) {
+        return roles.rolesOf(m).stream().map(Enum::name).sorted().toList();
+    }
+
+    private List<String> permissionNames(Member m) {
+        return Policy.permissionsOf(roles.rolesOf(m)).stream().map(Enum::name).sorted().toList();
     }
 }

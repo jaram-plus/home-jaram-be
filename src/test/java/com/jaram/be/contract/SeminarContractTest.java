@@ -4,7 +4,6 @@ import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
@@ -12,7 +11,8 @@ import com.jaram.be.seminar.Attendance;
 import com.jaram.be.seminar.AttendanceRepository;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.security.authz.Role;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +34,7 @@ class SeminarContractTest extends PostgresTest {
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     // swagger-request-validator 2.43.0 mis-handles OAS 3.1 `type: string` path parameters,
     // JSON-parsing the {id} value (a UUID) and failing. Downgrade only that spurious
@@ -49,14 +49,17 @@ class SeminarContractTest extends PostgresTest {
 
     private String officerToken;
     private String memberToken;
+    private String memberId;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         attendances.deleteAll();
         seminars.deleteAll();
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
-        memberToken = jwt.generate("member-1", "회원", "member@hanyang.ac.kr", Authority.MEMBER);
+        officerToken = actors.officer();
+        Member actor = actors.save(Role.MEMBER);
+        memberId = actor.getId();
+        memberToken = actors.tokenFor(actor);
     }
 
     @Test
@@ -127,7 +130,7 @@ class SeminarContractTest extends PostgresTest {
     @Test
     void resubmitMatchesContract() {
         Seminar s = Seminar.create("반려", null, null, Instant.now(),
-                null, null, "CODE", null, null, "member-1");
+                null, null, "CODE", null, null, memberId);
         s.reject("보완");
         seminars.save(s);
         given().filter(validation).header("Authorization", "Bearer " + memberToken)
@@ -139,7 +142,7 @@ class SeminarContractTest extends PostgresTest {
     @Test
     void pendingQueueMatchesContract() {
         seminars.save(Seminar.create("대기", null, null, Instant.now(),
-                null, null, "CODE", null, null, "member-1"));
+                null, null, "CODE", null, null, memberId));
         given().filter(validation).header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/seminars/pending").then().statusCode(200);
     }
@@ -147,7 +150,7 @@ class SeminarContractTest extends PostgresTest {
     @Test
     void approveMatchesContract() {
         Seminar s = seminars.save(Seminar.create("대기", null, null, Instant.now(),
-                null, null, "CODE", null, null, "member-1"));
+                null, null, "CODE", null, null, memberId));
         given().filter(validation).header("Authorization", "Bearer " + officerToken)
                 .when().post("/api/admin/seminars/" + s.getId() + "/approve").then().statusCode(200);
     }
@@ -155,7 +158,7 @@ class SeminarContractTest extends PostgresTest {
     @Test
     void rejectMatchesContract() {
         Seminar s = seminars.save(Seminar.create("대기", null, null, Instant.now(),
-                null, null, "CODE", null, null, "member-1"));
+                null, null, "CODE", null, null, memberId));
         given().filter(validation).header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json").body(Map.of("reason", "보완 필요"))
                 .when().post("/api/admin/seminars/" + s.getId() + "/reject").then().statusCode(200);

@@ -1,6 +1,5 @@
 package com.jaram.be.security;
 
-import com.jaram.be.member.Authority;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -15,8 +14,8 @@ import java.util.Date;
 @Component
 public class JwtProvider {
 
-    public record JwtClaims(String memberId, String name, String email, Authority authority,
-                           Instant issuedAt) { }
+    /** 토큰은 신원만 싣는다. 권한은 요청 시점에 DB 에서 읽는다 — 임기를 거두면 즉시 반영된다. */
+    public record JwtClaims(String memberId, String name, String email, Instant issuedAt) { }
 
     private final SecretKey key;
     private final long ttlSeconds;
@@ -27,13 +26,12 @@ public class JwtProvider {
         this.ttlSeconds = ttlSeconds;
     }
 
-    public String generate(String memberId, String name, String email, Authority authority) {
+    public String generate(String memberId, String name, String email) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(memberId)
                 .claim("name", name)
                 .claim("email", email)
-                .claim("authority", authority.name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlSeconds)))
                 .signWith(key)
@@ -47,7 +45,6 @@ public class JwtProvider {
                 c.getSubject(),
                 c.get("name", String.class),
                 c.get("email", String.class),
-                Authority.valueOf(c.get("authority", String.class)),
                 c.getIssuedAt().toInstant());
     }
 }

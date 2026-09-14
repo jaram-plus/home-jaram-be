@@ -1,8 +1,7 @@
 package com.jaram.be.site;
 
 import com.jaram.be.admin.AdminSettingsRepository;
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +22,7 @@ import static org.hamcrest.Matchers.nullValue;
 class SiteLinksTest extends PostgresTest {
 
     @LocalServerPort int port;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
     @Autowired AdminSettingsRepository repo;
 
     private String officerToken;
@@ -31,7 +30,7 @@ class SiteLinksTest extends PostgresTest {
     @BeforeEach void setup() {
         RestAssured.port = port;
         repo.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     @Test

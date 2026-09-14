@@ -1,6 +1,5 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
@@ -87,7 +86,7 @@ class SeminarListTest extends PostgresTest {
         m.setStatus(MemberStatus.ACTIVE);
         m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         m = members.save(m);
-        String token = jwt.generate(m.getId(), "김출석", "a@hanyang.ac.kr", Authority.MEMBER);
+        String token = jwt.generate(m.getId(), "김출석", "a@hanyang.ac.kr");
 
         // now - 200m is outside the default 120m window -> ENDED
         Instant endedStart = Instant.now().minus(200, ChronoUnit.MINUTES);

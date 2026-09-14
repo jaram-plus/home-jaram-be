@@ -1,9 +1,8 @@
 package com.jaram.be.admin;
 
 import com.jaram.be.common.ClubTime;
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Gen;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +21,7 @@ import static org.hamcrest.Matchers.nullValue;
 class AdminSettingsTest extends PostgresTest {
 
     @LocalServerPort int port;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
     @Autowired AdminSettingsRepository repo;
 
     private String officerToken;
@@ -30,7 +29,7 @@ class AdminSettingsTest extends PostgresTest {
     @BeforeEach void setup() {
         RestAssured.port = port;
         repo.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     @Test
@@ -253,7 +252,7 @@ class AdminSettingsTest extends PostgresTest {
 
     @Test
     void memberIsForbidden() {
-        String memberToken = jwt.generate("m1", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        String memberToken = actors.member();
         given().header("Authorization", "Bearer " + memberToken)
                 .when().get("/api/admin/settings")
                 .then().statusCode(403);

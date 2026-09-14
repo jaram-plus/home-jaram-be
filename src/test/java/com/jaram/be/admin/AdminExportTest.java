@@ -1,7 +1,7 @@
 package com.jaram.be.admin;
 
 import com.jaram.be.member.*;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,14 +21,14 @@ class AdminExportTest extends PostgresTest {
 
     @LocalServerPort int port;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     @Test
@@ -66,7 +66,7 @@ class AdminExportTest extends PostgresTest {
 
     @Test
     void memberIsForbidden() {
-        String memberToken = jwt.generate("m1", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        String memberToken = actors.member();
         given().header("Authorization", "Bearer " + memberToken)
                 .contentType("application/json")
                 .body(Map.of("resource", "members"))

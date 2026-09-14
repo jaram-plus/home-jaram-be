@@ -1,6 +1,5 @@
 package com.jaram.be.me;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberDepartment;
@@ -44,7 +43,7 @@ class MeReregistrationTest extends PostgresTest {
         me.setStatus(MemberStatus.ACTIVE);
         me.setGen(41);
         me = members.save(me);
-        token = jwt.generate(me.getId(), me.getName(), me.getEmail(), Authority.MEMBER);
+        token = jwt.generate(me.getId(), me.getName(), me.getEmail());
     }
 
     private Member reload() { return members.findById(me.getId()).orElseThrow(); }

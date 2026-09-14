@@ -2,8 +2,8 @@ package com.jaram.be.study;
 
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
-import com.jaram.be.member.MemberActivityGuard;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.security.authz.Eligibility;
 import com.jaram.be.study.dto.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,20 +24,20 @@ public class StudyService {
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
     private final MemberRepository members;
-    private final MemberActivityGuard guard;
+    private final Eligibility eligibility;
 
     public StudyService(StudyRepository studies, StudyApplicationRepository applications,
-                        MemberRepository members, MemberActivityGuard guard) {
+                        MemberRepository members, Eligibility eligibility) {
         this.studies = studies;
         this.applications = applications;
         this.members = members;
-        this.guard = guard;
+        this.eligibility = eligibility;
     }
 
     // ── UC-T3: 개설 신청 ──
     @Transactional
     public StudyResponse create(StudyCreateRequest req, String leaderId) {
-        guard.requireRegistered(leaderId);
+        eligibility.requireActive(leaderId);
         Study saved = studies.save(Study.create(
                 req.title(), req.fields(), req.capacity(),
                 req.schedule(), req.period(), req.mode(), req.intro(), leaderId));
@@ -55,7 +55,7 @@ public class StudyService {
     // ── UC-T2: 지원 ──
     @Transactional
     public void apply(String studyId, String applicantId, String motive) {
-        guard.requireRegistered(applicantId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        eligibility.requireActive(applicantId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Study study = loadStudy(studyId);
         if (study.getApprovalStatus() != ApprovalStatus.APPROVED) {
             throw new ApiException(HttpStatus.CONFLICT, "RECRUIT_CLOSED", "모집 중인 스터디가 아닙니다.");

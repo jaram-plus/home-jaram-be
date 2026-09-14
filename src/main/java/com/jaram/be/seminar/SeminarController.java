@@ -6,10 +6,11 @@ import com.jaram.be.seminar.dto.AttendeePreviewResponse;
 import com.jaram.be.seminar.dto.RosterResponse;
 import com.jaram.be.seminar.dto.SeminarCreateRequest;
 import com.jaram.be.seminar.dto.SeminarResponse;
-import com.jaram.be.member.Authority;
 import com.jaram.be.security.CurrentMember;
+import com.jaram.be.security.authz.Permission;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +30,7 @@ public class SeminarController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('SEMINAR_CREATE')")
     @ResponseStatus(HttpStatus.CREATED)
     public SeminarResponse create(@Valid @RequestBody SeminarCreateRequest req,
                                   @AuthenticationPrincipal CurrentMember me) {
@@ -39,10 +41,11 @@ public class SeminarController {
     public SeminarResponse getOne(@PathVariable String id,
                                   @AuthenticationPrincipal CurrentMember me) {
         return service.getOne(id, me == null ? null : me.id(),
-                me != null && me.authority() == Authority.OFFICER);
+                me != null && me.can(Permission.SEMINAR_APPROVE));
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAuthority('SEMINAR_EDIT') or @seminarAccess.isOwner(#id, authentication)")
     public SeminarResponse resubmit(@PathVariable String id,
                                     @Valid @RequestBody SeminarCreateRequest req,
                                     @AuthenticationPrincipal CurrentMember me) {
@@ -57,6 +60,7 @@ public class SeminarController {
     }
 
     @GetMapping("/{id}/roster")
+    @PreAuthorize("hasAuthority('SEMINAR_ROSTER_READ')")
     public RosterResponse roster(@PathVariable String id) {
         return service.roster(id);
     }

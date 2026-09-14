@@ -1,10 +1,9 @@
 package com.jaram.be.study;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,7 @@ class StudyTest extends PostgresTest {
     @Autowired MemberRepository members;
     @Autowired StudyRepository studies;
     @Autowired StudyApplicationRepository applications;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
 
@@ -35,7 +34,7 @@ class StudyTest extends PostgresTest {
         applications.deleteAll();
         studies.deleteAll();
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     // ── helpers ──
@@ -49,7 +48,7 @@ class StudyTest extends PostgresTest {
     }
 
     private String token(Member m) {
-        return jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
+        return actors.tokenFor(m);
     }
 
     private Study approvedStudy(String leaderId, int cap) {

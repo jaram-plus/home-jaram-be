@@ -1,10 +1,9 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +24,7 @@ class SeminarAttendeePreviewTest extends PostgresTest {
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String memberToken;
 
@@ -34,7 +33,7 @@ class SeminarAttendeePreviewTest extends PostgresTest {
         attendances.deleteAll();
         seminars.deleteAll();
         members.deleteAll();
-        memberToken = jwt.generate("member-1", "회원", "member@hanyang.ac.kr", Authority.MEMBER);
+        memberToken = actors.member();
     }
 
     @Test

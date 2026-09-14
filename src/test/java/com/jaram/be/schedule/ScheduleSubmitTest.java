@@ -1,9 +1,10 @@
 package com.jaram.be.schedule;
 
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.member.Member;
+import com.jaram.be.security.authz.Role;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,20 +26,23 @@ class ScheduleSubmitTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired ScheduleRepository schedules;
     @Autowired SeminarRepository seminars;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
-    private String token;   // member-1
+    private String token;
+    private String memberId;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         schedules.deleteAll();
         seminars.deleteAll();
-        token = jwt.generate("member-1", "회원", "a@hanyang.ac.kr", Authority.MEMBER);
+        Member actor = actors.save(Role.MEMBER);
+        memberId = actor.getId();
+        token = actors.tokenFor(actor);
     }
 
     private Schedule lockedWithMyClaim() {
         Schedule s = Schedule.create(Instant.parse("2026-06-27T10:00:00Z"), "IT관 401", "offline", 3);
-        s.getSlots().get(0).claim("member-1");
+        s.getSlots().get(0).claim(memberId);
         s.lock();
         return schedules.save(s);
     }
@@ -73,7 +77,7 @@ class ScheduleSubmitTest extends PostgresTest {
     @Test
     void submitOnOpenScheduleIs409() {
         Schedule s = Schedule.create(Instant.now(), null, null, 3);
-        s.getSlots().get(0).claim("member-1");
+        s.getSlots().get(0).claim(memberId);
         schedules.save(s); // OPEN
         given().header("Authorization", "Bearer " + token)
                 .contentType("application/json").body(Map.of("title", "x", "startsAt", "2026-01-01T00:00:00Z"))
@@ -111,7 +115,7 @@ class ScheduleSubmitTest extends PostgresTest {
                 .when().post("/api/schedules/" + s.getId() + "/slots/0/seminar").then().statusCode(201)
                 .extract().path("id");
 
-        String officer = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
+        String officer = actors.officer();
         given().header("Authorization", "Bearer " + officer)
                 .contentType("application/json").body(Map.of("deletes", java.util.List.of(id)))
                 .when().patch("/api/admin/seminars:batch").then().statusCode(200)
@@ -119,7 +123,7 @@ class ScheduleSubmitTest extends PostgresTest {
 
         // 슬롯은 점유는 유지하고 세미나 링크만 잃는다
         given().when().get("/api/schedules").then().statusCode(200)
-                .body("[0].slots[0].member.id", equalTo("member-1"))
+                .body("[0].slots[0].member.id", equalTo(memberId))
                 .body("[0].slots[0].seminarId", equalTo(null));
 
         // 그래서 다시 제출할 수 있다

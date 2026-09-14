@@ -1,8 +1,9 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
+import com.jaram.be.member.Member;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.security.authz.Role;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class SeminarDetailTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
@@ -39,7 +40,7 @@ class SeminarDetailTest extends PostgresTest {
     @Test
     void approvedVisibleToAnyMember() {
         Seminar s = save("공개", "officer-1", Seminar::approve);
-        String member = jwt.generate("member-7", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        String member = actors.member();
         given().header("Authorization", "Bearer " + member)
                 .when().get("/api/seminars/" + s.getId()).then().statusCode(200)
                 .body("title", equalTo("공개"))
@@ -55,16 +56,17 @@ class SeminarDetailTest extends PostgresTest {
     @Test
     void pendingHiddenFromStrangerAs404() {
         Seminar s = save("대기", "owner-1", x -> {}); // PENDING
-        String other = jwt.generate("member-2", "남", "b@hanyang.ac.kr", Authority.MEMBER);
+        String other = actors.member();
         given().header("Authorization", "Bearer " + other)
                 .when().get("/api/seminars/" + s.getId()).then().statusCode(404);
     }
 
     @Test
     void pendingVisibleToOwner() {
-        Seminar s = save("대기", "owner-1", x -> {});
-        String owner = jwt.generate("owner-1", "주인", "o@hanyang.ac.kr", Authority.MEMBER);
-        given().header("Authorization", "Bearer " + owner)
+        Member owner = actors.save(Role.MEMBER);
+        Seminar s = save("대기", owner.getId(), x -> {});
+        String ownerToken = actors.tokenFor(owner);
+        given().header("Authorization", "Bearer " + ownerToken)
                 .when().get("/api/seminars/" + s.getId()).then().statusCode(200)
                 .body("approvalStatus", equalTo("PENDING"));
     }
@@ -72,7 +74,7 @@ class SeminarDetailTest extends PostgresTest {
     @Test
     void rejectedVisibleToOfficer() {
         Seminar s = save("반려", "owner-1", x -> x.reject("사유"));
-        String officer = jwt.generate("officer-9", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
+        String officer = actors.officer();
         given().header("Authorization", "Bearer " + officer)
                 .when().get("/api/seminars/" + s.getId()).then().statusCode(200)
                 .body("rejectReason", equalTo("사유"));
@@ -80,7 +82,7 @@ class SeminarDetailTest extends PostgresTest {
 
     @Test
     void missingReturns404() {
-        String member = jwt.generate("member-7", "회원", "m@hanyang.ac.kr", Authority.MEMBER);
+        String member = actors.member();
         given().header("Authorization", "Bearer " + member)
                 .when().get("/api/seminars/nope").then().statusCode(404);
     }

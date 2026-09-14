@@ -36,7 +36,7 @@ class ReregistrationBlocksActivityTest extends PostgresTest {
         m.markReregistrationRequired();
         m.setGen(41);
         m = members.save(m);
-        token = jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
+        token = jwt.generate(m.getId(), m.getName(), m.getEmail());
     }
 
     @Test

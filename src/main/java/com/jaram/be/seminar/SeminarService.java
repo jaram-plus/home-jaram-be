@@ -2,8 +2,8 @@ package com.jaram.be.seminar;
 
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
-import com.jaram.be.member.MemberActivityGuard;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.security.authz.Eligibility;
 import com.jaram.be.seminar.dto.AttendResult;
 import com.jaram.be.seminar.dto.AttendeePreviewEntry;
 import com.jaram.be.seminar.dto.AttendeePreviewResponse;
@@ -42,18 +42,18 @@ public class SeminarService {
     private final SeminarRepository seminars;
     private final AttendanceRepository attendances;
     private final MemberRepository members;
-    private final MemberActivityGuard guard;
+    private final Eligibility eligibility;
     private final long windowMinutes;
 
     public SeminarService(SeminarRepository seminars,
                           AttendanceRepository attendances,
                           MemberRepository members,
-                          MemberActivityGuard guard,
+                          Eligibility eligibility,
                           @Value("${seminar.attendance-window-minutes:120}") long windowMinutes) {
         this.seminars = seminars;
         this.attendances = attendances;
         this.members = members;
-        this.guard = guard;
+        this.eligibility = eligibility;
         this.windowMinutes = windowMinutes;
     }
 
@@ -136,9 +136,8 @@ public class SeminarService {
     public SeminarResponse resubmit(String id, SeminarCreateRequest req, String callerId) {
         Seminar s = seminars.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
-        if (!callerId.equals(s.getCreatedById())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "본인 세미나만 수정할 수 있습니다.");
-        }
+        // 소유자 판정은 @PreAuthorize 로 올라갔다 — 두 곳에 두면 SEMINAR_EDIT 보유자가
+        // 애너테이션은 통과하고 여기서 막히는 모순이 생긴다.
         if (s.getApprovalStatus() != ApprovalStatus.REJECTED) {
             throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "반려된 세미나만 재제출할 수 있습니다.");
         }
@@ -195,7 +194,7 @@ public class SeminarService {
 
     @Transactional
     public AttendResult attend(String seminarId, String memberId, String code) {
-        guard.requireRegistered(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        eligibility.requireActive(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Seminar s = seminars.findById(seminarId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
 

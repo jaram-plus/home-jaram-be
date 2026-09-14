@@ -1,7 +1,8 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.member.Member;
+import com.jaram.be.security.authz.Role;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,15 +25,18 @@ class SeminarResubmitTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String ownerToken;
+    private String ownerId;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         attendances.deleteAll();
         seminars.deleteAll();
-        ownerToken = jwt.generate("owner-1", "주인", "o@hanyang.ac.kr", Authority.MEMBER);
+        Member owner = actors.save(Role.MEMBER);
+        ownerId = owner.getId();
+        ownerToken = actors.tokenFor(owner);
     }
 
     private Seminar rejected(String owner, String scheduleId) {
@@ -45,7 +49,7 @@ class SeminarResubmitTest extends PostgresTest {
 
     @Test
     void ownerResubmitsRejectedGoesPending() {
-        Seminar s = rejected("owner-1", null);
+        Seminar s = rejected(ownerId, null);
         Map<String, Object> body = new HashMap<>();
         body.put("title", "새제목");
         body.put("startsAt", "2026-09-01T10:00:00Z");
@@ -62,7 +66,7 @@ class SeminarResubmitTest extends PostgresTest {
 
     @Test
     void slotLinkedResubmitKeepsScheduleTime() {
-        Seminar s = rejected("owner-1", "sched-1");
+        Seminar s = rejected(ownerId, "sched-1");
         Map<String, Object> body = new HashMap<>();
         body.put("title", "새제목");
         body.put("startsAt", "2099-09-01T10:00:00Z"); // 무시돼야 함
@@ -90,7 +94,7 @@ class SeminarResubmitTest extends PostgresTest {
     @Test
     void notRejectedGets409() {
         Seminar s = Seminar.create("승인됨", null, null, Instant.now(),
-                null, null, "CODE", null, null, "owner-1");
+                null, null, "CODE", null, null, ownerId);
         s.approve();
         seminars.save(s);
         given().header("Authorization", "Bearer " + ownerToken)

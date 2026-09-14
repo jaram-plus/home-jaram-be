@@ -1,7 +1,8 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.member.Member;
+import com.jaram.be.security.authz.Role;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,15 +24,18 @@ class SeminarAttendTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired SeminarRepository seminars;
     @Autowired AttendanceRepository attendances;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String memberToken;
+    private String memberId;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         attendances.deleteAll();
         seminars.deleteAll();
-        memberToken = jwt.generate("member-1", "회원", "member@hanyang.ac.kr", Authority.MEMBER);
+        Member actor = actors.save(Role.MEMBER);
+        memberId = actor.getId();
+        memberToken = actors.tokenFor(actor);
     }
 
     private Seminar ongoing(String code) {
@@ -50,7 +54,7 @@ class SeminarAttendTest extends PostgresTest {
                 .body("at", matchesPattern("\\d{2}:\\d{2}"));
 
         org.assertj.core.api.Assertions.assertThat(
-                attendances.findBySeminarIdAndMemberId(s.getId(), "member-1")).isPresent();
+                attendances.findBySeminarIdAndMemberId(s.getId(), memberId)).isPresent();
     }
 
     @Test

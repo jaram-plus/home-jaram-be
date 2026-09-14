@@ -5,7 +5,7 @@ import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
 import com.jaram.be.member.*;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +23,7 @@ class AdminContractTest extends PostgresTest {
 
     @LocalServerPort int port;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private final OpenApiValidationFilter validation = new OpenApiValidationFilter(
             OpenApiInteractionValidator.createForSpecificationUrl("openapi/openapi.yaml")
@@ -38,7 +38,7 @@ class AdminContractTest extends PostgresTest {
     @BeforeEach void setup() {
         RestAssured.port = port;
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     private Member approved(String name, String sid) {

@@ -13,6 +13,8 @@ import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.security.JwtProvider;
+import com.jaram.be.security.authz.Policy;
+import com.jaram.be.security.authz.RoleResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,16 +34,19 @@ public class AuthService {
     private final JwtProvider jwt;
     private final PasswordResetTokenRepository tokens;
     private final ResetMailSender mailSender;
+    private final RoleResolver roles;
     private final long resetTtlSeconds;
 
     public AuthService(MemberRepository members, PasswordEncoder encoder, JwtProvider jwt,
                        PasswordResetTokenRepository tokens, ResetMailSender mailSender,
+                       RoleResolver roles,
                        @Value("${jwt.reset-ttl-seconds}") long resetTtlSeconds) {
         this.members = members;
         this.encoder = encoder;
         this.jwt = jwt;
         this.tokens = tokens;
         this.mailSender = mailSender;
+        this.roles = roles;
         this.resetTtlSeconds = resetTtlSeconds;
     }
 
@@ -81,8 +87,9 @@ public class AuthService {
         if (m.getStatus() == MemberStatus.WITHDRAWN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "WITHDRAWN", "탈퇴한 계정입니다.");
         }
-        String token = jwt.generate(m.getId(), m.getName(), m.getEmail(), m.getAuthority());
-        return new LoginResponse(token, new UserSummary(m.getId(), m.getName(), m.getEmail(), m.getAuthority()));
+        String token = jwt.generate(m.getId(), m.getName(), m.getEmail());
+        return new LoginResponse(token, new UserSummary(m.getId(), m.getName(), m.getEmail(),
+                m.getAuthority(), roleNames(m), permissionNames(m)));
     }
 
     @Transactional
@@ -113,5 +120,13 @@ public class AuthService {
         // 바꿔도 공격자는 ttl(12시간) 동안 그대로 접근한다 — 재설정이 대응이 되지 않는다.
         m.invalidateCredentials(now);
         t.consume(now);
+    }
+
+    private List<String> roleNames(Member m) {
+        return roles.rolesOf(m).stream().map(Enum::name).sorted().toList();
+    }
+
+    private List<String> permissionNames(Member m) {
+        return Policy.permissionsOf(roles.rolesOf(m)).stream().map(Enum::name).sorted().toList();
     }
 }

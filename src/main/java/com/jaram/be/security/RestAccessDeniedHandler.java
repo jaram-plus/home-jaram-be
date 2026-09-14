@@ -22,7 +22,6 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
         res.setStatus(HttpStatus.FORBIDDEN.value());
         res.setContentType(MediaType.APPLICATION_JSON_VALUE);
         res.setCharacterEncoding("UTF-8");
-        mapper.writeValue(res.getWriter(),
-                ErrorResponse.of("FORBIDDEN", "접근 권한이 없습니다."));
+        mapper.writeValue(res.getWriter(), ErrorResponse.forbidden());
     }
 }

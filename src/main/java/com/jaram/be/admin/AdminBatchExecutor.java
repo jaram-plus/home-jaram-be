@@ -5,6 +5,9 @@ import com.jaram.be.member.*;
 import com.jaram.be.schedule.Schedule;
 import com.jaram.be.schedule.ScheduleRepository;
 import com.jaram.be.schedule.ScheduleSlot;
+import com.jaram.be.security.CurrentMember;
+import com.jaram.be.security.authz.Policy;
+import com.jaram.be.security.authz.Role;
 import com.jaram.be.seminar.Attendance;
 import com.jaram.be.seminar.AttendanceRepository;
 import com.jaram.be.seminar.Seminar;
@@ -78,7 +81,7 @@ public class AdminBatchExecutor {
 
     // ── 업데이트 ──
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public UpdateOutcome updateRow(AdminResource resource, AdminBatchRequest.Update u) {
+    public UpdateOutcome updateRow(AdminResource resource, AdminBatchRequest.Update u, CurrentMember actor) {
         Long current = versionOf(resource, u.id());
         if (current == null) return new Invalid(u.id(), Map.of("id", "대상을 찾을 수 없습니다."));
         if (u.version() != null && u.version().longValue() != current) {
@@ -86,7 +89,7 @@ public class AdminBatchExecutor {
         }
         Map<String, Object> f = u.fields() == null ? Map.of() : u.fields();
         Map<String, String> fe = switch (resource) {
-            case members -> updateMember(members.findById(u.id()).orElseThrow(), f);
+            case members -> updateMember(members.findById(u.id()).orElseThrow(), f, actor);
             case seminars -> updateSeminar(seminars.findById(u.id()).orElseThrow(), f);
             case studies -> updateStudy(studies.findById(u.id()).orElseThrow(), f);
         };
@@ -142,7 +145,7 @@ public class AdminBatchExecutor {
     }
 
     // ── 내부: 리소스별 업데이트 (validate-all-then-apply) ──
-    private Map<String, String> updateMember(Member m, Map<String, Object> f) {
+    private Map<String, String> updateMember(Member m, Map<String, Object> f, CurrentMember actor) {
         Map<String, String> errors = new LinkedHashMap<>();
         List<Runnable> actions = new ArrayList<>();
         f.forEach((k, v) -> {
@@ -175,6 +178,11 @@ public class AdminBatchExecutor {
                 errors.put("grade", "OB로 변경하면서 직책을 함께 지정할 수 없습니다.");
             }
         }
+        // OB 전환은 현직 임기를 끝낸다 — 임기를 끝내는 일은 직책 칸을 비우는 것과 같은 규칙을 탄다.
+        if (errors.isEmpty() && newGrade == MemberGrade.OB && m.currentTerm().isPresent()) {
+            String rankError = rankError(actor, m, null, null);
+            if (rankError != null) errors.put("grade", rankError);
+        }
         // 이미 OB 인 회원에게는 새 임기를 부여하지 않는다. 등급을 먼저 되돌려야 한다.
         if (errors.isEmpty() && f.get("title") != null
                 && m.getGrade() == MemberGrade.OB && newGrade == null) {
@@ -190,8 +198,13 @@ public class AdminBatchExecutor {
             if (comboError != null) {
                 errors.put("title", comboError);
             } else {
-                actions.add(t == null ? () -> m.endCurrentTerm(currentGen())
-                                      : () -> m.assignTerm(d, t, currentGen()));
+                String rankError = rankError(actor, m, d, t);
+                if (rankError != null) {
+                    errors.put("title", rankError);
+                } else {
+                    actions.add(t == null ? () -> m.endCurrentTerm(currentGen())
+                                          : () -> m.assignTerm(d, t, currentGen()));
+                }
             }
         }
         if (errors.isEmpty()) actions.forEach(Runnable::run);
@@ -220,6 +233,31 @@ public class AdminBatchExecutor {
     }
 
     // null = 허용.
+    /**
+     * P6 — 임기를 바꾸려면 대상보다 rank 가 높아야 한다. 부여할 Role(d,t)과 지금 Role
+     * 둘 다를 본다: 학술부원을 회장으로 올리는 것도, 회장을 학술부원으로 내리는 것도
+     * 회장을 건드리는 일이다.
+     *
+     * null 을 돌려주면 통과다. 메시지를 돌려주면 그 줄이 invalid 로 떨어진다 —
+     * 일괄 편집은 부분 성공이라 한 줄이 막혀도 나머지는 저장된다.
+     */
+    private String rankError(CurrentMember actor, Member target,
+                             MemberDepartment d, MemberTitle t) {
+        Set<Role> actorRoles = actor == null ? Set.of() : actor.roles();
+
+        Role current = target.currentTerm()
+                .flatMap(term -> Role.of(term.getDepartment(), term.getTitle()))
+                .orElse(Role.MEMBER);
+        if (!Policy.canAssign(actorRoles, current)) {
+            return "이 회원의 임기를 변경할 권한이 없습니다.";
+        }
+        Role next = Role.of(d, t).orElse(Role.MEMBER);
+        if (!Policy.canAssign(actorRoles, next)) {
+            return "이 직책을 부여할 권한이 없습니다.";
+        }
+        return null;
+    }
+
     private String comboError(MemberDepartment d, MemberTitle t) {
         if (t == null) return null;
         if (d == null) return "직책을 지정하려면 부서를 함께 지정해 주세요.";

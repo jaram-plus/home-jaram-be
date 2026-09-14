@@ -2,12 +2,12 @@ package com.jaram.be.schedule;
 
 import com.jaram.be.common.ApiException;
 import com.jaram.be.member.Member;
-import com.jaram.be.member.MemberActivityGuard;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.schedule.dto.ScheduleCreateRequest;
 import com.jaram.be.schedule.dto.ScheduleResponse;
 import com.jaram.be.schedule.dto.ScheduleSlotResponse;
 import com.jaram.be.schedule.dto.SlotMember;
+import com.jaram.be.security.authz.Eligibility;
 import com.jaram.be.seminar.ApprovalStatus;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
@@ -42,16 +42,16 @@ public class ScheduleService {
     private final MemberRepository members;
     private final SeminarRepository seminars;
     private final SeminarService seminarService;
-    private final MemberActivityGuard guard;
+    private final Eligibility eligibility;
 
     public ScheduleService(ScheduleRepository schedules, MemberRepository members,
                            SeminarRepository seminars, SeminarService seminarService,
-                           MemberActivityGuard guard) {
+                           Eligibility eligibility) {
         this.schedules = schedules;
         this.members = members;
         this.seminars = seminars;
         this.seminarService = seminarService;
-        this.guard = guard;
+        this.eligibility = eligibility;
     }
 
     @Transactional(readOnly = true)
@@ -61,7 +61,7 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleResponse claim(String scheduleId, int index, String memberId) {
-        guard.requireRegistered(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        eligibility.requireActive(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Schedule sch = load(scheduleId);
         if (sch.getStatus() != ScheduleStatus.OPEN) {
             throw conflict("잠긴 일정입니다.");
@@ -98,7 +98,7 @@ public class ScheduleService {
     @Transactional
     public SeminarResponse submitSeminar(String scheduleId, int index, String memberId,
                                          SeminarCreateRequest req) {
-        guard.requireRegistered(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        eligibility.requireActive(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Schedule sch = load(scheduleId);
         ScheduleSlot slot = slot(sch, index);
         if (sch.getStatus() != ScheduleStatus.LOCKED) {

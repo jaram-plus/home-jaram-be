@@ -1,7 +1,6 @@
 package com.jaram.be.contract;
 
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberGrade;
@@ -41,7 +40,7 @@ class MeContractTest extends PostgresTest {
         m.setGrade(MemberGrade.ASSOCIATE);
         m.setGen(41);
         members.save(m);
-        token = jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
+        token = jwt.generate(m.getId(), m.getName(), m.getEmail());
     }
 
     @Test

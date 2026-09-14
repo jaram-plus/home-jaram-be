@@ -1,9 +1,8 @@
 package com.jaram.be.schedule;
 
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
 import com.jaram.be.seminar.Seminar;
 import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,7 @@ class AdminScheduleTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired ScheduleRepository schedules;
     @Autowired SeminarRepository seminars;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
     private String memberToken;
@@ -35,8 +34,8 @@ class AdminScheduleTest extends PostgresTest {
         RestAssured.port = port;
         schedules.deleteAll();
         seminars.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
-        memberToken = jwt.generate("member-1", "회원", "me@hanyang.ac.kr", Authority.MEMBER);
+        officerToken = actors.officer();
+        memberToken = actors.member();
     }
 
     @Test
