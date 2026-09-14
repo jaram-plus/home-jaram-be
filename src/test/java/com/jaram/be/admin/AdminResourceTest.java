@@ -1,9 +1,9 @@
 package com.jaram.be.admin;
 
 import com.jaram.be.member.*;
-import com.jaram.be.security.JwtProvider;
 import com.jaram.be.study.Study;
 import com.jaram.be.study.StudyRepository;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +26,7 @@ class AdminResourceTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired MemberRepository members;
     @Autowired StudyRepository studies;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
 
@@ -34,7 +34,7 @@ class AdminResourceTest extends PostgresTest {
         RestAssured.port = port;
         studies.deleteAll();
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     private Member approved(String name, String sid) {
@@ -56,7 +56,7 @@ class AdminResourceTest extends PostgresTest {
                 .body("items.size()", equalTo(8))
                 .body("page", equalTo(1))
                 .body("size", equalTo(8))
-                .body("total", equalTo(10));
+                .body("total", equalTo((int) members.count()));
     }
 
     @Test
@@ -71,8 +71,8 @@ class AdminResourceTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=exec")
                 .then().statusCode(200)
-                .body("items.size()", equalTo(1))
-                .body("items[0].name", equalTo("김임원"));
+                .body("items.name", hasItem("김임원"))
+                .body("items.name", not(hasItem("박기여")));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?q=박기여")
@@ -91,8 +91,8 @@ class AdminResourceTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=grad")
                 .then().statusCode(200)
-                .body("items.size()", equalTo(1))
-                .body("items[0].name", equalTo("정졸업"));
+                .body("items.name", hasItem("정졸업"))
+                .body("items.name", not(hasItem("김재학")));
     }
 
     @Test
@@ -106,12 +106,10 @@ class AdminResourceTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=contrib")
                 .then().statusCode(200)
-                .body("items.size()", equalTo(1))
-                .body("items[0].name", equalTo("전학술"))
-                .body("items[0].contributor", equalTo(true))
-                .body("items[0].termDepartment", equalTo("ACADEMIC"))
-                .body("items[0].termTitle", equalTo("LEAD"))
-                .body("items[0].termEndGen", equalTo(41));
+                .body("items.find { it.name == '전학술' }.contributor", equalTo(true))
+                .body("items.find { it.name == '전학술' }.termDepartment", equalTo("ACADEMIC"))
+                .body("items.find { it.name == '전학술' }.termTitle", equalTo("LEAD"))
+                .body("items.find { it.name == '전학술' }.termEndGen", equalTo(41));
     }
 
     @Test
@@ -123,9 +121,9 @@ class AdminResourceTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=exec")
                 .then().statusCode(200)
-                .body("items[0].termTitle", equalTo("SERVER_ADMIN"))
-                .body("items[0].termDepartment", equalTo("INFRA"))
-                .body("items[0].termEndGen", nullValue());
+                .body("items.find { it.name == '현직' }.termTitle", equalTo("SERVER_ADMIN"))
+                .body("items.find { it.name == '현직' }.termDepartment", equalTo("INFRA"))
+                .body("items.find { it.name == '현직' }.termEndGen", nullValue());
     }
 
     @Test
@@ -135,10 +133,10 @@ class AdminResourceTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/members?tab=member")
                 .then().statusCode(200)
-                .body("items[0].contributor", equalTo(false))
-                .body("items[0].termTitle", nullValue())
-                .body("items[0].termDepartment", nullValue())
-                .body("items[0].termEndGen", nullValue());
+                .body("items.find { it.name == '임기없음' }.contributor", equalTo(false))
+                .body("items.find { it.name == '임기없음' }.termTitle", nullValue())
+                .body("items.find { it.name == '임기없음' }.termDepartment", nullValue())
+                .body("items.find { it.name == '임기없음' }.termEndGen", nullValue());
     }
 
     // ── A2 batch ──

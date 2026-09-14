@@ -4,15 +4,14 @@ import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
-import com.jaram.be.security.JwtProvider;
 import com.jaram.be.study.Study;
 import com.jaram.be.study.StudyApplication;
 import com.jaram.be.study.StudyApplicationRepository;
 import com.jaram.be.study.StudyRepository;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +32,7 @@ class StudyContractTest extends PostgresTest {
     @Autowired MemberRepository members;
     @Autowired StudyRepository studies;
     @Autowired StudyApplicationRepository applications;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     // swagger-request-validator 2.43.0 mis-handles OAS 3.1 `type: string` path parameters
     // (see SeminarContractTest); downgrade only that spurious request-param error.
@@ -53,7 +52,7 @@ class StudyContractTest extends PostgresTest {
         applications.deleteAll();
         studies.deleteAll();
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
         leader = approvedMember("리더", "2023000001", "leader@hanyang.ac.kr");
     }
 
@@ -64,7 +63,7 @@ class StudyContractTest extends PostgresTest {
     }
 
     private String token(Member m) {
-        return jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
+        return actors.tokenFor(m);
     }
 
     @Test

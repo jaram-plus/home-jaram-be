@@ -2,8 +2,7 @@ package com.jaram.be.contract;
 
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
 import com.jaram.be.admin.AdminSettingsRepository;
-import com.jaram.be.member.Authority;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +17,7 @@ import static io.restassured.RestAssured.given;
 class SiteContractTest extends PostgresTest {
 
     @LocalServerPort int port;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
     @Autowired AdminSettingsRepository repo;
 
     private final OpenApiValidationFilter validation =
@@ -31,8 +30,7 @@ class SiteContractTest extends PostgresTest {
 
     @Test
     void siteLinksMatchesContract() {
-        given().header("Authorization", "Bearer "
-                        + jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER))
+        given().header("Authorization", "Bearer " + actors.officer())
                 .contentType("application/json")
                 .body("""
                       {"links": {"github": "https://github.com/jaram-plus", "instagram": null,

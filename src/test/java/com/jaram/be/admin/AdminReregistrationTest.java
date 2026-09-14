@@ -1,12 +1,11 @@
 package com.jaram.be.admin;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,14 +27,14 @@ class AdminReregistrationTest extends PostgresTest {
 
     @LocalServerPort int port;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         members.deleteAll();
-        officerToken = jwt.generate("officer-id", "임원", "exec@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     private Member saved(String name, String studentId, String email, MemberStatus status,

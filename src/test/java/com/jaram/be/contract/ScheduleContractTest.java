@@ -4,14 +4,13 @@ import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
 import com.jaram.be.schedule.Schedule;
 import com.jaram.be.schedule.ScheduleRepository;
-import com.jaram.be.security.JwtProvider;
 import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +31,7 @@ class ScheduleContractTest extends PostgresTest {
     @Autowired ScheduleRepository schedules;
     @Autowired SeminarRepository seminars;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     // Ignore three known, out-of-scope validator/contract issues, keeping every other
     // response-schema check strict:
@@ -63,8 +62,8 @@ class ScheduleContractTest extends PostgresTest {
         m.setStatus(MemberStatus.ACTIVE);
         m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         m = members.save(m);
-        officerToken = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
-        memberToken = jwt.generate(m.getId(), "김회원", "a@hanyang.ac.kr", Authority.MEMBER);
+        officerToken = actors.officer();
+        memberToken = actors.tokenFor(m);
     }
 
     @Test

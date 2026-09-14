@@ -1,7 +1,7 @@
 package com.jaram.be.admin;
 
 import com.jaram.be.member.*;
-import com.jaram.be.security.JwtProvider;
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,14 +18,14 @@ class AdminDashboardTest extends PostgresTest {
 
     @LocalServerPort int port;
     @Autowired MemberRepository members;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     private String officerToken;
 
     @BeforeEach void setup() {
         RestAssured.port = port;
         members.deleteAll();
-        officerToken = jwt.generate("officer-1", "임원", "officer@hanyang.ac.kr", Authority.OFFICER);
+        officerToken = actors.officer();
     }
 
     private void approved(String name, String sid, MemberGrade grade, int gen) {
@@ -49,10 +49,12 @@ class AdminDashboardTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/admin/dashboard/stats")
                 .then().statusCode(200)
-                .body("totalMembers", equalTo(3))
+                // 행위자(회장)도 승인된 회원이라 함께 집계된다 — REGULAR 한 칸이 그 몫이다.
+                .body("totalMembers", equalTo(4))
                 .body("alumniCount", equalTo(1))
                 .body("gradeBreakdown.probationary", equalTo(1))
                 .body("gradeBreakdown.associate", equalTo(1))
+                .body("gradeBreakdown.regular", equalTo(1))
                 .body("genBreakdown.size()", greaterThanOrEqualTo(2))
                 .body("pendingBreakdown.freshman", equalTo(1));
     }

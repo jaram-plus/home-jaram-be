@@ -1,5 +1,6 @@
 package com.jaram.be.security;
 
+import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
 import org.junit.jupiter.api.BeforeEach;
@@ -7,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import com.jaram.be.member.Authority;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 class SecurityAccessTest extends PostgresTest {
 
     @LocalServerPort int port;
-    @Autowired JwtProvider jwt;
+    @Autowired Actors actors;
 
     @BeforeEach void setup() { RestAssured.port = port; }
 
@@ -28,7 +28,7 @@ class SecurityAccessTest extends PostgresTest {
 
     @Test
     void adminEndpointWithMemberTokenReturns403Forbidden() {
-        String token = jwt.generate("m1", "n", "e@hanyang.ac.kr", Authority.MEMBER);
+        String token = actors.member();
         given().header("Authorization", "Bearer " + token)
                 .when().get("/api/admin/members/pending")
                 .then().statusCode(403).body("code", equalTo("FORBIDDEN"));
