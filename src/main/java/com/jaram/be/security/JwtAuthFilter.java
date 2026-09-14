@@ -4,17 +4,24 @@ import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.security.authz.Eligibility;
+import com.jaram.be.security.authz.Permission;
+import com.jaram.be.security.authz.Policy;
+import com.jaram.be.security.authz.Role;
+import com.jaram.be.security.authz.RoleResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 토큰을 검증하고, 그 회원이 지금도 쓸 자격이 있는지 확인한다.
@@ -32,11 +39,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtProvider jwt;
     private final MemberRepository members;
     private final Eligibility eligibility;
+    private final RoleResolver resolver;
 
-    public JwtAuthFilter(JwtProvider jwt, MemberRepository members, Eligibility eligibility) {
+    public JwtAuthFilter(JwtProvider jwt, MemberRepository members, Eligibility eligibility,
+                         RoleResolver resolver) {
         this.jwt = jwt;
         this.members = members;
         this.eligibility = eligibility;
+        this.resolver = resolver;
     }
 
     @Override
@@ -55,10 +65,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // ttl 동안 옛 값을 들고 있기 때문이다. 없으면 클레임을 쓴다. 서명을 위조할
                 // 수 없는 이상 존재하지 않는 id 의 토큰은 우리가 발급한 것뿐이다.
                 Authority authority = m != null ? m.getAuthority() : claims.authority();
+                Set<Role> roles = resolver.rolesOf(m);
+                Set<Permission> permissions = Policy.permissionsOf(roles);
+
+                // 기존 MEMBER/OFFICER 권한을 함께 싣는다. SecurityConfig 의 URL 매처가
+                // 아직 이 값을 보고 있어서, 핸들러가 @PreAuthorize 로 다 옮겨 갈 때까지
+                // 둘을 나란히 둔다. 마지막 태스크에서 이 줄이 사라진다.
+                List<GrantedAuthority> granted = new ArrayList<>();
+                granted.add(new SimpleGrantedAuthority(authority.name()));
+                permissions.forEach(p -> granted.add(new SimpleGrantedAuthority(p.name())));
+
                 var principal = new CurrentMember(
-                        claims.memberId(), claims.name(), claims.email(), authority);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        principal, null, List.of(new SimpleGrantedAuthority(authority.name())));
+                        claims.memberId(), claims.name(), claims.email(), authority,
+                        roles, permissions);
+                var auth = new UsernamePasswordAuthenticationToken(principal, null, granted);
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
                 // invalid token → leave unauthenticated → entrypoint returns 401

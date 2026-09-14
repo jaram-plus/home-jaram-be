@@ -2,6 +2,7 @@ package com.jaram.be.security;
 
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.security.authz.Eligibility;
+import com.jaram.be.security.authz.RoleResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +46,7 @@ public class SecurityConfig {
                                            JwtProvider jwtProvider,
                                            MemberRepository members,
                                            Eligibility eligibility,
+                                           RoleResolver resolver,
                                            RestAuthEntryPoint entryPoint,
                                            RestAccessDeniedHandler deniedHandler) throws Exception {
         http
@@ -67,7 +69,7 @@ public class SecurityConfig {
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(entryPoint)
                 .accessDeniedHandler(deniedHandler))
-            .addFilterBefore(new JwtAuthFilter(jwtProvider, members, eligibility),
+            .addFilterBefore(new JwtAuthFilter(jwtProvider, members, eligibility, resolver),
                     UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

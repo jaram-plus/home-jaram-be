@@ -27,5 +27,7 @@ public record MeProfile(
         boolean contributor,
         String bio,
         String githubUrl,
-        String blogUrl) {
+        String blogUrl,
+        List<String> roles,          // Role enum name. 임기에서 파생하며 출처는 노출하지 않는다
+        List<String> permissions) {  // Permission enum name. FE 는 버튼 노출을 이 값으로 판단한다
 }
