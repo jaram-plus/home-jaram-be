@@ -55,6 +55,19 @@ class LoginTest extends PostgresTest {
                 .then().statusCode(404).body("code", equalTo("NOT_FOUND"));
     }
 
+    /**
+     * 비밀번호를 모르는 사람에게는 계정 상태를 알려주지 않는다. 상태 검사가 비밀번호보다
+     * 앞서 있으면 이메일만으로 가입 여부와 승인·탈퇴 상태를 구별할 수 있다.
+     */
+    @Test
+    void wrongPasswordOnPendingAccountLooksLikeAnyOtherFailure() {
+        members.save(Member.newPending("대기", "2023011111", "wait@hanyang.ac.kr", encoder.encode("passw0rd!")));
+        given().contentType("application/json")
+                .body(Map.of("email", "wait@hanyang.ac.kr", "password", "wrong-password!"))
+                .when().post("/api/auth/login")
+                .then().statusCode(401).body("code", equalTo("INVALID"));
+    }
+
     @Test
     void pendingMemberReturns403() {
         members.save(Member.newPending("대기", "2023011111", "wait@hanyang.ac.kr", encoder.encode("passw0rd!")));

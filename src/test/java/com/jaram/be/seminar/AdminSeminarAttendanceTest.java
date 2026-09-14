@@ -41,6 +41,7 @@ class AdminSeminarAttendanceTest extends PostgresTest {
         members.deleteAll();
         Member m = Member.newPending("김회원", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
+        m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         member = members.save(m);
         officerToken = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
         memberToken = jwt.generate(member.getId(), "김회원", "a@hanyang.ac.kr", Authority.MEMBER);

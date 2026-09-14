@@ -30,6 +30,7 @@ class MeReregistrationTest extends PostgresTest {
     @LocalServerPort int port;
     @Autowired MemberRepository members;
     @Autowired JwtProvider jwt;
+    @Autowired org.springframework.security.crypto.password.PasswordEncoder encoder;
 
     private Member me;
     private String token;
@@ -37,7 +38,7 @@ class MeReregistrationTest extends PostgresTest {
     @BeforeEach void setup() {
         RestAssured.port = port;
         members.deleteAll();
-        me = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", "hash");
+        me = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", encoder.encode("passw0rd!"));
         me.setApproval(MemberApproval.APPROVED);
         me.setGrade(MemberGrade.ASSOCIATE);
         me.setStatus(MemberStatus.ACTIVE);
@@ -94,6 +95,9 @@ class MeReregistrationTest extends PostgresTest {
     /**
      * 탈퇴해도 발급된 토큰은 ttl 동안 살아 있다. 로그인만 막으면 방금 탈퇴한 회원이
      * 손에 든 토큰으로 신청류를 계속 쓸 수 있다.
+     *
+     * 이제 인증 필터가 자격을 보므로 신청류뿐 아니라 모든 경로에서 끊긴다 — 403 WITHDRAWN
+     * 대신 401 이다. 화면도 401 에서 세션을 지우므로 탈퇴 즉시 로그아웃된다.
      */
     @Test
     void withdrawnMemberIsBlockedFromActivityWithALiveToken() {
@@ -104,19 +108,23 @@ class MeReregistrationTest extends PostgresTest {
         given().header("Authorization", "Bearer " + token)
                 .contentType("application/json").body(Map.of("motive", "배우고 싶습니다"))
                 .when().post("/api/studies/any-id/apply")
-                .then().statusCode(403).body("code", org.hamcrest.Matchers.equalTo("WITHDRAWN"));
+                .then().statusCode(401);
     }
 
-    /** 탈퇴는 멱등하다 — 두 번 불러도 6개월 파기 시계가 뒤로 밀리지 않는다. */
+    /**
+     * 6개월 파기 시계는 뒤로 밀리지 않는다. 탈퇴하면 토큰이 죽으므로 같은 토큰으로 다시
+     * 부르면 401 이고, 시계는 첫 탈퇴 시각 그대로다. (도메인 멱등성은 MeService 가
+     * 이미 지키며 MemberLifecycleFieldsTest 가 확인한다.)
+     */
     @Test
-    void withdrawalIsIdempotent() {
+    void withdrawalDoesNotResetThePurgeClock() {
         given().header("Authorization", "Bearer " + token)
                 .when().post("/api/me/withdraw").then().statusCode(204);
         java.time.Instant first = reload().getWithdrawnAt();
         assertThat(first).isNotNull();
 
         given().header("Authorization", "Bearer " + token)
-                .when().post("/api/me/withdraw").then().statusCode(204);
+                .when().post("/api/me/withdraw").then().statusCode(401);
 
         assertThat(reload().getWithdrawnAt()).isEqualTo(first);
     }
@@ -150,13 +158,13 @@ class MeReregistrationTest extends PostgresTest {
         assertThat(reload().getStatus()).isEqualTo(MemberStatus.ACTIVE);
     }
 
-    /** 탈퇴하면 로그인이 막힌다. */
+    /** 탈퇴하면 비밀번호가 맞아도 로그인이 막힌다. */
     @Test
     void withdrawnMemberCannotLogIn() {
         given().header("Authorization", "Bearer " + token).post("/api/me/withdraw");
         given().contentType("application/json")
-                .body(Map.of("email", "hong@hanyang.ac.kr", "password", "pw"))
+                .body(Map.of("email", "hong@hanyang.ac.kr", "password", "passw0rd!"))
                 .when().post("/api/auth/login")
-                .then().statusCode(403);
+                .then().statusCode(403).body("code", org.hamcrest.Matchers.equalTo("WITHDRAWN"));
     }
 }

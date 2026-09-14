@@ -16,6 +16,9 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:dev-only-secret-change-me-min-32-bytes-long!!}
+  # 기본값을 두지 않는다 — 미설정이면 기동이 실패해야 한다. 기본값이 있으면 배포에서
+  # 주입을 빠뜨려도 저장소에 공개된 키로 조용히 뜨고, 그 키를 아는 누구나 OFFICER 토큰을
+  # 위조할 수 있다. 로컬 실행도 JWT_SECRET 을 환경변수로 넣어야 한다 (HS256, 32바이트 이상).
+  secret: ${JWT_SECRET}
   ttl-seconds: 43200
   reset-ttl-seconds: 1800
