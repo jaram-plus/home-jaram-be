@@ -15,7 +15,8 @@ import java.util.Date;
 @Component
 public class JwtProvider {
 
-    public record JwtClaims(String memberId, String name, String email, Authority authority) { }
+    public record JwtClaims(String memberId, String name, String email, Authority authority,
+                           Instant issuedAt) { }
 
     private final SecretKey key;
     private final long ttlSeconds;
@@ -46,6 +47,7 @@ public class JwtProvider {
                 c.getSubject(),
                 c.get("name", String.class),
                 c.get("email", String.class),
-                Authority.valueOf(c.get("authority", String.class)));
+                Authority.valueOf(c.get("authority", String.class)),
+                c.getIssuedAt().toInstant());
     }
 }

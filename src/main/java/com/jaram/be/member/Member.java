@@ -71,6 +71,11 @@ public class Member {
     private Instant withdrawnAt;             // 6개월 뒤 파기의 기준
     private Instant purgedAt;                // 개인정보 파기 시각. 이력만 남은 회원
 
+    // 이 시각 이전에 발급된 토큰은 거부한다. JWT 는 무상태라 서버가 폐기할 수단이 없어,
+    // 비밀번호를 바꿔도 탈취된 토큰이 ttl 동안 살아 있었다. 비밀번호 재설정이 세운다.
+    // 탈퇴·미승인은 JwtAuthFilter 의 자격 검사가 이미 막으므로 여기서 세우지 않는다.
+    private Instant credentialsInvalidatedAt;
+
     private Instant createdAt = Instant.now();
 
     @Version
@@ -121,6 +126,10 @@ public class Member {
     public Instant getReregisterRequestedAt() { return reregisterRequestedAt; }
     public Instant getWithdrawnAt() { return withdrawnAt; }
     public Instant getPurgedAt() { return purgedAt; }
+    public Instant getCredentialsInvalidatedAt() { return credentialsInvalidatedAt; }
+
+    /** 지금까지 발급된 토큰을 전부 무효화한다. 비밀번호 재설정이 부른다. */
+    public void invalidateCredentials(Instant at) { this.credentialsInvalidatedAt = at; }
 
     /** 재등록 신청. 이미 신청했으면 시각을 덮지 않는다 — 다시 눌러도 처음 신청이 남는다. */
     public void requestReregistration(Instant at) {

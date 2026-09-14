@@ -36,6 +36,7 @@ class MeTest extends PostgresTest {
 
         Member m = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
+        m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         m.setGen(41);
         m.setBio("안녕하세요");
         m.setGithubUrl("https://github.com/hong");

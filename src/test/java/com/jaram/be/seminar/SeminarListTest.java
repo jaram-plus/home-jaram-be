@@ -85,6 +85,7 @@ class SeminarListTest extends PostgresTest {
     void authenticatedCallerSeesOwnAttendance() {
         Member m = Member.newPending("김출석", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
+        m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         m = members.save(m);
         String token = jwt.generate(m.getId(), "김출석", "a@hanyang.ac.kr", Authority.MEMBER);
 

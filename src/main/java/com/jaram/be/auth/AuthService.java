@@ -69,14 +69,17 @@ public class AuthService {
     public LoginResponse login(LoginRequest req) {
         Member m = members.findByEmail(req.email())
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "등록된 회원 정보가 없습니다."));
+        // 비밀번호를 먼저 본다. 상태 검사가 앞서면 비밀번호를 모르는 사람도 이메일만으로
+        // 가입 여부와 승인·탈퇴 상태를 구별할 수 있다 — requestReset 은 열거를 막는데
+        // login 이 그대로 알려주고 있었다. 정당한 사용자는 순서가 바뀌어도 같은 안내를 받는다.
+        if (!encoder.matches(req.password(), m.getPasswordHash())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID", "이메일 또는 비밀번호가 일치하지 않습니다.");
+        }
         if (m.getApproval() != MemberApproval.APPROVED) {
             throw new ApiException(HttpStatus.FORBIDDEN, "PENDING", "가입 승인을 기다리는 중입니다.");
         }
         if (m.getStatus() == MemberStatus.WITHDRAWN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "WITHDRAWN", "탈퇴한 계정입니다.");
-        }
-        if (!encoder.matches(req.password(), m.getPasswordHash())) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID", "이메일 또는 비밀번호가 일치하지 않습니다.");
         }
         String token = jwt.generate(m.getId(), m.getName(), m.getEmail(), m.getAuthority());
         return new LoginResponse(token, new UserSummary(m.getId(), m.getName(), m.getEmail(), m.getAuthority()));
@@ -85,9 +88,13 @@ public class AuthService {
     @Transactional
     public void requestReset(PasswordResetRequest req) {
         members.findByEmail(req.email()).ifPresent(m -> {
+            Instant now = Instant.now();
+            // 새로 요청하면 이전 링크는 못 쓴다 — 사용자의 일반적 기대이고, 이전 메일이
+            // 유출됐을 때 재요청이 대응 수단이 된다.
+            tokens.findByMemberIdAndUsedAtIsNull(m.getId()).forEach(t -> t.consume(now));
             String token = UUID.randomUUID().toString();
             tokens.save(PasswordResetToken.issue(
-                    m.getId(), token, Instant.now().plusSeconds(resetTtlSeconds)));
+                    m.getId(), token, now.plusSeconds(resetTtlSeconds)));
             mailSender.send(m.getEmail(), token);
         });
         // always succeeds (enumeration defense)
@@ -102,6 +109,9 @@ public class AuthService {
         Member m = members.findById(t.getMemberId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID", "유효하지 않은 토큰입니다."));
         m.setPasswordHash(encoder.encode(req.password()));
+        // 발급된 액세스 토큰까지 끊는다. 이게 없으면 토큰을 탈취당한 사용자가 비밀번호를
+        // 바꿔도 공격자는 ttl(12시간) 동안 그대로 접근한다 — 재설정이 대응이 되지 않는다.
+        m.invalidateCredentials(now);
         t.consume(now);
     }
 }

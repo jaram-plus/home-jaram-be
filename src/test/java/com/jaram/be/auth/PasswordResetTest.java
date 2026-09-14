@@ -41,6 +41,24 @@ class PasswordResetTest extends PostgresTest {
                 .then().statusCode(200);
     }
 
+    /** 새로 요청하면 이전 링크는 못 쓴다 — 이전 메일이 유출됐을 때 재요청이 대응이 된다. */
+    @Test
+    void requestingAgainInvalidatesThePreviousToken() {
+        Member m = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", encoder.encode("oldpass!9"));
+        m.setStatus(MemberStatus.ACTIVE);
+        members.save(m);
+        tokens.save(PasswordResetToken.issue(m.getId(), "tok-old", Instant.now().plus(30, ChronoUnit.MINUTES)));
+
+        given().contentType("application/json").body(Map.of("email", "hong@hanyang.ac.kr"))
+                .when().post("/api/auth/password/reset-request")
+                .then().statusCode(200);
+
+        given().contentType("application/json")
+                .body(Map.of("token", "tok-old", "password", "newpass!9"))
+                .when().post("/api/auth/password/reset")
+                .then().statusCode(400).body("code", equalTo("INVALID"));
+    }
+
     @Test
     void resetConfirmChangesPassword() {
         Member m = Member.newPending("홍길동", "2023012345", "hong@hanyang.ac.kr", encoder.encode("oldpass!9"));

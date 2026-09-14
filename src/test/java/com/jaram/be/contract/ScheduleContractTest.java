@@ -61,6 +61,7 @@ class ScheduleContractTest extends PostgresTest {
         // 슬롯 member 응답의 name(계약상 non-null)을 위해 실제 회원 저장
         Member m = Member.newPending("김회원", "2023000001", "a@hanyang.ac.kr", "hash");
         m.setStatus(MemberStatus.ACTIVE);
+        m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         m = members.save(m);
         officerToken = jwt.generate("officer-1", "임원", "of@hanyang.ac.kr", Authority.OFFICER);
         memberToken = jwt.generate(m.getId(), "김회원", "a@hanyang.ac.kr", Authority.MEMBER);
