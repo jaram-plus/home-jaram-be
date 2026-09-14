@@ -70,7 +70,7 @@ class MemberPurgerTest extends PostgresTest {
     void studyLeaderIsSkipped() {
         Member m = saved("박리더", "2023033333", "leader@hanyang.ac.kr");
         studies.save(Study.create("자바 스터디", List.of("백엔드"), 6,
-                "월 19시", "2026-2학기", "온라인", "함께 읽어요", m.getId()));
+                "월 19시", "공학관 401", "온라인", "함께 읽어요", "010-0000-0000", m.getId()));
 
         assertThat(purger.purge(m, AT)).isEqualTo(MemberPurger.Outcome.SKIPPED_LEADER);
         assertThat(members.findById(m.getId())).isPresent();

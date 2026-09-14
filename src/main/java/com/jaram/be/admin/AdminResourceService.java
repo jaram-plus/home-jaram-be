@@ -187,7 +187,9 @@ public class AdminResourceService {
         r.put("fields", s.getFields());
         r.put("leaderId", s.getLeaderId());
         r.put("capacity", s.getCapacity());
-        r.put("approvalStatus", s.getApprovalStatus().name());
+        // null 방어 — 이행 SQL 전에 기동하면 이 값이 비어 있다. 여기서 NPE 가
+        // 나면 관리자 표 전체가 500 이 된다.
+        r.put("status", s.getStatus() == null ? null : s.getStatus().name());
         r.put("createdAt", s.getCreatedAt().toString());
         r.put("version", s.getVersion());
         return r;

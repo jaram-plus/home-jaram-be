@@ -251,7 +251,7 @@ class AdminResourceTest extends PostgresTest {
     @Test
     void batchDeleteBlockedForStudyLeader() {
         Member leader = approved("리더", "2023000001");
-        studies.save(Study.create("스터디", List.of("x"), 5, null, null, null, null, leader.getId()));
+        studies.save(Study.create("스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json")

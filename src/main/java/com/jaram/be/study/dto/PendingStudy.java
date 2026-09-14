@@ -10,7 +10,6 @@ public record PendingStudy(
         String creator,
         int capacity,
         String schedule,
-        String period,
         String intro,
         String createdAt) {
 }

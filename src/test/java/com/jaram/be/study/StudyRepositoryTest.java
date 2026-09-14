@@ -25,13 +25,13 @@ class StudyRepositoryTest extends PostgresTest {
     }
 
     @Test
-    void persistsStudyWithFieldsAndQueriesByApprovalAndLeader() {
+    void persistsStudyWithFieldsAndQueriesByStatusAndLeader() {
         Study s = Study.create("알고리즘", List.of("PS", "그래프"), 6,
-                null, null, null, null, "leader-1");
+                null, null, null, null, null, "leader-1");
         studies.save(s);
 
-        assertThat(studies.findByApprovalStatusOrderByCreatedAtDesc(ApprovalStatus.PENDING)).hasSize(1);
-        assertThat(studies.findByApprovalStatusOrderByCreatedAtDesc(ApprovalStatus.APPROVED)).isEmpty();
+        assertThat(studies.findByStatusOrderByCreatedAtDesc(StudyStatus.PENDING)).hasSize(1);
+        assertThat(studies.findByStatusOrderByCreatedAtDesc(StudyStatus.RECRUITING)).isEmpty();
         assertThat(studies.findByLeaderIdOrderByCreatedAtDesc("leader-1")).hasSize(1);
         assertThat(studies.findById(s.getId()).orElseThrow().getFields())
                 .containsExactly("PS", "그래프");
@@ -40,7 +40,7 @@ class StudyRepositoryTest extends PostgresTest {
     @Test
     void countsApprovedApplicationsPerStudy() {
         Study s = studies.save(Study.create("스터디", List.of("x"), 3,
-                null, null, null, null, "leader-1"));
+                null, null, null, null, null, "leader-1"));
         StudyApplication a1 = StudyApplication.create(s.getId(), "u1", "동기1");
         StudyApplication a2 = StudyApplication.create(s.getId(), "u2", "동기2");
         a1.approve();
