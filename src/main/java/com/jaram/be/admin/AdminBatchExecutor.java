@@ -324,8 +324,8 @@ public class AdminBatchExecutor {
                 Integer cap = asInt(f.get("capacity"));
                 if (cap == null) { errors.put("capacity", "필수입니다."); return null; }
                 Study s = Study.create(str(f.get("title")), asStringList(f.get("fields")), cap,
-                        str(f.get("schedule")), str(f.get("period")), str(f.get("mode")),
-                        str(f.get("intro")), str(f.get("leaderId")));
+                        str(f.get("schedule")), str(f.get("place")), str(f.get("mode")),
+                        str(f.get("intro")), str(f.get("contact")), str(f.get("leaderId")));
                 return studies.save(s).getId();
             }
         }

@@ -51,8 +51,15 @@ class StudyTest extends PostgresTest {
         return actors.tokenFor(m);
     }
 
+    private Study pendingStudy(String leaderId, int cap) {
+        return studies.save(Study.create(
+                "알고리즘", List.of("PS"), cap,
+                "매주 화 19:00", "공학관 401", "오프라인", "함께 풉니다", "010-0000-0000",
+                leaderId));
+    }
+
     private Study approvedStudy(String leaderId, int cap) {
-        Study s = Study.create("알고리즘", List.of("PS"), cap, null, null, null, null, leaderId);
+        Study s = pendingStudy(leaderId, cap);
         s.approve();
         return studies.save(s);
     }
@@ -71,10 +78,10 @@ class StudyTest extends PostgresTest {
                 .body("leader", equalTo("리더"))
                 .body("cur", equalTo(0))
                 .body("cap", equalTo(6))
-                .body("status", equalTo("RECRUITING"))
+                .body("status", equalTo("PENDING"))
                 .body("apply", equalTo("JOINED"));
 
-        // approvalStatus=PENDING → not in public list
+        // status=PENDING → not in public list
         given().when().get("/api/studies").then().statusCode(200).body("size()", equalTo(0));
     }
 
@@ -135,7 +142,7 @@ class StudyTest extends PostgresTest {
     void applyToPendingStudyReturns409() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
         Member applicant = member("a", "지원자", "2023000002", "a@hanyang.ac.kr");
-        Study s = studies.save(Study.create("대기", List.of("x"), 5, null, null, null, null, leader.getId()));
+        Study s = studies.save(Study.create("대기", List.of("x"), 5, null, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + token(applicant))
                 .contentType("application/json").body(Map.of("motive", "동기"))
@@ -165,22 +172,6 @@ class StudyTest extends PostgresTest {
     }
 
     @Test
-    void applyWhenFullReturns409() {
-        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
-        Member first = member("f", "선착", "2023000002", "f@hanyang.ac.kr");
-        Member second = member("s", "후착", "2023000003", "s@hanyang.ac.kr");
-        Study s = approvedStudy(leader.getId(), 1);
-        StudyApplication a = StudyApplication.create(s.getId(), first.getId(), "동기");
-        a.approve();
-        applications.save(a);
-
-        given().header("Authorization", "Bearer " + token(second))
-                .contentType("application/json").body(Map.of("motive", "동기"))
-                .when().post("/api/studies/" + s.getId() + "/apply")
-                .then().statusCode(409).body("code", equalTo("RECRUIT_CLOSED"));
-    }
-
-    @Test
     void rejectedApplicantSeesApplyClosedNotOpen() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
         Member applicant = member("a", "지원자", "2023000002", "a@hanyang.ac.kr");
@@ -189,7 +180,7 @@ class StudyTest extends PostgresTest {
         app.reject("사정");
         applications.save(app);
 
-        // capacity is free, but the rejected row blocks re-apply → must not read OPEN
+        // 정원은 이제 아무것도 막지 않는다. 반려 기록이 막는다 → OPEN 이면 안 된다
         given().header("Authorization", "Bearer " + token(applicant))
                 .when().get("/api/studies").then().statusCode(200)
                 .body("[0].apply", equalTo("CLOSED"));
@@ -201,7 +192,7 @@ class StudyTest extends PostgresTest {
     void myActivityReturnsAppsAndLedStudies() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
         Member other = member("o", "타인", "2023000009", "o@hanyang.ac.kr");
-        Study led = studies.save(Study.create("내스터디", List.of("x"), 5, null, null, null, null, leader.getId()));
+        Study led = studies.save(Study.create("내스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
         Study otherStudy = approvedStudy(other.getId(), 5);
         applications.save(StudyApplication.create(otherStudy.getId(), leader.getId(), "지원"));
 
@@ -212,7 +203,7 @@ class StudyTest extends PostgresTest {
                 .body("apps[0].status", equalTo("PENDING"))
                 .body("studies.size()", equalTo(1))
                 .body("studies[0].title", equalTo("내스터디"))
-                .body("studies[0].approvalStatus", equalTo("PENDING"));
+                .body("studies[0].status", equalTo("PENDING"));
     }
 
     // ── UC-T5 개설 대기 목록 ──
@@ -220,7 +211,7 @@ class StudyTest extends PostgresTest {
     @Test
     void pendingListOfficerOnly() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
-        studies.save(Study.create("대기스터디", List.of("x"), 5, null, null, null, null, leader.getId()));
+        studies.save(Study.create("대기스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/studies/pending").then().statusCode(200)
@@ -237,7 +228,7 @@ class StudyTest extends PostgresTest {
     @Test
     void approveStudyMakesItPublic() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
-        Study s = studies.save(Study.create("승인대상", List.of("x"), 5, null, null, null, null, leader.getId()));
+        Study s = studies.save(Study.create("승인대상", List.of("x"), 5, null, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .when().post("/api/studies/" + s.getId() + "/approve").then().statusCode(200);
@@ -248,7 +239,7 @@ class StudyTest extends PostgresTest {
     @Test
     void rejectStudyStoresReasonAndRequiresIt() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
-        Study s = studies.save(Study.create("반려대상", List.of("x"), 5, null, null, null, null, leader.getId()));
+        Study s = studies.save(Study.create("반려대상", List.of("x"), 5, null, null, null, null, null, leader.getId()));
 
         given().header("Authorization", "Bearer " + officerToken)
                 .contentType("application/json").body(Map.of())
@@ -259,8 +250,45 @@ class StudyTest extends PostgresTest {
                 .when().post("/api/studies/" + s.getId() + "/reject").then().statusCode(200);
 
         org.assertj.core.api.Assertions.assertThat(
-                studies.findById(s.getId()).orElseThrow().getApprovalStatus())
-                .isEqualTo(ApprovalStatus.REJECTED);
+                studies.findById(s.getId()).orElseThrow().getStatus())
+                .isEqualTo(StudyStatus.REJECTED);
+    }
+
+    // ── 생애축 전이 ──
+
+    @Test
+    void approveMovesStudyToRecruitingAndRejectRecordsReason() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Study a = pendingStudy(leader.getId(), 6);
+        Study b = pendingStudy(leader.getId(), 6);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().post("/api/studies/" + a.getId() + "/approve")
+                .then().statusCode(200);
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json").body(Map.of("reason", "주제 중복"))
+                .when().post("/api/studies/" + b.getId() + "/reject")
+                .then().statusCode(200);
+
+        org.assertj.core.api.Assertions.assertThat(
+                studies.findById(a.getId()).orElseThrow().getStatus())
+                .isEqualTo(StudyStatus.RECRUITING);
+        Study rejected = studies.findById(b.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(rejected.getStatus())
+                .isEqualTo(StudyStatus.REJECTED);
+        org.assertj.core.api.Assertions.assertThat(rejected.getReason())
+                .isEqualTo("주제 중복");
+    }
+
+    @Test
+    void pendingAndRejectedStudiesNeverLeakIntoTheList() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        pendingStudy(leader.getId(), 6);
+        Study rejected = pendingStudy(leader.getId(), 6);
+        rejected.reject("중복");
+        studies.save(rejected);
+
+        given().when().get("/api/studies").then().statusCode(200).body("size()", equalTo(0));
     }
 
     // ── UC-T7 신청자 목록 ──
@@ -283,7 +311,7 @@ class StudyTest extends PostgresTest {
     // ── UC-T8 신청자 승인/거절 ──
 
     @Test
-    void approveApplicantIncrementsCurUntilFull() {
+    void approveApplicantBeyondCapacityIsAllowed() {
         Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
         Member first = member("f", "선착", "2023000002", "f@hanyang.ac.kr");
         Member second = member("s", "후착", "2023000003", "s@hanyang.ac.kr");
@@ -294,10 +322,13 @@ class StudyTest extends PostgresTest {
         given().header("Authorization", "Bearer " + officerToken)
                 .when().post("/api/studies/applicants/" + a1.getId() + "/approve").then().statusCode(200);
 
-        // capacity 1 now full → second approval 409
+        // cap 은 상한이 아니라 희망 인원이다 — 넘겨 받는 판단은 스터디장 몫이다 (D9)
         given().header("Authorization", "Bearer " + officerToken)
-                .when().post("/api/studies/applicants/" + a2.getId() + "/approve")
-                .then().statusCode(409).body("code", equalTo("CAPACITY_FULL"));
+                .when().post("/api/studies/applicants/" + a2.getId() + "/approve").then().statusCode(200);
+
+        org.assertj.core.api.Assertions.assertThat(
+                applications.countByStudyIdAndStatus(s.getId(), ApplicationStatus.APPROVED))
+                .isEqualTo(2);
     }
 
     @Test

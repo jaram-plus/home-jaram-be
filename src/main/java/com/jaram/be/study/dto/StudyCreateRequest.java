@@ -12,7 +12,6 @@ public record StudyCreateRequest(
         @NotEmpty List<String> fields,
         @NotNull @Min(1) Integer capacity,
         String schedule,
-        String period,
         String mode,
         String intro) {
 }

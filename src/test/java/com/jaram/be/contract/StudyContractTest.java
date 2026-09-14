@@ -78,7 +78,7 @@ class StudyContractTest extends PostgresTest {
 
     @Test
     void listStudiesMatchesContract() {
-        Study s = Study.create("알고리즘", List.of("PS"), 6, "월 19시", "8주", "온라인", "소개", leader.getId());
+        Study s = Study.create("알고리즘", List.of("PS"), 6, "월 19시", "공학관 401", "온라인", "소개", "010-0000-0000", leader.getId());
         s.approve();
         studies.save(s);
 
@@ -90,8 +90,8 @@ class StudyContractTest extends PostgresTest {
     @Test
     void myActivityMatchesContract() {
         Member applicant = approvedMember("지원자", "2023000002", "a@hanyang.ac.kr");
-        Study led = studies.save(Study.create("내스터디", List.of("x"), 5, null, null, null, null, applicant.getId()));
-        Study other = Study.create("타스터디", List.of("y"), 5, null, null, null, null, leader.getId());
+        Study led = studies.save(Study.create("내스터디", List.of("x"), 5, null, null, null, null, null, applicant.getId()));
+        Study other = Study.create("타스터디", List.of("y"), 5, null, null, null, null, null, leader.getId());
         other.approve();
         studies.save(other);
         applications.save(StudyApplication.create(other.getId(), applicant.getId(), "동기"));
@@ -104,7 +104,7 @@ class StudyContractTest extends PostgresTest {
 
     @Test
     void pendingStudiesMatchesContract() {
-        studies.save(Study.create("대기", List.of("x"), 5, "월", "8주", "온라인", "소개", leader.getId()));
+        studies.save(Study.create("대기", List.of("x"), 5, "월", "공학관 401", "온라인", "소개", "010-0000-0000", leader.getId()));
         given().filter(validation)
                 .header("Authorization", "Bearer " + officerToken)
                 .when().get("/api/studies/pending")
@@ -114,7 +114,7 @@ class StudyContractTest extends PostgresTest {
     @Test
     void applicantsMatchesContract() {
         Member applicant = approvedMember("지원자", "2023000002", "a@hanyang.ac.kr");
-        Study s = Study.create("알고리즘", List.of("PS"), 5, null, null, null, null, leader.getId());
+        Study s = Study.create("알고리즘", List.of("PS"), 5, null, null, null, null, null, leader.getId());
         s.approve();
         studies.save(s);
         applications.save(StudyApplication.create(s.getId(), applicant.getId(), "동기"));
@@ -128,7 +128,7 @@ class StudyContractTest extends PostgresTest {
     @Test
     void applyMatchesContract() {
         Member applicant = approvedMember("지원자", "2023000002", "a@hanyang.ac.kr");
-        Study s = Study.create("알고리즘", List.of("PS"), 5, null, null, null, null, leader.getId());
+        Study s = Study.create("알고리즘", List.of("PS"), 5, null, null, null, null, null, leader.getId());
         s.approve();
         studies.save(s);
 

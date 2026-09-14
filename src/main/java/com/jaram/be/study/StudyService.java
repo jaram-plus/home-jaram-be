@@ -16,10 +16,13 @@ import java.util.stream.Collectors;
 
 /**
  * UC-T1..T8. 개설 신청→개설 승인(임원)→모집→지원(회원)→지원 승인(임원) 2단 승인 흐름.
- * cur(승인된 지원 수)·status(모집 상태)·apply(사용자별 상태)는 저장하지 않고 여기서 파생.
+ * status 는 저장된 생애축이다. cur(승인된 지원 수)·apply(사용자별 상태)만 여기서 파생.
  */
 @Service
 public class StudyService {
+
+    private static final List<StudyStatus> DEFAULT_LIST =
+            List.of(StudyStatus.RECRUITING, StudyStatus.ONGOING);
 
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
@@ -40,15 +43,17 @@ public class StudyService {
         eligibility.requireActive(leaderId);
         Study saved = studies.save(Study.create(
                 req.title(), req.fields(), req.capacity(),
-                req.schedule(), req.period(), req.mode(), req.intro(), leaderId));
-        return toResponse(saved, leaderId);
+                req.schedule(), null, req.mode(), req.intro(), null, leaderId));
+        return toResponse(saved, members.findById(leaderId).orElse(null), leaderId);
     }
 
-    // ── UC-T1: 목록 (APPROVED만, 미인증 시 userId=null) ──
+    // ── UC-T1: 목록 (기본 RECRUITING + ONGOING, 미인증 시 userId=null) ──
     @Transactional(readOnly = true)
     public List<StudyResponse> list(String userId) {
-        return studies.findByApprovalStatusOrderByCreatedAtDesc(ApprovalStatus.APPROVED).stream()
-                .map(s -> toResponse(s, userId))
+        List<Study> rows = studies.findByStatusInOrderByCreatedAtDesc(DEFAULT_LIST);
+        Map<String, Member> leaders = leadersOf(rows);
+        return rows.stream()
+                .map(s -> toResponse(s, leaders.get(s.getLeaderId()), userId))
                 .toList();
     }
 
@@ -57,7 +62,7 @@ public class StudyService {
     public void apply(String studyId, String applicantId, String motive) {
         eligibility.requireActive(applicantId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
         Study study = loadStudy(studyId);
-        if (study.getApprovalStatus() != ApprovalStatus.APPROVED) {
+        if (study.getStatus() != StudyStatus.RECRUITING) {
             throw new ApiException(HttpStatus.CONFLICT, "RECRUIT_CLOSED", "모집 중인 스터디가 아닙니다.");
         }
         if (applicantId.equals(study.getLeaderId())) {
@@ -66,9 +71,6 @@ public class StudyService {
         applications.findByStudyIdAndApplicantId(studyId, applicantId).ifPresent(a -> {
             throw new ApiException(HttpStatus.CONFLICT, "ALREADY_APPLIED", "이미 지원한 스터디입니다.");
         });
-        if (approvedCount(studyId) >= cap(study)) {
-            throw new ApiException(HttpStatus.CONFLICT, "RECRUIT_CLOSED", "모집이 마감되었습니다.");
-        }
         applications.save(StudyApplication.create(studyId, applicantId, motive));
     }
 
@@ -87,8 +89,7 @@ public class StudyService {
         }).toList();
 
         List<MyStudy> myStudies = studies.findByLeaderIdOrderByCreatedAtDesc(userId).stream()
-                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getApprovalStatus(),
-                        deriveStatus(s), s.getReason()))
+                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason()))
                 .toList();
 
         return new MyActivity(apps, myStudies);
@@ -97,12 +98,12 @@ public class StudyService {
     // ── UC-T5: 개설 대기 목록 ──
     @Transactional(readOnly = true)
     public List<PendingStudy> pending() {
-        List<Study> rows = studies.findByApprovalStatusOrderByCreatedAtDesc(ApprovalStatus.PENDING);
+        List<Study> rows = studies.findByStatusOrderByCreatedAtDesc(StudyStatus.PENDING);
         Map<String, String> names = memberNames(rows.stream().map(Study::getLeaderId).toList());
         return rows.stream().map(s -> new PendingStudy(
                 s.getId(), s.getTitle(), s.getFields(),
                 names.getOrDefault(s.getLeaderId(), null),
-                cap(s), s.getSchedule(), s.getPeriod(), s.getIntro(),
+                cap(s), s.getSchedule(), s.getIntro(),
                 s.getCreatedAt().toString())).toList();
     }
 
@@ -139,12 +140,9 @@ public class StudyService {
     // ── UC-T8: 신청자 승인/거절 ──
     @Transactional
     public void approveApplicant(String applicationId) {
-        StudyApplication a = loadApplication(applicationId);
-        Study study = loadStudy(a.getStudyId());
-        if (approvedCount(a.getStudyId()) >= cap(study)) {
-            throw new ApiException(HttpStatus.CONFLICT, "CAPACITY_FULL", "정원이 초과되었습니다.");
-        }
-        a.approve();
+        // 정원을 보지 않는다 — cap 은 상한이 아니라 희망 인원이고, 넘겨 받을지는
+        // 스터디장이 판단한다 (D9).
+        loadApplication(applicationId).approve();
     }
 
     @Transactional
@@ -154,36 +152,33 @@ public class StudyService {
 
     // ── 파생/헬퍼 ──
 
-    private StudyResponse toResponse(Study s, String userId) {
-        int cur = approvedCount(s.getId());
-        int cap = cap(s);
+    private Map<String, Member> leadersOf(List<Study> rows) {
+        return members.findAllById(rows.stream().map(Study::getLeaderId).distinct().toList())
+                .stream().collect(Collectors.toMap(Member::getId, Function.identity()));
+    }
+
+    private StudyResponse toResponse(Study s, Member leader, String userId) {
         return new StudyResponse(
                 s.getId(), s.getTitle(), s.getFields(),
-                memberNames(List.of(s.getLeaderId())).getOrDefault(s.getLeaderId(), null),
-                s.getSchedule(), s.getPeriod(), s.getMode(),
-                cur, cap, deriveStatus(cur, cap), deriveApply(s, cur, cap, userId));
+                leader == null ? null : leader.getName(),
+                leader == null ? null : leader.getGen(),
+                s.getIntro(), s.getSchedule(), s.getMode(),
+                approvedCount(s.getId()), cap(s),
+                s.getStatus(), deriveApply(s, userId));
     }
 
-    private StudyStatus deriveStatus(Study s) {
-        return deriveStatus(approvedCount(s.getId()), cap(s));
-    }
-
-    private StudyStatus deriveStatus(int cur, int cap) {
-        return cur >= cap ? StudyStatus.CLOSED : StudyStatus.RECRUITING;
-    }
-
-    // 미인증 → null. leader/승인됨 → JOINED, 대기 → APPLIED, 마감 → CLOSED, 그 외 OPEN.
-    private ApplyState deriveApply(Study s, int cur, int cap, String userId) {
+    // 미인증 → null. leader/승인됨 → JOINED, 대기 → APPLIED, 반려·모집 아님 → CLOSED, 그 외 OPEN.
+    private ApplyState deriveApply(Study s, String userId) {
         if (userId == null) return null;
         if (userId.equals(s.getLeaderId())) return ApplyState.JOINED;
         StudyApplication mine = applications.findByStudyIdAndApplicantId(s.getId(), userId).orElse(null);
         if (mine != null) {
             if (mine.getStatus() == ApplicationStatus.APPROVED) return ApplyState.JOINED;
             if (mine.getStatus() == ApplicationStatus.PENDING) return ApplyState.APPLIED;
-            // REJECTED: the unique (study,applicant) row blocks re-apply, so never OPEN.
+            // REJECTED: ② 의 '삭제하기'가 이 행을 지우면 다시 OPEN 이 된다 (D11).
             return ApplyState.CLOSED;
         }
-        return cur >= cap ? ApplyState.CLOSED : ApplyState.OPEN;
+        return s.getStatus() == StudyStatus.RECRUITING ? ApplyState.OPEN : ApplyState.CLOSED;
     }
 
     private int approvedCount(String studyId) {
