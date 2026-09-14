@@ -1,6 +1,5 @@
 package com.jaram.be.security;
 
-import com.jaram.be.member.Authority;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.Test;
 
@@ -13,17 +12,17 @@ class JwtProviderTest {
 
     @Test
     void roundTripsClaims() {
-        String token = provider.generate("m1", "홍길동", "hong@hanyang.ac.kr", Authority.OFFICER);
+        String token = provider.generate("m1", "홍길동", "hong@hanyang.ac.kr");
         var claims = provider.parse(token);
 
         assertThat(claims.memberId()).isEqualTo("m1");
-        assertThat(claims.authority()).isEqualTo(Authority.OFFICER);
+        assertThat(claims.name()).isEqualTo("홍길동");
         assertThat(claims.email()).isEqualTo("hong@hanyang.ac.kr");
     }
 
     @Test
     void rejectsTamperedToken() {
-        String token = provider.generate("m1", "n", "e@hanyang.ac.kr", Authority.MEMBER);
+        String token = provider.generate("m1", "n", "e@hanyang.ac.kr");
         assertThatThrownBy(() -> provider.parse(token + "x")).isInstanceOf(JwtException.class);
     }
 }

@@ -1,6 +1,5 @@
 package com.jaram.be.seminar;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberStatus;
@@ -46,7 +45,7 @@ class AdminSeminarAttendanceTest extends PostgresTest {
         m.setApproval(com.jaram.be.member.MemberApproval.APPROVED);
         member = members.save(m);
         officerToken = actors.officer();
-        memberToken = jwt.generate(member.getId(), "김회원", "a@hanyang.ac.kr", Authority.MEMBER);
+        memberToken = jwt.generate(member.getId(), "김회원", "a@hanyang.ac.kr");
     }
 
     /** 지금 진행 중인(출석 가능한) 세미나. */

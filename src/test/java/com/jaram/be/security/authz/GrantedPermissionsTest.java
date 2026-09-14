@@ -47,7 +47,7 @@ class GrantedPermissionsTest extends PostgresTest {
         m.setStatus(MemberStatus.ACTIVE);
         if (d != null) m.assignTerm(d, t, 42);
         m = members.save(m);
-        return jwt.generate(m.getId(), m.getName(), m.getEmail(), m.getAuthority());
+        return jwt.generate(m.getId(), m.getName(), m.getEmail());
     }
 
     @Test

@@ -87,7 +87,7 @@ public class AuthService {
         if (m.getStatus() == MemberStatus.WITHDRAWN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "WITHDRAWN", "탈퇴한 계정입니다.");
         }
-        String token = jwt.generate(m.getId(), m.getName(), m.getEmail(), m.getAuthority());
+        String token = jwt.generate(m.getId(), m.getName(), m.getEmail());
         return new LoginResponse(token, new UserSummary(m.getId(), m.getName(), m.getEmail(),
                 m.getAuthority(), roleNames(m), permissionNames(m)));
     }

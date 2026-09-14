@@ -1,6 +1,5 @@
 package com.jaram.be.security;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.security.authz.Eligibility;
@@ -19,8 +18,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -57,28 +54,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 var claims = jwt.parse(header.substring(7));
                 Member m = members.findById(claims.memberId()).orElse(null);
-                if (m != null && !eligibility.isUsable(m, claims.issuedAt())) {
-                    chain.doFilter(req, res);   // 인증 없이 통과 → entrypoint 가 401
+                // 회원을 찾지 못하거나 자격이 없으면 인증하지 않는다 — 인증 없이 통과시키면
+                // entrypoint 가 401 을 만든다. 권한 없는 인증을 세우는 것보다 401 이 맞다.
+                if (!eligibility.isUsable(m, claims.issuedAt())) {
+                    chain.doFilter(req, res);
                     return;
                 }
-                // 회원을 찾으면 권한을 DB 에서 다시 파생한다 — 임기를 거둬도 클레임은
-                // ttl 동안 옛 값을 들고 있기 때문이다. 없으면 클레임을 쓴다. 서명을 위조할
-                // 수 없는 이상 존재하지 않는 id 의 토큰은 우리가 발급한 것뿐이다.
-                Authority authority = m != null ? m.getAuthority() : claims.authority();
                 Set<Role> roles = resolver.rolesOf(m);
                 Set<Permission> permissions = Policy.permissionsOf(roles);
 
-                // 기존 MEMBER/OFFICER 권한을 함께 싣는다. SecurityConfig 의 URL 매처가
-                // 아직 이 값을 보고 있어서, 핸들러가 @PreAuthorize 로 다 옮겨 갈 때까지
-                // 둘을 나란히 둔다. 마지막 태스크에서 이 줄이 사라진다.
-                List<GrantedAuthority> granted = new ArrayList<>();
-                granted.add(new SimpleGrantedAuthority(authority.name()));
-                permissions.forEach(p -> granted.add(new SimpleGrantedAuthority(p.name())));
-
+                // 이름과 이메일은 클레임이 아니라 엔티티에서 읽는다 — 회원이 이름을 바꾸면
+                // 토큰 안의 옛 이름이 아니라 지금 이름이 나가야 한다.
                 var principal = new CurrentMember(
-                        claims.memberId(), claims.name(), claims.email(), authority,
+                        m.getId(), m.getName(), m.getEmail(), m.getAuthority(),
                         roles, permissions);
-                var auth = new UsernamePasswordAuthenticationToken(principal, null, granted);
+                var auth = new UsernamePasswordAuthenticationToken(principal, null,
+                        permissions.stream()
+                                .map(p -> (GrantedAuthority) new SimpleGrantedAuthority(p.name()))
+                                .toList());
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
                 // invalid token → leave unauthenticated → entrypoint returns 401

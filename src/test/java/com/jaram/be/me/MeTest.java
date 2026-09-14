@@ -1,6 +1,5 @@
 package com.jaram.be.me;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberRepository;
 import com.jaram.be.member.MemberDepartment;
@@ -44,7 +43,7 @@ class MeTest extends PostgresTest {
         m.setPhone("010-1234-5678");
         m.setContributor(true);
         members.save(m);
-        token = jwt.generate(m.getId(), m.getName(), m.getEmail(), Authority.MEMBER);
+        token = jwt.generate(m.getId(), m.getName(), m.getEmail());
     }
 
     @Test

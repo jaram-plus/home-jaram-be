@@ -57,7 +57,7 @@ public class Actors {
     public String token(Role role) { return tokenFor(save(role)); }
 
     public String tokenFor(Member m) {
-        return jwt.generate(m.getId(), m.getName(), m.getEmail(), m.getAuthority());
+        return jwt.generate(m.getId(), m.getName(), m.getEmail());
     }
 
     /**
