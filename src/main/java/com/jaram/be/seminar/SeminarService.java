@@ -136,9 +136,8 @@ public class SeminarService {
     public SeminarResponse resubmit(String id, SeminarCreateRequest req, String callerId) {
         Seminar s = seminars.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "세미나를 찾을 수 없습니다."));
-        if (!callerId.equals(s.getCreatedById())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "본인 세미나만 수정할 수 있습니다.");
-        }
+        // 소유자 판정은 @PreAuthorize 로 올라갔다 — 두 곳에 두면 SEMINAR_EDIT 보유자가
+        // 애너테이션은 통과하고 여기서 막히는 모순이 생긴다.
         if (s.getApprovalStatus() != ApprovalStatus.REJECTED) {
             throw new ApiException(HttpStatus.CONFLICT, "CONFLICT", "반려된 세미나만 재제출할 수 있습니다.");
         }
