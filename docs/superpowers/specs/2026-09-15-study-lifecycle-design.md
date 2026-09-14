@@ -422,7 +422,7 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | **모집 완료** | `@studyAccess.isLeader(#id, …)` **or** `hasAuthority('STUDY_EDIT')` | ① |
 | **종료** | `@studyAccess.isLeader(#id, …)` **or** `hasAuthority('STUDY_EDIT')` | ① |
 | 상태 임의 지정 | `AdminResourceAccess.canEdit` (`studies → STUDY_EDIT`) | ① |
-| 신청 승인·반려 | `hasAuthority('STUDY_APPLICANT_MANAGE')` | ① (기존, ②에서 스터디장으로 확장) |
+| 신청 승인·반려 | `@studyAccess.isLeaderOfApplication(#id, …)` **or** `hasAuthority('STUDY_APPLICANT_MANAGE')` | ② |
 | 모집 토글 | `SettingsAccess.canApply` 에 `studyRecruiting → STUDY_EDIT` 분기 | ① |
 
 **`StudyAccess` 가 ① 로 앞당겨진다.** 원래 ② 단계에 두려던 소유자 조건 빈인데,
@@ -431,7 +431,11 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 ```java
 @Component("studyAccess")
 public class StudyAccess {
+    /** 경로 변수가 스터디 id 일 때 (모집 완료·종료·정보 편집·출석) */
     public boolean isLeader(String studyId, Authentication auth) { … }
+
+    /** 경로 변수가 신청 id 일 때 (신청 승인·반려) — 신청 → 스터디 → leaderId */
+    public boolean isLeaderOfApplication(String applicationId, Authentication auth) { … }
 }
 ```
 
@@ -439,6 +443,32 @@ public class StudyAccess {
 `Role` 은 `member_term`(부서·직책)에서 파생되고, 스터디장은 스터디 한 건에 매인
 관계라 그 축에 올리면 "누구의 스터디장인가" 가 사라진다. 세미나 재제출
 (`SEMINAR_EDIT or @seminarAccess.isOwner`)이 이미 같은 자리를 이렇게 풀었다.
+
+### 메서드가 둘인 이유 — 경로 변수가 가리키는 것이 다르다
+
+신청 승인·반려는 `/api/studies/applicants/{id}/approve` 이고, 여기서 `{id}` 는
+**신청 id** 다. 스터디 id 가 아니다. `isLeader(#id, …)` 를 그대로 걸면 신청 id 로
+스터디를 조회하니 **언제나 `false`** 가 되고, 스터디장은 자기 스터디의 신청을 하나도
+처리할 수 없다. 조용히 틀리는 종류의 버그다 — 403 만 나고 이유가 안 보인다.
+
+`isLeaderOfApplication` 은 신청을 먼저 읽어 `studyId` 를 얻은 뒤 그 스터디의
+`leaderId` 와 견준다. 한 단계를 더 타는 것이지 다른 판정이 아니다.
+
+### 개설 승인에는 소유자 조건이 없다 — 의도한 것이다
+
+표에서 '개설 승인·반려' 만 `or @studyAccess…` 가 붙지 않는다. 자기가 낸 개설 신청을
+자기가 승인할 수 있으면 승인 절차 자체가 없는 것과 같다. 스터디장이라는 지위는
+**승인된 뒤에 생긴다**.
+
+### 스터디장이 사라지면 임원이 대신한다
+
+졸업·탈퇴한 스터디장은 1층 자격 게이트(`Eligibility`)에서 401 로 막히므로
+`isLeader` 까지 가지도 않는다. 그 스터디는 관리자가 없는 상태가 되는데, 모든
+스터디장 동작에 `or hasAuthority('STUDY_EDIT')` 가 함께 걸려 있어 임원이 이어받는다.
+**스터디장 이양 기능은 만들지 않는다** — 학기 단위로 끝나는 스터디에서 그 일이
+얼마나 자주 일어나는지 아직 모르고, 임원 우회로 막히지 않는다.
+
+한 사람이 여는 스터디 수에도 제한을 두지 않는다.
 
 `SettingsAccess.canApply` 는 이미 PATCH 한 건을 필드별로 가른다
 (`currentGen → SETTINGS_ROLLOVER`, `links → SETTINGS_EDIT | SITE_LINKS_EDIT`).
@@ -544,6 +574,8 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 | 모집 완료 | 스터디장이 `close-recruiting` → `ONGOING`; 남이 부르면 `403` |
 | 잘못된 전이 | `ONGOING` 에 `close-recruiting`, `RECRUITING` 에 `finish` → `409 INVALID_STATE` |
 | 임원 우회 | `STUDY_EDIT` 을 가진 임원은 남의 스터디에도 두 전이를 부를 수 있음 |
+| 소유자 격리 | 다른 스터디의 스터디장이 내 스터디에 두 전이를 부르면 `403` |
+| 자기 승인 차단 | 개설 신청자가 자기 신청에 `approve` → `403` (`STUDY_APPROVE` 없으면) |
 | 개설 차단 | 토글 OFF 에서 `POST /api/studies` → `409` |
 | 신청 시점 | `ONGOING`·`FINISHED` 스터디에 신청 → `409 RECRUIT_CLOSED` |
 | 정원 제거 | 승인 인원이 `capacity` 를 넘어도 신청·승인이 통과 |
