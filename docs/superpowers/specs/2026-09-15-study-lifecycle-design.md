@@ -38,6 +38,8 @@
 | D8 | `period`(기간) | **삭제**. 커리큘럼 주차 수가 대신한다 |
 | D9 | 정원 | **한도가 아니라 희망 인원**. 마감 판정을 없앤다 |
 | D10 | 지원 인원 공개 | 상세 모달에 명단. 학번 마스킹, 반려 제외, **로그인 필수** |
+| D11 | 반려 뒤 재신청 | **허용한다.** '삭제하기'가 신청 행을 하드 삭제해 제약이 풀린다 |
+| D12 | 상태 되돌리기 | 관리자 일괄 편집에서 `status` 를 고칠 수 있게 **① 로 당긴다** |
 
 ## 3. 상태 기계
 
@@ -97,6 +99,27 @@ D9 에 따라 `capacity` 는 희망 인원이다. 승인 인원이 그 숫자를
 
 **화면이 버튼을 숨기는 것은 통제가 아니다.** 토글이 꺼져 있으면 서버가 개설 신청을
 거절해야 한다. FE 의 버튼 숨김은 편의일 뿐이다.
+
+### 되돌릴 손이 ① 안에 있어야 한다 (D12)
+
+위의 "되돌리지 않는다" 는 되살릴 스터디를 임원이 하나씩 고른다는 전제 위에 서 있는데,
+그 화면이 ③ 단계에 있다. 즉 **①·② 만 배포된 동안 토글을 잘못 끄면 되돌릴 방법이
+아무 데도 없다.** 관리자 일괄 편집(`AdminBatchExecutor.updateStudy`)이 지금 허용하는
+필드는 `title` 과 `capacity` 뿐이다.
+
+한 번의 클릭으로 그 학기 모든 스터디의 상태가 바뀌는데 되돌릴 수 없는 것은
+설계 결함이지 단계 분할의 문제가 아니다. `updateStudy` 의 `switch` 에 `status` 분기
+하나를 **① 로 당긴다**:
+
+```java
+case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, actions, false);
+```
+
+기존 `enumField` 헬퍼를 그대로 쓴다 — `members` 의 `grade`·`status`·`approval` 이
+이미 같은 모양이다.
+
+③ 단계는 이 위에 화면만 얹는다. 게이트는 기존 `AdminResourceAccess.canEdit`
+(`studies → STUDY_EDIT`) 그대로라 새 권한도 없다.
 
 ### 토글 상태를 화면이 어떻게 읽는가
 
@@ -184,13 +207,13 @@ D9 에 따라 걷어내는 것:
 3. 본인이 스터디장이면 `409 LEADER_SELF`
 4. 이미 신청 기록이 있으면 `409 ALREADY_APPLIED`
 
-### 반려 뒤 재신청 — 명시된 가정
+### 반려 뒤 재신청 — 허용한다 (D11)
 
 `study_application` 에 `unique (studyId, applicantId)` 가 걸려 있어 반려된 사람은
 재신청할 수 없다. ② 단계의 '삭제하기' 버튼이 그 행을 **하드 삭제**하면 제약이 풀려
 재신청이 가능해진다.
 
-**재신청을 허용하는 쪽으로 간다.** 선착순이 아니라 스터디장 재량으로 뽑는 구조라면,
+**재신청을 허용한다.** 선착순이 아니라 스터디장 재량으로 뽑는 구조라면,
 한 번 반려됐다고 학기 내내 막을 근거가 약하다. 소프트 삭제 플래그를 지금 만드는 것은
 쓰지 않을 상태를 하나 더 만드는 일이다. 스팸이 실제로 생기면 그때 재신청 횟수 제한을
 얹는 편이 싸다.
@@ -335,7 +358,8 @@ Permission 20개, Role 10개, 매트릭스 모두 그대로다. 노션 기능 �
 | `GET /api/studies/pending` | 응답에서 `period` 제거 |
 | `PATCH /api/admin/settings` | `studyRecruiting` 필드. `true→false` 경계에서 일괄 전이 |
 | `GET /api/admin/settings` | `studyRecruiting` 필드 |
-| `GET /api/admin/resources/studies` | 행에 `status` 추가 (`studyRow` 에 `period` 는 원래 없다) |
+| `GET /api/admin/studies` | 행에 `status` 추가 (`studyRow` 에 `period` 는 원래 없다) |
+| `PATCH /api/admin/studies:batch` | `updateStudy` 가 `status` 를 받는다 (D12) |
 
 `/api/studies/my`·`/pending`·`/applicants` 와 신청자 승인/거절은 ① 에서 손대지 않는다.
 `my` 의 재정의는 ② 단계다.
@@ -393,6 +417,7 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 | 상세 인증 | 비로그인 `GET /api/studies/{id}` → `401`; 목록은 `200` |
 | 토글 권한 | `SITE_LINKS_EDIT` 만 가진 홍보부가 `studyRecruiting` 저장 → `403` |
 | 커리큘럼 | 빈 `weeks[]` → `400`; `weekNo` 가 `[1,2,4]` → `400` |
+| 되돌리기 (D12) | 일괄 전이 후 `PATCH :batch` 로 `status: RECRUITING` 을 써서 복구; 없는 값은 `400` |
 
 `AdminAuthorizationCoverageTest` 가 새 핸들러의 애너테이션 누락을 자동으로 잡는다.
 
@@ -404,7 +429,8 @@ FE `develop` 으로 떨어진다. 검증기는 스키마에 없는 응답 필드
 반려 신청 '삭제하기'(§6 의 재신청 가정을 구현).
 
 **③ 임원 도구** — 관리자 '스터디 관리' 탭, 모집 토글 UI, 표(스터디명·스터디장·인원·
-출석률·상태·상세·삭제), 상세 편집(상태 임의 지정 포함), 멤버 직접 추가
+출석률·상태·상세·삭제), 상세 편집 **화면**(상태 편집 API 자체는 D12 로 ① 에 있다),
+멤버 직접 추가
 (진행 중 합류 시 지난 주차는 결석 — 존재=출석 모델에서 저절로 성립한다).
 
 **아예 안 하는 것** — 스터디 채팅·파일 공유·과제 제출. 이번 재설계에 없다.
