@@ -22,6 +22,10 @@
   계속 할 수 있다.
 - **권한 변경이 즉시 반영되지 않는다.** 권한이 JWT 클레임에 실려 있어 임기를 거둬도
   토큰이 만료될 때까지 유효하다.
+- **비밀번호를 바꿔도 기존 토큰이 살아 있다.** `AuthService.resetConfirm()` 은
+  `setPasswordHash()` 만 하고 발급된 토큰을 무효화하지 않는다(`AuthService.java:104`).
+  토큰을 탈취당해 비밀번호를 재설정해도 공격자는 ttl(12시간) 동안 계속 접근한다.
+  비밀번호 재설정의 절반이 작동하지 않는 셈이다.
 
 ## 2. 원칙
 
@@ -220,8 +224,39 @@ Permission 과 자격은 전부 요청 시점에 DB 에서 읽는다.
 | 탈퇴·승인취소 반영 | 최대 12시간 | **즉시** |
 | DB 조회 | 요청당 1회 | 요청당 1회 (동일) |
 
-§1 의 12시간 구멍이 사라진다. 무상태성을 포기하지만, 자람 규모에서 요청당 조회 1회는
+§1 의 권한 반영 지연이 사라진다. 무상태성을 포기하지만, 자람 규모에서 요청당 조회 1회는
 의미 있는 비용이 아니다. 부하가 문제가 되면 그때 짧은 TTL 의 인메모리 캐시를 둔다.
+
+### 이것이 막지 못하는 것 — 토큰 탈취
+
+**JWT 에서 role 을 빼는 것은 토큰 탈취에 대한 방어가 전혀 아니다.** 탈취된 토큰은
+`memberId` 를 담은 bearer 자격증명이고, 서버는 그 id 로 회원을 로드해 임기 → Role →
+Permission 을 전개한다. 공격자는 **피해자의 권한을 그대로 얻는다.** role 이 토큰 안에
+있든 없든 결과가 같다.
+
+오히려 한 가지는 미세하게 나빠진다. 탈취 후 피해자가 승진하면 신원-only 토큰은 **새 권한을
+즉시 따라간다.** role 을 박아 둔 토큰이라면 만료까지 옛 권한에 얼어 있었을 것이다.
+
+두 위협을 구분해야 한다.
+
+| 위협 | 성격 | JWT 신원-only 가 해결하나 |
+|---|---|---|
+| 권한을 잃은 **정당한 사용자**가 계속 쓴다 (탈퇴·임기 종료·승인 취소) | 인가 신선도 | **예** |
+| **도둑**이 훔친 토큰으로 쓴다 | 자격증명 탈취 | **아니오** |
+
+### 세션 무효화 — `credentialsInvalidatedAt`
+
+위 표의 두 번째 줄에 대한 최소 대응. 이 설계 덕에 거의 공짜다.
+
+- `Member.credentialsInvalidatedAt` (Instant, nullable) 컬럼 하나. `ddl-auto: update` 가 만든다.
+- JWT 는 **이미 `iat` 를 싣는다** (`JwtProvider.generate()` 의 `.issuedAt(...)`). 토큰 포맷을
+  바꾸지 않는다.
+- 필터에서 `iat < credentialsInvalidatedAt` 이면 거부한다. 어차피 회원을 로드하므로
+  **추가 조회가 없다.** denylist 테이블도 필요 없다.
+- 세우는 시점: 비밀번호 변경(§1 의 세 번째 결함), 탈퇴, 관리자의 강제 로그아웃.
+
+이것으로 "즉시 회수"가 탈취 토큰을 포함해 **진짜로** 참이 된다. 단 **탈취를 알았을 때만**
+동작한다 — 대응 수단이지 예방이 아니다.
 
 ### refresh token — 이번 범위 밖
 
@@ -229,12 +264,20 @@ refresh token 이 best practice 인 것은 맞으나 전제가 붙는다. **acce
 짧게(5~15분) 줄일 때만** 의미가 있다. 현재 12시간을 그대로 두고 refresh token 만 더하면
 훔칠 자격증명이 하나 늘 뿐 얻는 것이 없다.
 
-refresh token 의 세 효용 중 **즉시 회수**는 위 설계가 더 싸게 해결한다. **UX** 는 이미
-12시간이라 체감 차이가 없다. 남는 것은 **탈취 시 노출 시간 단축**뿐이고 이는 실재하지만
-다음 순번이다.
+탈취 예방의 레버는 셋이고, 우선순위가 분명하다.
 
-도입한다면 올바른 모양은 이렇다. 이 설계와 독립적인 별도 작업으로 진행한다 — 둘을 한 번에
-바꾸면 회귀 원인을 추적할 수 없다.
+1. **FE 가 토큰을 어디에 두는가.** `localStorage` 면 XSS 한 번에 털리고, httpOnly 쿠키면
+   스크립트가 읽지 못한다(대신 CSRF 를 SameSite 로 막는다). **가장 큰 레버이며 BE 설계가
+   아니라 FE 결정이다.** 이것부터 정해야 한다.
+2. **access TTL 단축.** 12시간 → 15분이면 노출 창이 48분의 1이 된다. **여기서 refresh token
+   이 필요해지며, 이것이 refresh token 의 진짜이자 유일한 논거다.**
+3. 탈취 탐지(IP/UA 변화) — 이 규모에 과하다.
+
+따라서 순서는 1 → 2 이고, refresh token 은 2 에 딸려 온다. 1 을 정하지 않은 채 2 를 하면
+가장 큰 구멍을 열어 둔 채 작은 구멍을 메우는 셈이다.
+
+도입한다면 올바른 모양은 아래와 같다. 이 설계와 독립적인 별도 작업으로 진행한다 — 둘을
+한 번에 바꾸면 회귀 원인을 추적할 수 없다.
 
 - access 15분 + refresh 14일, refresh 는 httpOnly / Secure / SameSite 쿠키
 - 회전(rotation) — 갱신할 때마다 새 refresh 발급, 이전 것 무효화
@@ -255,12 +298,21 @@ com.jaram.be.security.authz/          (새 패키지)
                           기존 MemberActivityGuard 를 흡수·확장
 
 com.jaram.be.security/                (기존, 수정)
-├── JwtProvider.java      authority 클레임 제거, memberId 만
-├── JwtAuthFilter.java    memberId → Member 로드 → Eligibility → RoleResolver →
-│                         Policy 로 전개 → Permission 단위 GrantedAuthority 부여
+├── JwtProvider.java      authority 클레임 제거, memberId 만. iat 는 이미 싣고 있다
+├── JwtAuthFilter.java    memberId → Member 로드 → iat vs credentialsInvalidatedAt →
+│                         Eligibility → RoleResolver → Policy 로 전개 →
+│                         Permission 단위 GrantedAuthority 부여
 ├── CurrentMember.java    authority → Set<Role> roles, Set<Permission> permissions
 └── SecurityConfig.java   @EnableMethodSecurity 활성화.
                           URL 매처는 public 경로 + anyRequest().authenticated() 로 축소
+
+com.jaram.be.member/                  (기존, 수정)
+└── Member.java           credentialsInvalidatedAt (Instant, nullable) 추가.
+                          비밀번호 변경·탈퇴·강제 로그아웃이 세운다
+
+com.jaram.be.auth/                    (기존, 수정)
+└── AuthService.java      resetConfirm() 이 credentialsInvalidatedAt 을 세운다
+                          (§1 세 번째 결함)
 
 각 도메인 (3층 조건, P5)
 ├── seminar/SeminarAccessPolicy.java    isOwner(seminarId, memberId)
@@ -318,13 +370,17 @@ policy.requireCanAssign(actor, MemberDepartment.ACADEMIC, MemberTitle.LEAD);
 - `Eligibility` — approval × status 조합. 특히 **탈퇴한 현직 임원이 admin 에서 막히는지**
   (§1 의 결함에 대한 회귀 테스트).
 - P6 위계 — 부회장이 회장을 임명하지 못하는지, 자기 임기를 못 고치는지.
+- 세션 무효화 — 비밀번호를 바꾼 뒤 **이전 토큰이 거부되는지** (§1 의 세 번째 결함에 대한
+  회귀 테스트), `credentialsInvalidatedAt` 이후 발급된 토큰은 통과하는지.
 - 도메인 조건 — 본인 세미나 수정 허용 / 남의 것 거부.
 - 엔드포인트 커버리지 — 모든 `/api/admin/**` 핸들러에 `@PreAuthorize` 가 붙어 있는지
   리플렉션으로 확인하는 테스트. 빠뜨림을 컴파일이 아니라 테스트가 잡는다.
 
 ## 11. 범위 밖
 
-- refresh token (§7 에 올바른 모양만 기록)
+- refresh token — §7 의 레버 1(FE 토큰 저장 위치)을 정한 뒤 access TTL 단축과 함께 진행한다
+- FE 의 토큰 저장 위치 변경 (localStorage → httpOnly 쿠키) — FE 결정이며 BE 는 CORS 와
+  쿠키 설정으로 따라간다
 - 권한 감사 로그 — 필요해지면 별도
 - `member_role_grant` 테이블 — §4 의 신호가 나타나면
 - 회계 기능과 `FINANCE_*` Permission
