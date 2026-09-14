@@ -267,14 +267,46 @@ refresh token 이 best practice 인 것은 맞으나 전제가 붙는다. **acce
 탈취 예방의 레버는 셋이고, 우선순위가 분명하다.
 
 1. **FE 가 토큰을 어디에 두는가.** `localStorage` 면 XSS 한 번에 털리고, httpOnly 쿠키면
-   스크립트가 읽지 못한다(대신 CSRF 를 SameSite 로 막는다). **가장 큰 레버이며 BE 설계가
-   아니라 FE 결정이다.** 이것부터 정해야 한다.
+   스크립트가 읽지 못한다(대신 CSRF 를 SameSite 로 막는다). 가장 큰 레버이며 BE 설계가
+   아니라 FE 결정이다. **확인 결과 아래와 같다.**
 2. **access TTL 단축.** 12시간 → 15분이면 노출 창이 48분의 1이 된다. **여기서 refresh token
    이 필요해지며, 이것이 refresh token 의 진짜이자 유일한 논거다.**
 3. 탈취 탐지(IP/UA 변화) — 이 규모에 과하다.
 
-따라서 순서는 1 → 2 이고, refresh token 은 2 에 딸려 온다. 1 을 정하지 않은 채 2 를 하면
-가장 큰 구멍을 열어 둔 채 작은 구멍을 메우는 셈이다.
+### 레버 1 의 현황 — FE 는 `localStorage` 를 쓴다 (확인됨)
+
+`home-jaram-fe` 확인 결과다.
+
+- `src/shared/auth/auth.store.js` — zustand `persist` 기본 스토리지, 즉 **`localStorage`**.
+  키 `jaram-auth` 에 `accessToken` 과 `user` 를 담는다.
+- `src/shared/api/client.js` — axios 요청 인터셉터가 스토어에서 읽어
+  `Authorization: Bearer` 로 싣는다. 응답 401 이면 세션을 지운다.
+
+다만 **직접 XSS 표면은 비어 있다.**
+
+- `dangerouslySetInnerHTML` 0건, `innerHTML` 0건, `eval` 0건.
+- React 19.2.4 는 `javascript:` href 를 차단한다.
+
+따라서 "지금 당장 털린다"가 아니다. 남는 위험은 **의존성 경유**다 — 렌더 경로의 npm 패키지가
+하나라도 손상되면 `localStorage.getItem('jaram-auth')` 한 줄로 토큰을 읽는다. httpOnly 쿠키면
+그 한 줄이 작동하지 않는다. 그리고 토큰이 12시간짜리라 한 번 새면 12시간 유효하다.
+
+**판정: 쿠키 이전을 이 설계보다 앞에 두지 않는다.** 직접 표면이 비어 있어 즉각적 노출이
+아니고, 쿠키 전환은 FE·BE 동시 변경(CORS credentials, SameSite, CSRF)이라 비용이 작지 않다.
+대신 §7 의 `credentialsInvalidatedAt` 을 이 설계에 포함해 **샜다고 판단됐을 때 무효화할
+수단**을 먼저 갖춘다. 지금은 그 수단조차 없다.
+
+따라서 순서는 `credentialsInvalidatedAt` → 권한 재설계 → 쿠키 이전 → access TTL 단축 +
+refresh token 이다.
+
+### FE 쪽 관련 관찰 (BE 결정 아님, 전달용)
+
+- `client.js` 는 **401 일 때만** 세션을 지운다. 새 설계의 1층 자격 게이트는
+  `MemberActivityGuard` 와 같이 **403** (`WITHDRAWN`, `REREGISTRATION_REQUIRED`) 을 던지므로,
+  탈퇴 회원은 세션이 남은 채 막힌 화면을 보게 된다. 재등록 팝업 흐름은 이것이 의도지만
+  `WITHDRAWN` 은 로그아웃시키는 편이 맞다. FE 와 합의가 필요하다.
+- `user` 객체가 `localStorage` 에 평문으로 남는다(이름·이메일). 토큰과 같은 위험 등급은
+  아니지만 공용 PC 에서 노출된다.
 
 도입한다면 올바른 모양은 아래와 같다. 이 설계와 독립적인 별도 작업으로 진행한다 — 둘을
 한 번에 바꾸면 회귀 원인을 추적할 수 없다.
