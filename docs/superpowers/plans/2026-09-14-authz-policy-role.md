@@ -15,7 +15,7 @@
 ## Global Constraints
 
 - **새 테이블을 만들지 않는다.** Role 은 `member_term(department, title)` 에서 파생한다 (스펙 §4). `member_role_grant` 는 범위 밖이다.
-- **API 계약을 깨지 않는다.** `MeProfile.authority` 와 `UserSummary.authority` 는 `MEMBER`/`OFFICER` 값과 현재 파생 규칙(현직 임기가 있으면 OFFICER)을 그대로 유지한다. `roles[]` 와 `permissions[]` 는 **추가**만 한다 (스펙 §9).
+- **API 계약을 깨지 않는다.** `MeProfile.authority` 와 `UserSummary.authority` 는 `MEMBER`/`OFFICER` 값과 현재 파생 규칙(현직 임기가 있으면 OFFICER)을 그대로 유지한다. `roles[]` 와 `permissions[]` 는 **추가**만 한다 (스펙 §9). `Authority` 는 이 계획이 끝난 뒤 **인가 판정에 한 곳도 쓰이지 않는다** — 순수하게 계약 필드로만 남으며, FE 가 `isAdmin` 을 `permissions` 기준으로 바꾼 뒤 별도 배포에서 제거한다 (필수 후속 작업, Task 13 참조).
 - **`GrantedAuthority` 의 문자열은 `Permission` enum 의 `name()` 그대로다.** 접두사(`ROLE_`, `PERM_`)를 붙이지 않는다. `@PreAuthorize` 는 항상 `hasAuthority('...')` 를 쓰고 `hasRole` 은 쓰지 않는다.
 - **실패 방향은 막히는 쪽이다.** `@PreAuthorize` 를 빠뜨리면 `anyRequest().authenticated()` 에 걸려 거부돼야 한다. 조용히 열리는 경로를 새로 만들지 않는다.
 - **매 태스크 끝에 전체 테스트가 초록이어야 한다.** 중간 상태에서 깨진 채 다음 태스크로 넘어가지 않는다.
@@ -2841,17 +2841,55 @@ Role 은 `member_term(department, title)` 에서 파생하며 저장하지 않�
 ## FE 가 받아야 할 계약 변경
 
 `MeProfile` 과 로그인 응답의 `user` 에 필드 두 개가 **추가**된다. 기존 필드는
-그대로다.
+전부 그대로이며 `authority` 도 값과 파생 규칙이 같다(현직 임기가 있으면 `OFFICER`).
+따라서 **BE 만 배포해도 FE 는 깨지지 않는다.**
 
 - `roles: string[]` — 예 `["ACADEMIC_LEAD"]`
 - `permissions: string[]` — 예 `["SEMINAR_CREATE", "SEMINAR_APPROVE", ...]`
 
-`authority` 는 값도 파생 규칙도 그대로다(현직 임기가 있으면 `OFFICER`). FE 가 버튼
-노출 판단을 `permissions` 로 옮긴 뒤, 별도 배포에서 `authority` 를 제거한다.
+### FE 이행은 선택이 아니라 필수다
 
-부수 효과로 확인이 필요한 것: 화면은 **401 에서만** 세션을 지운다. 권한이 좁아진
-사용자는 403 을 받고 세션이 남은 채 막힌 화면을 본다. 버튼을 `permissions` 로
-가리면 403 자체가 거의 나지 않으므로, 그 이행이 이 문제의 해결이기도 하다.
+`authority` 가 그대로라서 화면이 **동작은 한다.** 하지만 판정이 틀린 채로 동작한다.
+
+`src/shared/auth/roles.js` 의 `isAdmin(user)` 은 `authority === 'OFFICER'` 를 본다.
+즉 **임기가 있으면 참**이다. 새 권한 체계에서 홍보부원도 `OFFICER` 지만 회원 관리
+화면에서 403 을 받는다. 그 파일의 주석이 스스로 막겠다고 적어 둔 상황이 바로
+이것이다 — "버튼은 보이는데 들어가면 403 이 뜨는 어긋남".
+
+`authority` 를 남기는 것이 그 어긋남을 **유지한다.** 이번 배포로 어긋남이 처음
+생기는 것이므로, FE 이행 전까지는 권한이 좁은 직책이 막힌 화면을 보게 된다.
+
+고쳐야 할 곳은 넷이다.
+
+| 파일 | 지금 | 바꿀 것 |
+|---|---|---|
+| `src/shared/auth/roles.js:8,13` | `ADMIN_ROLES.includes(user.authority)` | `user.permissions?.length > 0` (콘솔 진입 여부) |
+| `src/features/admin/RequireAdmin.jsx:26` | `isAdmin(user)` | 위와 같음 |
+| `src/features/profile/ProfilePage.jsx:30` | `isAdmin(s.user)` | 위와 같음 |
+| 각 관리자 화면의 버튼·탭 | 노출 조건 없음 | 해당 `permissions` 보유 여부로 가린다 |
+
+`roles.js` 의 `ADMIN_ROLES` 에 있는 `'ADMIN'` 은 BE 가 한 번도 보낸 적 없는 값이다.
+죽은 분기이므로 같이 지운다.
+
+### 그 다음에야 authority 를 뺀다
+
+위 이행이 끝나고 배포된 것을 확인한 뒤, **별도 배포**에서 BE 가 `MeProfile.authority`
+와 `UserSummary.authority` 를 제거한다. 프로필 화면의 "권한: 임원" 표시
+(`profile.data.js:11,23`, `ProfileView.jsx:21`, `EditView.jsx:26`)는 그때 `roles` 의
+한글 라벨로 바꾸거나 없앤다.
+
+순서를 지켜야 하는 이유: `authority` 를 먼저 빼면 `isAdmin` 이 모든 사용자에게
+거짓을 돌려주고 `RequireAdmin` 이 전원을 튕겨내 **관리자 화면 전체가 죽는다.**
+
+### 함께 볼 것 — 403 에서 세션이 남는다
+
+`src/shared/api/client.js` 의 응답 인터셉터는 **401 에서만** 세션을 지운다. 권한이
+좁아진 사용자는 403 을 받고 세션이 남은 채 막힌 화면을 본다. 위 이행으로 버튼
+자체가 가려지면 403 이 거의 나지 않으므로, 그 이행이 이 문제의 해결이기도 하다.
+
+`WITHDRAWN` 은 별개다. 탈퇴 회원은 이제 인증 필터가 막아 **401** 이 나가므로 화면이
+자동으로 로그아웃한다. 재등록 대상(`REREGISTRATION_REQUIRED`)은 의도적으로 403 이며
+세션이 남아야 팝업을 띄울 수 있다.
 ```
 
 - [ ] **Step 3: 커밋하고 푸시한다**
@@ -2904,7 +2942,13 @@ gh pr create --base develop --head feat/authz-policy-role \
 ## 계약
 
 `MeProfile` 과 로그인 응답에 `roles[]`·`permissions[]` 를 **추가**한다. `authority` 는
-값도 규칙도 그대로다 — FE 이행이 끝난 뒤 별도 배포에서 제거한다.
+값도 규칙도 그대로라 **BE 만 배포해도 FE 는 깨지지 않는다.**
+
+다만 FE 이행은 선택이 아니다. `shared/auth/roles.js` 의 `isAdmin` 이 `authority` 를
+보는 한, 홍보부원처럼 권한이 좁아진 직책은 버튼은 보이는데 403 을 받는다. 이행
+대상 파일 넷과 순서를 공지 문서에 적어 두었다. `authority` 제거는 그 이행이
+배포된 것을 확인한 뒤 별도 배포에서 한다 — 먼저 빼면 `RequireAdmin` 이 전원을
+튕겨내 관리자 화면 전체가 죽는다.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
