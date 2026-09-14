@@ -9,9 +9,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -131,6 +133,60 @@ public class StudyService {
                     Map.of("status", "RECRUITING, ONGOING, FINISHED 중 하나여야 합니다."));
         }
         return s;
+    }
+
+    // ── UC-T9: 상세 ──
+
+    @Transactional(readOnly = true)
+    public StudyDetail detail(String id, String userId) {
+        Study s = loadStudy(id);
+        Member leader = members.findById(s.getLeaderId()).orElse(null);
+        List<WeekEntry> curriculum = weeks.findByStudyIdOrderByWeekNoAsc(id).stream()
+                .map(w -> new WeekEntry(w.getWeekNo(), w.getTitle(), w.getContent()))
+                .toList();
+        return new StudyDetail(
+                s.getId(), s.getTitle(), s.getFields(), s.getIntro(),
+                leader == null ? null : leader.getName(),
+                leader == null ? null : leader.getGen(),
+                s.getSchedule(), s.getPlace(), s.getMode(), s.getContact(),
+                approvedCount(id), cap(s), s.getStatus(), deriveApply(s, userId),
+                curriculum, roster(s));
+    }
+
+    /**
+     * 대기 + 승인. 반려와 스터디장은 뺀다 — 스터디장은 지원자가 아니고 이미 제목 아래에 있다.
+     *
+     * 정렬이 기수 → 이름인 것은 규칙이다. 신청 순으로 세우면 "먼저 신청했는데 아직 뒤에
+     * 있다"가 순서에서 읽혀, 숨긴 승인 상태가 새어 나온다.
+     */
+    private List<RosterEntry> roster(Study s) {
+        List<StudyApplication> rows = applications.findByStudyIdAndStatusIn(
+                s.getId(), List.of(ApplicationStatus.PENDING, ApplicationStatus.APPROVED));
+        Map<String, Member> byId = members.findAllById(
+                        rows.stream().map(StudyApplication::getApplicantId).toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+        return rows.stream()
+                .map(a -> byId.get(a.getApplicantId()))
+                .filter(Objects::nonNull)
+                .filter(m -> !m.getId().equals(s.getLeaderId()))
+                .sorted(Comparator
+                        .comparing(Member::getGen, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Member::getName, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(m -> new RosterEntry(maskStudentId(m.getStudentId()), m.getGen(), m.getName()))
+                .toList();
+    }
+
+    /**
+     * 앞 4자리 + 가운데 전부 '*' + 뒤 1자리. 길이를 보존한다.
+     *
+     * 마스킹을 서버가 하는 이유: 전체 학번을 내려보내고 화면에서 가리면 개발자 도구로
+     * 그대로 보인다.
+     */
+    static String maskStudentId(String id) {
+        if (id == null || id.length() < 6) return id;   // 방어. 학번은 ^\d{8,10}$
+        return id.substring(0, 4)
+                + "*".repeat(id.length() - 5)
+                + id.substring(id.length() - 1);
     }
 
     // ── UC-T2: 지원 ──

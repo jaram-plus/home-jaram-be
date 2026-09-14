@@ -59,6 +59,14 @@ public class StudyController {
     @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
     public List<Applicant> applicants() { return service.applicants(); }
 
+    // UC-T9: 상세. 지원 인원 명단이 붙으므로 로그인 필수다.
+    // SecurityConfig 에 GET /api/studies/* 를 permitAll 로 넣지 않는다 — 그 와일드카드가
+    // /my·/pending·/applicants 까지 한 세그먼트로 잡는다.
+    @GetMapping("/{id}")
+    public StudyDetail detail(@PathVariable String id, @AuthenticationPrincipal CurrentMember me) {
+        return service.detail(id, me.id());
+    }
+
     // UC-T2: 지원.
     @PostMapping("/{id}/apply")
     @ResponseStatus(HttpStatus.CREATED)
