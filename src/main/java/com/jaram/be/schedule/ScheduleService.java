@@ -1,0 +1,217 @@
+package com.jaram.be.schedule;
+
+import com.jaram.be.common.ApiException;
+import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberRepository;
+import com.jaram.be.schedule.dto.ScheduleCreateRequest;
+import com.jaram.be.schedule.dto.ScheduleResponse;
+import com.jaram.be.schedule.dto.ScheduleSlotResponse;
+import com.jaram.be.schedule.dto.SlotMember;
+import com.jaram.be.security.authz.Eligibility;
+import com.jaram.be.seminar.ApprovalStatus;
+import com.jaram.be.seminar.Seminar;
+import com.jaram.be.seminar.SeminarRepository;
+import com.jaram.be.seminar.SeminarService;
+import com.jaram.be.seminar.dto.SeminarCreateRequest;
+import com.jaram.be.seminar.dto.SeminarResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * 일정/슬롯 상태전이와 슬롯 응답 파생. 슬롯의 member 이름·세미나 승인상태는 저장하지
+ * 않고 Member/Seminar 배치 조회로 얹는다. 시각 표시는 Asia/Seoul 파생.
+ */
+@Service
+public class ScheduleService {
+
+    static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final String[] WEEKDAYS = {"월", "화", "수", "목", "금", "토", "일"};
+
+    private final ScheduleRepository schedules;
+    private final MemberRepository members;
+    private final SeminarRepository seminars;
+    private final SeminarService seminarService;
+    private final Eligibility eligibility;
+
+    public ScheduleService(ScheduleRepository schedules, MemberRepository members,
+                           SeminarRepository seminars, SeminarService seminarService,
+                           Eligibility eligibility) {
+        this.schedules = schedules;
+        this.members = members;
+        this.seminars = seminars;
+        this.seminarService = seminarService;
+        this.eligibility = eligibility;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScheduleResponse> list() {
+        return schedules.findAllByOrderByStartsAtAsc().stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public ScheduleResponse claim(String scheduleId, int index, String memberId) {
+        eligibility.requireActive(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        Schedule sch = load(scheduleId);
+        if (sch.getStatus() != ScheduleStatus.OPEN) {
+            throw conflict("잠긴 일정입니다.");
+        }
+        ScheduleSlot slot = slot(sch, index);
+        if (slot.getMemberId() != null) {
+            throw conflict("이미 점유된 슬롯입니다.");
+        }
+        slot.claim(memberId);
+        schedules.save(sch);
+        return toResponse(sch);
+    }
+
+    @Transactional
+    public ScheduleResponse cancel(String scheduleId, int index, String memberId) {
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (sch.getStatus() != ScheduleStatus.OPEN) {
+            throw forbidden("잠긴 일정은 취소할 수 없습니다.");
+        }
+        if (!memberId.equals(slot.getMemberId())) {
+            throw forbidden("본인 슬롯만 취소할 수 있습니다.");
+        }
+        // unlock으로 다시 OPEN이 된 슬롯에는 제출한 세미나가 붙어 있을 수 있다.
+        // 그대로 놓아주면 세미나가 고아가 되므로 임원 반려(forceRelease)를 거치게 한다.
+        if (slot.getSeminarId() != null) {
+            throw forbidden("제출한 세미나가 있어 취소할 수 없습니다. 임원에게 반려를 요청하세요.");
+        }
+        slot.release();
+        schedules.save(sch);
+        return toResponse(sch);
+    }
+
+    @Transactional
+    public SeminarResponse submitSeminar(String scheduleId, int index, String memberId,
+                                         SeminarCreateRequest req) {
+        eligibility.requireActive(memberId);   // 조회보다 먼저다 — 없는 id 에 404 가 앞서면 안 된다
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (sch.getStatus() != ScheduleStatus.LOCKED) {
+            throw conflict("잠긴 일정에서만 세미나를 제출할 수 있습니다.");
+        }
+        if (!memberId.equals(slot.getMemberId())) {
+            throw forbidden("본인 슬롯만 제출할 수 있습니다.");
+        }
+        if (slot.getSeminarId() != null) {
+            throw conflict("이미 제출한 슬롯입니다.");
+        }
+        SeminarResponse resp = seminarService.submitFromSlot(
+                req, memberId, sch.getId(), sch.getStartsAt(), sch.getPlace(), sch.getMode());
+        slot.attachSeminar(resp.id());
+        schedules.save(sch);
+        return resp;
+    }
+
+    @Transactional
+    public ScheduleResponse create(ScheduleCreateRequest req) {
+        int capacity = req.capacity() == null ? 3 : req.capacity();
+        Schedule sch = Schedule.create(req.startsAt(), req.place(), req.mode(), capacity);
+        return toResponse(schedules.save(sch));
+    }
+
+    /**
+     * 일정 삭제 — 아무도 맡지 않은 일정만. 누군가 맡고 있으면 그 슬롯의 세미나까지 함께
+     * 사라지므로, 임원이 슬롯을 먼저 해제(forceRelease)하도록 409로 막는다.
+     */
+    @Transactional
+    public void delete(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        if (sch.getSlots().stream().anyMatch(s -> s.getMemberId() != null)) {
+            throw conflict("맡은 사람이 있는 일정은 삭제할 수 없습니다. 먼저 슬롯을 해제하세요.");
+        }
+        schedules.delete(sch);
+    }
+
+    @Transactional
+    public ScheduleResponse lock(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        sch.lock();
+        return toResponse(schedules.save(sch));
+    }
+
+    @Transactional
+    public ScheduleResponse unlock(String scheduleId) {
+        Schedule sch = load(scheduleId);
+        sch.unlock();
+        return toResponse(schedules.save(sch));
+    }
+
+    @Transactional
+    public ScheduleResponse forceRelease(String scheduleId, int index) {
+        Schedule sch = load(scheduleId);
+        ScheduleSlot slot = slot(sch, index);
+        if (slot.getSeminarId() != null) {
+            Seminar sem = seminars.findById(slot.getSeminarId()).orElse(null);
+            if (sem != null && sem.getApprovalStatus() != ApprovalStatus.REJECTED) {
+                throw conflict("먼저 세미나를 반려한 뒤 해제할 수 있습니다.");
+            }
+            if (sem != null) {   // 슬롯이 비므로 세미나→일정 역참조도 함께 끊는다
+                sem.setScheduleId(null);
+                seminars.save(sem);
+            }
+        }
+        slot.release();
+        schedules.save(sch);
+        return toResponse(sch);
+    }
+
+    private Schedule load(String id) {
+        return schedules.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "일정을 찾을 수 없습니다."));
+    }
+
+    private ScheduleSlot slot(Schedule sch, int index) {
+        return sch.getSlots().stream().filter(x -> x.getIndex() == index).findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "슬롯을 찾을 수 없습니다."));
+    }
+
+    private ApiException conflict(String msg) { return new ApiException(HttpStatus.CONFLICT, "CONFLICT", msg); }
+    private ApiException forbidden(String msg) { return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", msg); }
+
+    ScheduleResponse toResponse(Schedule s) {
+        List<ScheduleSlot> slots = s.getSlots();
+        // 기수까지 실어야 해서 이름만 뽑지 않고 엔티티를 들고 있는다. gen 은 null 일 수
+        // 있는데 Collectors.toMap 은 null 값에 NPE 를 낸다.
+        Map<String, Member> byId = members.findAllById(
+                        slots.stream().map(ScheduleSlot::getMemberId).filter(Objects::nonNull).toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+        Map<String, Seminar> semById = seminars.findAllById(
+                        slots.stream().map(ScheduleSlot::getSeminarId).filter(Objects::nonNull).toList()).stream()
+                .collect(Collectors.toMap(Seminar::getId, Function.identity()));
+
+        List<ScheduleSlotResponse> slotDtos = slots.stream().map(slot -> {
+            Member holder = slot.getMemberId() == null ? null : byId.get(slot.getMemberId());
+            SlotMember member = slot.getMemberId() == null ? null
+                    : new SlotMember(slot.getMemberId(),
+                            holder == null ? null : holder.getName(),
+                            holder == null ? null : holder.getGen());
+            Seminar sem = slot.getSeminarId() == null ? null : semById.get(slot.getSeminarId());
+            return new ScheduleSlotResponse(
+                    slot.getIndex(), member, slot.getSeminarId(),
+                    sem == null ? null : sem.getApprovalStatus(),
+                    sem == null ? null : sem.getRejectReason());
+        }).toList();
+
+        ZonedDateTime t = s.getStartsAt().atZone(SEOUL);
+        return new ScheduleResponse(
+                s.getId(), s.getStartsAt().toString(),
+                String.valueOf(t.getDayOfMonth()), t.getMonthValue() + "월",
+                WEEKDAYS[t.getDayOfWeek().getValue() - 1], t.format(HHMM),
+                s.getPlace(), s.getMode(), s.getCapacity(), s.getStatus(), slotDtos);
+    }
+}
