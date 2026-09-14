@@ -123,7 +123,7 @@ class TokenEligibilityTest extends PostgresTest {
      * 임기에서 나오므로, ttl 이 남아 있어도 관리자 API 가 막힌다.
      */
     @Test
-    void authorityComesFromTheDatabaseNotTheToken() {
+    void permissionsComeFromTheDatabaseNotTheToken() {
         Member m = saved(MemberApproval.APPROVED, MemberStatus.ACTIVE);
         m.assignTerm(MemberDepartment.LEADERSHIP, MemberTitle.PRESIDENT, 41);
         m = members.save(m);

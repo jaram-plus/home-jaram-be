@@ -1,6 +1,5 @@
 package com.jaram.be.me.dto;
 
-import com.jaram.be.member.Authority;
 import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberGrade;
 import com.jaram.be.member.MemberStatus;
@@ -14,7 +13,6 @@ public record MeProfile(
         String name,
         String studentId,
         String email,
-        Authority authority,
         MemberGrade grade,            // enum name, nullable (승인 전)
         MemberStatus status,          // 활동축 enum name
         String reregisterRequestedAt, // ISO-8601, nullable. null 이면 재등록 미신청

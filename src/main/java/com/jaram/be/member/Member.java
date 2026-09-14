@@ -103,8 +103,6 @@ public class Member {
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String h) { this.passwordHash = h; }
-    // 권한은 저장하지 않는다 — 진행 중인 임기가 있으면 임원. 부원(STAFF)도 임원 권한을 갖는다.
-    public Authority getAuthority() { return currentTerm().isPresent() ? Authority.OFFICER : Authority.MEMBER; }
 
     /**
      * 학기 전환 대상. 휴학·OB·현직 임원은 면제한다.

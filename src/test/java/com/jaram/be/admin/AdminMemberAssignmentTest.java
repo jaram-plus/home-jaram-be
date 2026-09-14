@@ -65,7 +65,7 @@ class AdminMemberAssignmentTest extends PostgresTest {
         Member reloaded = members.findById(m.getId()).orElseThrow();
         assertThat(reloaded.getTitle()).isEqualTo(MemberTitle.LEAD);
         assertThat(reloaded.getDepartment()).isEqualTo(MemberDepartment.ACADEMIC);
-        assertThat(reloaded.getAuthority()).isEqualTo(Authority.OFFICER);
+        assertThat(reloaded.currentTerm()).isPresent();
     }
 
     @Test
@@ -129,7 +129,7 @@ class AdminMemberAssignmentTest extends PostgresTest {
 
         Member reloaded = members.findById(m.getId()).orElseThrow();
         assertThat(reloaded.getTitle()).isNull();
-        assertThat(reloaded.getAuthority()).isEqualTo(Authority.MEMBER);
+        assertThat(reloaded.currentTerm()).isEmpty();
     }
 
     @Test

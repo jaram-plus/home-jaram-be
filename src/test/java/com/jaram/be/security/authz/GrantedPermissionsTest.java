@@ -19,7 +19,6 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -79,17 +78,5 @@ class GrantedPermissionsTest extends PostgresTest {
                 .then().statusCode(200)
                 .body("roles", containsInAnyOrder("MEMBER"))
                 .body("permissions", emptyIterable());
-    }
-
-    /** authority 는 계약이라 그대로 유지된다 — FE 이행 전까지 값과 규칙이 같아야 한다. */
-    @Test
-    void legacyAuthorityStillReflectsTheCurrentTerm() {
-        given().header("Authorization", "Bearer " + tokenFor(MemberDepartment.PR, MemberTitle.STAFF))
-                .when().get("/api/me")
-                .then().statusCode(200).body("authority", equalTo("OFFICER"));
-        members.deleteAll();
-        given().header("Authorization", "Bearer " + tokenFor(null, null))
-                .when().get("/api/me")
-                .then().statusCode(200).body("authority", equalTo("MEMBER"));
     }
 }

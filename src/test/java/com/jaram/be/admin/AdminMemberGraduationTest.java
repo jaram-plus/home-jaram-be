@@ -90,7 +90,6 @@ class AdminMemberGraduationTest extends PostgresTest {
         assertThat(reloaded.currentTerm()).isEmpty();
         assertThat(reloaded.getTerms()).hasSize(1);
         assertThat(reloaded.getTerms().get(0).getEndGen()).isNotNull();
-        assertThat(reloaded.getAuthority()).isEqualTo(Authority.MEMBER);
     }
 
     @Test

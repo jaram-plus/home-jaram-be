@@ -66,8 +66,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // 이름과 이메일은 클레임이 아니라 엔티티에서 읽는다 — 회원이 이름을 바꾸면
                 // 토큰 안의 옛 이름이 아니라 지금 이름이 나가야 한다.
                 var principal = new CurrentMember(
-                        m.getId(), m.getName(), m.getEmail(), m.getAuthority(),
-                        roles, permissions);
+                        m.getId(), m.getName(), m.getEmail(), roles, permissions);
                 var auth = new UsernamePasswordAuthenticationToken(principal, null,
                         permissions.stream()
                                 .map(p -> (GrantedAuthority) new SimpleGrantedAuthority(p.name()))

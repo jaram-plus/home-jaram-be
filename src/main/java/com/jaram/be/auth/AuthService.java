@@ -89,7 +89,7 @@ public class AuthService {
         }
         String token = jwt.generate(m.getId(), m.getName(), m.getEmail());
         return new LoginResponse(token, new UserSummary(m.getId(), m.getName(), m.getEmail(),
-                m.getAuthority(), roleNames(m), permissionNames(m)));
+                roleNames(m), permissionNames(m)));
     }
 
     @Transactional
