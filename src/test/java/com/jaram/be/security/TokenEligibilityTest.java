@@ -21,7 +21,7 @@ import static io.restassured.RestAssured.given;
 /**
  * 발급된 토큰이 지금도 쓸 자격이 있는지 요청마다 확인한다.
  *
- * 이전에는 토큰만 유효하면 통과했다. 자격 검사가 MemberActivityGuard 의 신청류 다섯
+ * 이전에는 토큰만 유효하면 통과했다. 자격 검사가 Eligibility 로 모이기 전 신청류 다섯
  * 곳에만 있어서, 탈퇴 처리된 현직 임원이 손에 든 토큰으로 ttl(12시간) 동안 관리자 API 를
  * 계속 쓸 수 있었다.
  */
