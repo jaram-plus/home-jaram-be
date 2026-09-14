@@ -60,13 +60,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/people", "/api/seminars", "/api/studies").permitAll()
                 // 푸터의 외부 링크 — 비로그인 방문자도 보는 화면이라 읽기는 열어 둔다 (수정은 /api/admin).
                 .requestMatchers(HttpMethod.GET, "/api/site/links").permitAll()
-                .requestMatchers("/api/admin/**").hasAuthority("OFFICER")
-                .requestMatchers(HttpMethod.GET, "/api/studies/pending", "/api/studies/applicants").hasAuthority("OFFICER")
-                .requestMatchers("/api/studies/applicants/**").hasAuthority("OFFICER")
-                .requestMatchers(HttpMethod.POST, "/api/seminars").hasAuthority("OFFICER")
-                .requestMatchers(HttpMethod.GET, "/api/seminars/*/roster").hasAuthority("OFFICER")
                 .requestMatchers(HttpMethod.GET, "/api/schedules").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/studies/*/approve", "/api/studies/*/reject").hasAuthority("OFFICER")
+                // 나머지는 전부 인증을 요구하고, 무엇을 할 수 있는지는 핸들러의
+                // @PreAuthorize 가 정한다. 애너테이션을 빠뜨리면 "로그인한 아무나"가
+                // 되므로 AdminAuthorizationCoverageTest 가 누락을 잡는다.
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(entryPoint)
