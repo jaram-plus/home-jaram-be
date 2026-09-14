@@ -68,7 +68,9 @@ public class StudyController {
         service.apply(id, me.id(), req.motive());
     }
 
-    // UC-T6: 개설 승인/거절 (OFFICER).
+    // UC-T6: 개설 승인/거절 (OFFICER). 소유자 조건을 걸지 않는다 — 자기가 낸 개설
+    // 신청을 자기가 승인할 수 있으면 승인 절차 자체가 없는 것과 같다. 스터디장이라는
+    // 지위는 승인된 뒤에 생긴다.
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasAuthority('STUDY_APPROVE')")
     public void approveStudy(@PathVariable String id) { service.approveStudy(id); }
@@ -79,13 +81,28 @@ public class StudyController {
         service.rejectStudy(id, req.reason());
     }
 
-    // UC-T8: 신청자 승인/거절 (OFFICER).
+    // 모집 완료 — RECRUITING 에서만. 스터디장이 자기 스터디의 모집을 닫는다.
+    @PostMapping("/{id}/close-recruiting")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")
+    public void closeRecruiting(@PathVariable String id) { service.closeRecruiting(id); }
+
+    // 종료 — ONGOING 에서만.
+    @PostMapping("/{id}/finish")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")
+    public void finish(@PathVariable String id) { service.finish(id); }
+
+    // UC-T8: 신청자 승인/거절. {id} 는 스터디 id 가 아니라 신청 id 다 — isLeader 를
+    // 걸면 언제나 false 가 되어 스터디장이 자기 신청을 하나도 처리하지 못한다.
     @PostMapping("/applicants/{id}/approve")
-    @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
+    @PreAuthorize("@studyAccess.isLeaderOfApplication(#id, authentication)"
+            + " or hasAuthority('STUDY_APPLICANT_MANAGE')")
     public void approveApplicant(@PathVariable String id) { service.approveApplicant(id); }
 
     @PostMapping("/applicants/{id}/reject")
-    @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
+    @PreAuthorize("@studyAccess.isLeaderOfApplication(#id, authentication)"
+            + " or hasAuthority('STUDY_APPLICANT_MANAGE')")
     public void rejectApplicant(@PathVariable String id, @Valid @RequestBody RejectRequest req) {
         service.rejectApplicant(id, req.reason());
     }

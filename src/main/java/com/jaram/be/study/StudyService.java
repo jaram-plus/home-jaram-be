@@ -190,6 +190,33 @@ public class StudyService {
     @Transactional
     public void rejectStudy(String studyId, String reason) { loadStudy(studyId).reject(reason); }
 
+    // ── 생애축 전이 (스터디장 or STUDY_EDIT) ──
+
+    @Transactional
+    public void closeRecruiting(String studyId) {
+        Study s = loadStudy(studyId);
+        requireState(s, StudyStatus.RECRUITING);
+        s.closeRecruiting();
+    }
+
+    @Transactional
+    public void finish(String studyId) {
+        Study s = loadStudy(studyId);
+        requireState(s, StudyStatus.ONGOING);
+        s.finish();
+    }
+
+    /**
+     * 전이는 한 칸씩만 간다. 건너뛰거나 되돌리는 것은 임원의 일괄 편집으로만 한다 —
+     * 되돌릴 손이 하나 있으면 되고, 두 군데에 두면 규칙이 두 벌이 된다.
+     */
+    private void requireState(Study s, StudyStatus required) {
+        if (s.getStatus() != required) {
+            throw new ApiException(HttpStatus.CONFLICT, "INVALID_STATE",
+                    "지금 상태에서는 할 수 없는 동작입니다.");
+        }
+    }
+
     // ── UC-T7: 신청자 목록 (승인 대기) ──
     @Transactional(readOnly = true)
     public List<Applicant> applicants() {
