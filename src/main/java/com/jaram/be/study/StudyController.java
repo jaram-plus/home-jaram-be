@@ -3,6 +3,7 @@ package com.jaram.be.study;
 import com.jaram.be.security.CurrentMember;
 import com.jaram.be.study.dto.*;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -39,10 +40,12 @@ public class StudyController {
 
     // UC-T5: 개설 대기 목록 (OFFICER).
     @GetMapping("/pending")
+    @PreAuthorize("hasAuthority('STUDY_APPROVE')")
     public List<PendingStudy> pending() { return service.pending(); }
 
     // UC-T7: 신청자 목록 (OFFICER).
     @GetMapping("/applicants")
+    @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
     public List<Applicant> applicants() { return service.applicants(); }
 
     // UC-T2: 지원.
@@ -56,18 +59,22 @@ public class StudyController {
 
     // UC-T6: 개설 승인/거절 (OFFICER).
     @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('STUDY_APPROVE')")
     public void approveStudy(@PathVariable String id) { service.approveStudy(id); }
 
     @PostMapping("/{id}/reject")
+    @PreAuthorize("hasAuthority('STUDY_APPROVE')")
     public void rejectStudy(@PathVariable String id, @Valid @RequestBody RejectRequest req) {
         service.rejectStudy(id, req.reason());
     }
 
     // UC-T8: 신청자 승인/거절 (OFFICER).
     @PostMapping("/applicants/{id}/approve")
+    @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
     public void approveApplicant(@PathVariable String id) { service.approveApplicant(id); }
 
     @PostMapping("/applicants/{id}/reject")
+    @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
     public void rejectApplicant(@PathVariable String id, @Valid @RequestBody RejectRequest req) {
         service.rejectApplicant(id, req.reason());
     }
