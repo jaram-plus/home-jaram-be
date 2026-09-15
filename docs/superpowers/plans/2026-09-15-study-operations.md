@@ -61,9 +61,7 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 | `study/StudyAttendanceController.java` | `/api/studies/{id}/attendance*`, `/weeks/{n}/attendance` |
 | `study/StudyWeekService.java` | 주차 추가·수정·삭제 |
 | `study/StudyWeekController.java` | `/api/studies/{id}/weeks*` |
-| `study/StudyRelation.java` | `LEADER`/`MEMBER`/`APPLIED`/`REJECTED` |
 | `study/AttendanceState.java` | `PRESENT`/`ABSENT`/`NOT_TAKEN` |
-| `study/dto/MyStudyItem.java`, `dto/MyStudyList.java` | `/my` 응답 (D24) |
 | `study/dto/StudyApplicantEntry.java`, `dto/StudyApplicantList.java` | 스터디장용 신청 목록 (D26) |
 | `study/dto/AttendanceWeek.java`, `dto/AttendanceMember.java`, `dto/AttendanceBoard.java` | 출석 격자 |
 | `study/dto/MyAttendanceWeek.java`, `dto/MyAttendance.java` | 멤버 자신의 출석 |
@@ -77,13 +75,14 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 | `study/StudyWeek.java` | `takenAt` 필드와 `markTaken()` 추가 |
 | `study/StudyWeekRepository.java` | `findFirstByStudyIdOrderByWeekNoDesc`, `countByStudyId`, `findByStudyIdAndWeekNo` 추가 |
 | `study/StudyAccess.java` | `isMember`, `isApplicant` 추가 |
-| `study/StudyController.java` | `GET /{id}/applicants`, `DELETE /applicants/{id}` 추가. `my()` 반환형 교체 |
-| `study/StudyService.java` | `myActivity` → `myStudies` 로 교체, `applicantsOf(studyId)`, `deleteApplication` 추가 |
+| `study/StudyController.java` | `GET /{id}/applicants`, `DELETE /applicants/{id}` 추가. `my()` 는 그대로 |
+| `study/dto/MyStudy.java` | `pendingApplicants` 필드 하나 추가 (D24) |
+| `study/StudyService.java` | `myActivity` 에 대기 신청 수를 채운다. `applicantsOf(studyId)`, `deleteApplication` 추가 |
 | `study/StudyApplicationRepository.java` | `findByStudyIdAndStatus`, `findByApplicantIdAndStatus` 추가 |
 
 ### BE — 지우는 파일
 
-`study/dto/MyActivity.java`, `study/dto/MyApp.java`, `study/dto/MyStudy.java` — `MyStudyList`/`MyStudyItem` 이 대신한다 (D24).
+없다. 초안은 `MyActivity`·`MyApp`·`MyStudy` 를 폐기하려 했으나 철회했다 — 관계는 화면이 두 배열에서 읽고, 서버는 `pendingApplicants` 하나만 더한다 (D23·D24).
 
 ### FE — 새로 만드는 파일
 
@@ -98,9 +97,9 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 
 | 파일 | 무엇을 |
 |---|---|
-| `features/study/study.api.js` | 새 엔드포인트 8개 함수 추가, `listMyActivity` → `listMyStudies` |
+| `features/study/study.api.js` | 새 엔드포인트 함수 추가. `listMyActivity` 는 그대로 |
 | `features/study/study.queries.js` | 새 쿼리 키와 훅, 무효화 대상 갱신 |
-| `features/study/study.data.js` | `RELATION_CHIP`, `RELATION_LINE`, `ATTENDANCE_LABEL` 추가 |
+| `features/study/study.data.js` | `relationOf()`(두 배열 → 관계), `RELATION_CHIP`, `RELATION_ACTION`, `ATTENDANCE_LABEL`, `relationLine()` 추가 |
 | `features/study/StudyPage.jsx` | 탭 `내 활동` → `내 스터디`, `MyActivityView` → `MyStudyView`, 모달 배선 |
 
 ### FE — 지우는 파일
@@ -118,26 +117,36 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 
 **Interfaces:**
 - Consumes: 없음 (첫 과제)
-- Produces: 스키마 이름 `MyStudyList`, `MyStudyItem`, `StudyRelation`, `StudyApplicantList`, `StudyApplicantEntry`, `AttendanceBoard`, `AttendanceWeek`, `AttendanceMember`, `MyAttendance`, `MyAttendanceWeek`, `AttendanceState`, `AttendanceUpdate`, `WeekUpsert`. 이후 모든 BE 과제가 이 이름으로 DTO 를 만든다.
+- Produces: 새 스키마 이름 `StudyApplicantList`, `StudyApplicantEntry`, `AttendanceBoard`, `AttendanceWeek`, `AttendanceMember`, `MyAttendance`, `MyAttendanceWeek`, `AttendanceState`, `AttendanceUpdate`, `WeekUpsert`. 그리고 기존 `MyStudy` 에 `pendingApplicants` 필드. 이후 모든 BE 과제가 이 이름으로 DTO 를 만든다.
+
+**기존 스키마를 지우지 않는다.** `MyActivity`·`MyApp`·`MyStudy` 는 ① 이 굳힌 계약이고 그대로 둔다 (D24). 이 과제는 **더하기만** 한다.
 
 - [ ] **Step 1: 브랜치를 판다**
 
 `home-jaram-fe` 에서 `develop` 을 최신으로 당긴 뒤 `feat/study-operations` 브랜치를 만든다. 브랜치 이름은 BE 와 같아야 한다 — 계약 CI 가 이름으로 짝을 찾는다.
 
-- [ ] **Step 2: 지울 스키마 셋을 찾는다**
+- [ ] **Step 2: `MyStudy` 스키마를 찾는다**
 
 ```bash
 grep -n '    MyApp:\|    MyStudy:\|    MyActivity:' docs/api/openapi.yaml
-grep -n 'MyActivity' docs/api/openapi.yaml
 ```
 
-세 스키마는 `MyStudyList`/`MyStudyItem` 이 대신하므로 지운다(D24). `MyActivity` 를 참조하는 자리는 `/api/studies/my` 응답 하나뿐이어야 한다 — 두 번째 grep 이 그것을 확인한다.
+Expected: 세 이름이 각각 한 번씩 나온다. 지우지 않는다 — `MyStudy` 에 필드를 더할 자리를 찾는 것이다.
 
-- [ ] **Step 3: `/api/studies/my` 응답을 바꾼다**
+- [ ] **Step 3: `MyStudy` 에 `pendingApplicants` 를 더한다**
 
-`paths:` 의 `/api/studies/my` 아래 `$ref: '#/components/schemas/MyActivity'` 를 `#/components/schemas/MyStudyList` 로 바꾼다. `summary` 도 `내 활동` → `내 스터디` 로 바꾼다.
+`MyStudy` 의 `properties:` 아래에 넣는다. `required` 는 건드리지 않는다 — nullable 이다.
 
-- [ ] **Step 4: 새 경로 6개를 `paths:` 에 더한다**
+```yaml
+        pendingApplicants:
+          type: integer
+          nullable: true
+          description: 상태가 RECRUITING 일 때 대기 중인 신청 수. 그 외에는 null
+```
+
+`/api/studies/my` 의 응답 `$ref` 는 `MyActivity` 그대로 둔다. `summary` 만 `내 활동` → `내 스터디` 로 바꾼다 — 탭 이름이 바뀌었다(D22).
+
+- [ ] **Step 4: 새 경로 7개를 `paths:` 에 더한다**
 
 ```yaml
   /api/studies/{id}/applicants:
@@ -277,61 +286,13 @@ sed -n '/^  responses:/,/^  schemas:/p' docs/api/openapi.yaml | grep -n '^    [A
 
 없는 이름이 있으면 그 응답만 인라인으로 쓴다 — 기존 `/api/studies/{id}/close-recruiting` 의 `'409'` 선언 모양을 그대로 베낀다.
 
-- [ ] **Step 5: 새 스키마 13개를 `components/schemas` 에 더한다**
+- [ ] **Step 5: 새 스키마 10개를 `components/schemas` 에 더한다**
 
 ```yaml
-    StudyRelation:
-      type: string
-      description: 내가 이 스터디와 갖는 관계. 한 스터디에 하나뿐이다.
-      enum: [LEADER, MEMBER, APPLIED, REJECTED]
-
     AttendanceState:
       type: string
       description: PRESENT=출석, ABSENT=결석, NOT_TAKEN=아직 기록하지 않은 주차
       enum: [PRESENT, ABSENT, NOT_TAKEN]
-
-    MyStudyItem:
-      type: object
-      required: [id, title, fields, status, relation]
-      properties:
-        id:        { type: string }
-        title:     { type: string }
-        fields:    { type: array, items: { type: string } }
-        status:    { $ref: '#/components/schemas/StudyStatus' }
-        relation:  { $ref: '#/components/schemas/StudyRelation' }
-        leader:    { type: string, nullable: true }
-        leaderGen: { type: integer, nullable: true }
-        schedule:  { type: string, nullable: true }
-        applicationId:
-          type: string
-          nullable: true
-          description: APPLIED·REJECTED 일 때만. 삭제하기가 쓰는 id
-        reason:
-          type: string
-          nullable: true
-          description: 개설 반려 또는 신청 반려 사유
-        pendingApplicants:
-          type: integer
-          nullable: true
-          description: LEADER + RECRUITING 일 때만
-        weeksTaken:
-          type: integer
-          nullable: true
-          description: ONGOING 일 때만. 출석을 기록한 주차 수
-        weeksTotal:
-          type: integer
-          nullable: true
-          description: ONGOING 일 때만
-        myAttended:
-          type: integer
-          nullable: true
-          description: MEMBER + ONGOING 일 때만
-
-    MyStudyList:
-      type: object
-      required: [items]
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/MyStudyItem' } }
 
     StudyApplicantEntry:
       type: object
@@ -424,12 +385,13 @@ sed -n '/^  responses:/,/^  schemas:/p' docs/api/openapi.yaml | grep -n '^    [A
 python3 - <<'PY'
 import yaml
 d = yaml.safe_load(open('docs/api/openapi.yaml'))
-need = ['MyStudyList','MyStudyItem','StudyRelation','StudyApplicantList','StudyApplicantEntry',
+need = ['StudyApplicantList','StudyApplicantEntry',
         'AttendanceBoard','AttendanceWeek','AttendanceMember','MyAttendance','MyAttendanceWeek',
         'AttendanceState','AttendanceUpdate','WeekUpsert']
 schemas = d['components']['schemas']
 print('missing        :', [n for n in need if n not in schemas])
-print('should-be-gone :', [n for n in ('MyActivity','MyApp','MyStudy') if n in schemas])
+print('must-survive   :', [n for n in ('MyActivity','MyApp','MyStudy') if n not in schemas])
+print('new field      :', 'pendingApplicants' in schemas['MyStudy']['properties'])
 print('new paths      :', sorted(p for p in d['paths']
       if 'attendance' in p or p.endswith('/weeks') or '/weeks/{weekNo}' in p
       or p == '/api/studies/applicants/{id}' or p.endswith('/{id}/applicants')))
@@ -441,9 +403,10 @@ PY
 Expected:
 ```
 missing        : []
-should-be-gone : []
+must-survive   : []
+new field      : True
 new paths      : ['/api/studies/{id}/applicants', '/api/studies/{id}/attendance', '/api/studies/{id}/attendance/me', '/api/studies/{id}/weeks', '/api/studies/{id}/weeks/{weekNo}', '/api/studies/{id}/weeks/{weekNo}/attendance', '/api/studies/applicants/{id}']
-my response    : {'$ref': '#/components/schemas/MyStudyList'}
+my response    : {'$ref': '#/components/schemas/MyActivity'}
 ```
 
 - [ ] **Step 7: 린트가 그대로인지 본다**
@@ -461,11 +424,11 @@ Expected: exit 0. YAML 만 고쳤으므로 달라질 것이 없다 — 달라지
 ```
 feat(contract): 스터디 운영과 출석 엔드포인트를 선언한다
 
-내 스터디 화면이 관계 하나로 카드와 모달을 가르므로, 관계를 파생시켜
-화면에 던지지 않고 서버가 StudyRelation 으로 붙여 내려보낸다. /my 의 두
-배열(apps·studies)을 items 하나로 접는 것이 그 결과다 — 나뉜 채로 두면
-화면이 받아서 다시 합쳐야 하고, 카드가 쓸 숫자 셋을 둘 중 어디에 붙일지
-매번 정해야 한다.
+출석·주차·신청 목록 엔드포인트 7개와 그 응답 스키마 10개를 더한다.
+기존 스키마는 지우지 않는다. 내 스터디 화면이 쓰는 관계 네 값은 /my 가
+이미 주는 두 배열에서 읽히고, 분야·일정·스터디장은 GET /api/studies 에
+있다. 어디에도 없는 값은 대기 신청 수 하나뿐이라 MyStudy 에 그 필드만
+더한다.
 
 AttendanceWeek.editable 은 호출한 사람 기준이다. 화면이 takenAt 에 24h 를
 더해 스스로 계산하게 두면 시계 차이로 화면과 서버가 다른 답을 낸다.
@@ -2678,451 +2641,162 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 
 ---
 
-## Task 9: `/my` 를 관계 축으로 다시 세운다
+## Task 9: `/my` 에 대기 신청 수를 싣는다
+
+**초안에서 줄었다.** 처음에는 `/my` 를 `MyStudyList{items[]}` 로 갈아엎고 `MyActivity`·`MyApp`·`MyStudy` 를 폐기하려 했다. 철회했다(D23·D24) — 관계 네 값은 두 배열에서 화면이 읽고, 분야·일정·스터디장은 `GET /api/studies` 가 준다. 어디에도 없는 값은 대기 신청 수 하나뿐이다.
 
 **Files:**
-- Create: `src/main/java/com/jaram/be/study/StudyRelation.java`
-- Create: `src/main/java/com/jaram/be/study/dto/MyStudyItem.java`
-- Create: `src/main/java/com/jaram/be/study/dto/MyStudyList.java`
-- Delete: `src/main/java/com/jaram/be/study/dto/MyActivity.java`, `dto/MyApp.java`, `dto/MyStudy.java`
+- Modify: `src/main/java/com/jaram/be/study/dto/MyStudy.java`
 - Modify: `src/main/java/com/jaram/be/study/StudyService.java`
-- Modify: `src/main/java/com/jaram/be/study/StudyController.java`
-- Modify: `src/main/java/com/jaram/be/study/StudyWeekRepository.java`
-- Modify: `src/main/java/com/jaram/be/study/StudyAttendanceRepository.java`
-- Test: `src/test/java/com/jaram/be/study/MyStudiesTest.java`
-- Modify: ① 이 `MyActivity` 를 쓰던 기존 테스트 (`grep -rln 'MyActivity\|MyApp\|MyStudy' src/test` 로 찾는다)
+- Test: `src/test/java/com/jaram/be/study/StudyTest.java` (기존 `myActivityReturnsAppsAndLedStudies` 옆에 더한다)
 
 **Interfaces:**
-- Consumes: Task 2 의 `StudyWeekRepository`, Task 2 의 `StudyAttendanceRepository`
+- Consumes: `StudyApplicationRepository.countByStudyIdAndStatus(String, ApplicationStatus)` — **이미 있다.** 새로 만들지 않는다
 - Produces:
-  - `StudyRelation` = `LEADER` / `MEMBER` / `APPLIED` / `REJECTED`
-  - `MyStudyItem(String id, String title, List<String> fields, StudyStatus status, StudyRelation relation, String leader, Integer leaderGen, String schedule, String applicationId, String reason, Integer pendingApplicants, Integer weeksTaken, Integer weeksTotal, Integer myAttended)`
-  - `MyStudyList(List<MyStudyItem> items)`
-  - `StudyService.myStudies(String userId) → MyStudyList`
-  - `StudyWeekRepository.countByStudyIdAndTakenAtNotNull(String studyId) → long`
-  - `StudyAttendanceRepository.countByWeekIdInAndMemberId(Collection<String>, String) → long`
+  - `MyStudy(String id, String title, StudyStatus status, String reason, Integer pendingApplicants)`
+  - `MyActivity`·`MyApp` 은 그대로. `StudyService.myActivity(String userId) → MyActivity` 도 시그니처 그대로
+
+**지우는 것도 새 파일도 없다.** 이 과제는 레코드 한 줄, 서비스 한 줄, 테스트 하나다.
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
-`src/test/java/com/jaram/be/study/MyStudiesTest.java`:
+`src/test/java/com/jaram/be/study/StudyTest.java` 의 `myActivityReturnsAppsAndLedStudies` 바로 아래에 더한다. 기존 테스트는 손대지 않는다 — `pendingApplicants` 가 없던 자리는 `null` 이라 기존 단언이 그대로 통과한다.
 
 ```java
-package com.jaram.be.study;
-
-import com.jaram.be.member.Member;
-import com.jaram.be.member.MemberApproval;
-import com.jaram.be.member.MemberRepository;
-import com.jaram.be.support.Actors;
-import com.jaram.be.support.PostgresTest;
-import io.restassured.RestAssured;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-
-import java.util.List;
-import java.util.Map;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MyStudiesTest extends PostgresTest {
-
-    @LocalServerPort int port;
-    @Autowired MemberRepository members;
-    @Autowired StudyRepository studies;
-    @Autowired StudyApplicationRepository applications;
-    @Autowired StudyWeekRepository weeks;
-    @Autowired StudyAttendanceRepository attendance;
-    @Autowired Actors actors;
-
-    private Member me, other;
-    private String myToken, otherToken;
-
-    @BeforeEach void setup() {
-        RestAssured.port = port;
-        attendance.deleteAll();
-        weeks.deleteAll();
-        applications.deleteAll();
-        studies.deleteAll();
-        members.deleteAll();
-
-        me    = members.save(approved("나",  "2023000001", "me@hanyang.ac.kr", 41));
-        other = members.save(approved("남", "2023000002", "o@hanyang.ac.kr", 40));
-        myToken    = actors.tokenFor(me);
-        otherToken = actors.tokenFor(other);
-    }
-
-    private Member approved(String name, String sid, String email, int gen) {
-        Member m = Member.newPending(name, sid, email, "hash");
-        m.setApproval(MemberApproval.APPROVED);
-        m.setGen(gen);
-        return m;
-    }
-
-    private Study study(String title, String leaderId, StudyStatus status) {
-        Study s = Study.create(title, List.of("PS"), 6,
-                "화 19:00", "401호", "오프라인", "소개", "010-0000-0000", leaderId);
-        s.setStatus(status);
-        return studies.save(s);
-    }
-
-    private io.restassured.response.Response my() {
-        return given().header("Authorization", "Bearer " + myToken)
-                .when().get("/api/studies/my");
-    }
-
     @Test
-    void leaderOfARecruitingStudySeesThePendingCount() {
-        Study s = study("내 스터디", me.getId(), StudyStatus.RECRUITING);
-        applications.save(StudyApplication.create(s.getId(), other.getId(), "하고 싶습니다"));
+    void myActivityCountsPendingApplicantsOnRecruitingStudies() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Member a1 = member("a1", "지원1", "2023000002", "a1@hanyang.ac.kr");
+        Member a2 = member("a2", "지원2", "2023000003", "a2@hanyang.ac.kr");
+        Member a3 = member("a3", "지원3", "2023000004", "a3@hanyang.ac.kr");
 
-        my().then().statusCode(200)
-                .body("items", hasSize(1))
-                .body("items[0].relation", equalTo("LEADER"))
-                .body("items[0].status", equalTo("RECRUITING"))
-                .body("items[0].pendingApplicants", equalTo(1))
-                .body("items[0].weeksTaken", nullValue())
-                .body("items[0].myAttended", nullValue());
+        Study recruiting = approvedStudy(leader.getId(), 5);
+        applications.save(StudyApplication.create(recruiting.getId(), a1.getId(), "동기1"));
+        applications.save(StudyApplication.create(recruiting.getId(), a2.getId(), "동기2"));
+        StudyApplication approved = StudyApplication.create(recruiting.getId(), a3.getId(), "동기3");
+        approved.approve();
+        applications.save(approved);
+
+        // 아직 승인 전인 스터디는 신청을 받을 수 없으므로 셀 것도 없다
+        Study pending = studies.save(Study.create(
+                "대기스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
+
+        given().header("Authorization", "Bearer " + token(leader))
+                .when().get("/api/studies/my").then().statusCode(200)
+                .body("studies.size()", equalTo(2))
+                // 승인 대기 2건만 센다. 승인된 1건은 빠진다
+                .body("studies.find { it.id == '" + recruiting.getId() + "' }.pendingApplicants",
+                        equalTo(2))
+                // RECRUITING 이 아니면 null — "0건 대기"와 "셀 수 없음"은 다르다
+                .body("studies.find { it.id == '" + pending.getId() + "' }.pendingApplicants",
+                        nullValue());
     }
-
-    @Test
-    void leaderOfAnOngoingStudySeesWeekProgress() {
-        Study s = study("진행 중", me.getId(), StudyStatus.ONGOING);
-        StudyWeek w1 = weeks.save(StudyWeek.create(s.getId(), 1, "1주", null));
-        weeks.save(StudyWeek.create(s.getId(), 2, "2주", null));
-        w1.markTaken(java.time.Instant.now());
-        weeks.save(w1);
-
-        my().then().statusCode(200)
-                .body("items[0].relation", equalTo("LEADER"))
-                .body("items[0].weeksTaken", equalTo(1))
-                .body("items[0].weeksTotal", equalTo(2))
-                .body("items[0].pendingApplicants", nullValue());
-    }
-
-    @Test
-    void approvedApplicantIsAMemberAndSeesOwnAttendance() {
-        Study s = study("남의 스터디", other.getId(), StudyStatus.ONGOING);
-        StudyWeek w1 = weeks.save(StudyWeek.create(s.getId(), 1, "1주", null));
-        w1.markTaken(java.time.Instant.now());
-        weeks.save(w1);
-        attendance.save(StudyAttendance.create(w1.getId(), me.getId(), java.time.Instant.now()));
-
-        StudyApplication a = StudyApplication.create(s.getId(), me.getId(), "하고 싶습니다");
-        a.approve();
-        applications.save(a);
-
-        my().then().statusCode(200)
-                .body("items[0].relation", equalTo("MEMBER"))
-                .body("items[0].myAttended", equalTo(1))
-                .body("items[0].weeksTaken", equalTo(1))
-                .body("items[0].pendingApplicants", nullValue());
-    }
-
-    @Test
-    void pendingApplicationIsApplied() {
-        Study s = study("남의 스터디", other.getId(), StudyStatus.RECRUITING);
-        StudyApplication a = applications.save(
-                StudyApplication.create(s.getId(), me.getId(), "하고 싶습니다"));
-
-        my().then().statusCode(200)
-                .body("items[0].relation", equalTo("APPLIED"))
-                .body("items[0].applicationId", equalTo(a.getId()));
-    }
-
-    @Test
-    void rejectedApplicationCarriesReasonAndApplicationId() {
-        Study s = study("남의 스터디", other.getId(), StudyStatus.RECRUITING);
-        StudyApplication a = StudyApplication.create(s.getId(), me.getId(), "하고 싶습니다");
-        a.reject("이번엔 어렵습니다");
-        applications.save(a);
-
-        my().then().statusCode(200)
-                .body("items[0].relation", equalTo("REJECTED"))
-                .body("items[0].reason", equalTo("이번엔 어렵습니다"))
-                .body("items[0].applicationId", equalTo(a.getId()));
-    }
-
-    @Test
-    void myRejectedStudyProposalCarriesTheStudyReason() {
-        Study s = study("반려된 개설", me.getId(), StudyStatus.PENDING);
-        s.reject("주제가 겹칩니다");
-        studies.save(s);
-
-        my().then().statusCode(200)
-                .body("items[0].relation", equalTo("LEADER"))
-                .body("items[0].status", equalTo("REJECTED"))
-                .body("items[0].reason", equalTo("주제가 겹칩니다"));
-    }
-
-    /** 끝난 것이 계속 쌓이면 이 화면이 이력 목록이 된다. */
-    @Test
-    void finishedStudiesDisappearFromEveryRelation() {
-        study("내가 끝낸 것", me.getId(), StudyStatus.FINISHED);
-
-        Study theirs = study("남의 끝난 것", other.getId(), StudyStatus.FINISHED);
-        StudyApplication a = StudyApplication.create(theirs.getId(), me.getId(), "했었습니다");
-        a.approve();
-        applications.save(a);
-
-        my().then().statusCode(200).body("items", hasSize(0));
-    }
-
-    /** 한 사람이 한 스터디에 갖는 관계는 언제나 하나다. */
-    @Test
-    void oneRelationPerStudy() {
-        Study s = study("내 스터디", me.getId(), StudyStatus.RECRUITING);
-        applications.save(StudyApplication.create(s.getId(), other.getId(), "하고 싶습니다"));
-
-        my().then().statusCode(200)
-                .body("items", hasSize(1))
-                .body("items.findAll { it.id == '" + s.getId() + "' }", hasSize(1));
-    }
-
-    @Test
-    void otherPeopleSeeTheirOwnList() {
-        study("내 스터디", me.getId(), StudyStatus.RECRUITING);
-
-        given().header("Authorization", "Bearer " + otherToken)
-                .when().get("/api/studies/my")
-                .then().statusCode(200).body("items", hasSize(0));
-    }
-}
 ```
 
-`Study.setStatus` 는 ① 이 D12 를 위해 이미 열어 둔 setter 다.
+`nullValue()` 는 이미 쓸 수 있다 — `StudyTest` 가 `import static org.hamcrest.Matchers.*;` 를 갖고 있다. 새 import 는 없다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [ ] **Step 2: 테스트가 실패하는 것을 본다**
 
 ```bash
+export JAVA_HOME=/home/ksb/.local/jdk-21
+export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
-  --tests 'com.jaram.be.study.MyStudiesTest'
+  --tests 'com.jaram.be.study.StudyTest.myActivityCountsPendingApplicantsOnRecruitingStudies'
 ```
 
-Expected: 실패 — 응답에 `items` 가 없다(지금은 `{apps, studies}` 다).
+Expected: FAIL. `pendingApplicants` 가 응답에 없으므로 `find{}.pendingApplicants` 가 `null` 이고, 첫 단언이 `Expected: <2> but: was null` 로 깨진다.
 
-- [ ] **Step 3: `StudyRelation` 을 만든다**
+- [ ] **Step 3: `MyStudy` 에 필드를 더한다**
 
-```java
-package com.jaram.be.study;
-
-/**
- * 계약 StudyRelation. 내가 이 스터디와 갖는 관계.
- *
- * ApplyState 와 다르다. ApplyState 는 둘러보기 화면에서 신청 버튼이 무엇을 말할지를
- * 정하고, relation 은 내 스터디 화면에서 이 카드가 무엇을 보여줄지를 정한다.
- * 합치면 한쪽의 필요가 다른 쪽을 왜곡한다 — ApplyState 는 스터디장과 참여자를
- * 구분할 이유가 없고, relation 은 반드시 구분한다.
- *
- * 한 사람이 한 스터디에 대해 갖는 관계는 언제나 하나다. 개설자는 자기 스터디에
- * 지원할 수 없고(LEADER_SELF), 신청은 (studyId, applicantId) 유니크다.
- */
-public enum StudyRelation { LEADER, MEMBER, APPLIED, REJECTED }
-```
-
-- [ ] **Step 4: DTO 둘을 만들고 옛 셋을 지운다**
-
-`dto/MyStudyItem.java`:
+`src/main/java/com/jaram/be/study/dto/MyStudy.java` 전문:
 
 ```java
 package com.jaram.be.study.dto;
 
-import com.jaram.be.study.StudyRelation;
 import com.jaram.be.study.StudyStatus;
 
-import java.util.List;
-
-/**
- * 계약 MyStudyItem. '내 스터디' 카드 한 장이 쓰는 전부.
- *
- * nullable 필드는 관계와 상태가 정한다 — pendingApplicants 는 LEADER+RECRUITING,
- * weeksTaken/weeksTotal 은 ONGOING, myAttended 는 MEMBER+ONGOING, applicationId 는
- * APPLIED/REJECTED 일 때만 채워진다. 늘 채우면 화면이 0 과 "해당 없음"을 구분하지
- * 못한다.
- */
-public record MyStudyItem(
+// 계약 MyStudy. 내가 개설한 스터디. status 하나가 승인축과 생애축을 다 말한다.
+// pendingApplicants 는 RECRUITING 일 때만 채운다 — 0 과 null 이 다른 뜻이다.
+// 0 은 "대기 중인 신청이 없다", null 은 "셀 단계가 아니다".
+public record MyStudy(
         String id,
         String title,
-        List<String> fields,
         StudyStatus status,
-        StudyRelation relation,
-        String leader,
-        Integer leaderGen,
-        String schedule,
-        String applicationId,
         String reason,
-        Integer pendingApplicants,
-        Integer weeksTaken,
-        Integer weeksTotal,
-        Integer myAttended) {
+        Integer pendingApplicants) {
 }
 ```
 
-`dto/MyStudyList.java`:
+- [ ] **Step 4: `myActivity` 가 그 값을 채우게 한다**
+
+`StudyService.myActivity` 의 `myStudies` 를 만드는 대목만 바꾼다. 나머지(`apps` 를 만드는 부분, 반환문)는 그대로 둔다.
 
 ```java
-package com.jaram.be.study.dto;
-
-import java.util.List;
-
-/**
- * 계약 MyStudyList. 옛 MyActivity{apps[],studies[]} 를 하나로 접은 것이다.
- *
- * 화면이 관계 하나로 정렬하고 분기하는데 응답이 둘로 나뉘어 오면 화면이 받아서
- * 다시 합쳐야 한다. 카드가 쓸 숫자 셋(대기 신청·기록된 주차·내 출석)을 둘 중
- * 어디에 붙일지도 매번 정해야 한다.
- */
-public record MyStudyList(List<MyStudyItem> items) { }
+        List<MyStudy> myStudies = studies.findByLeaderIdOrderByCreatedAtDesc(userId).stream()
+                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason(),
+                        pendingCount(s)))
+                .toList();
 ```
 
-그리고 지운다:
-
-```bash
-rm src/main/java/com/jaram/be/study/dto/MyActivity.java \
-   src/main/java/com/jaram/be/study/dto/MyApp.java \
-   src/main/java/com/jaram/be/study/dto/MyStudy.java
-```
-
-- [ ] **Step 5: 리포지토리에 카운트 둘을 더한다**
-
-`StudyWeekRepository` 에:
+같은 클래스에 private 헬퍼를 더한다:
 
 ```java
-    long countByStudyIdAndTakenAtNotNull(String studyId);
-```
-
-`StudyAttendanceRepository` 에:
-
-```java
-    long countByWeekIdInAndMemberId(Collection<String> weekIds, String memberId);
-```
-
-- [ ] **Step 6: `StudyService.myActivity` 를 `myStudies` 로 갈아 끼운다**
-
-기존 `myActivity` 메서드 전체를 지우고 넣는다:
-
-```java
-    // ── UC-T4: 내 스터디 ──
-
     /**
-     * 내가 관계를 갖는 스터디 전부를 한 배열로 준다. 관계가 축이다(D23).
+     * 모집 중인 스터디의 대기 신청 수. 그 외에는 null 이다.
      *
-     * FINISHED 는 어느 관계로도 오지 않는다 — 끝난 것이 계속 쌓이면 이 화면이
-     * 이력 목록이 된다.
-     *
-     * 주차·출석 카운트는 ONGOING 인 스터디에만 매긴다. 한 사람의 진행 중 스터디는
-     * 많아야 서넛이라, 스터디마다 두 번 세는 값이 문제가 되지 않는다.
+     * '내 스터디' 카드가 스터디장에게 "지금 할 일이 있는가"를 말하는 유일한 값이다(② §9).
+     * RECRUITING 이 아닐 때 0 을 주면 화면이 "대기 0건"으로 읽어 버린다 — 셀 단계가
+     * 아니라는 뜻이므로 null 이어야 한다.
      */
-    @Transactional(readOnly = true)
-    public MyStudyList myStudies(String userId) {
-        List<MyStudyItem> items = new ArrayList<>();
-
-        studies.findByLeaderIdOrderByCreatedAtDesc(userId).stream()
-                .filter(s -> s.getStatus() != StudyStatus.FINISHED)
-                .forEach(s -> items.add(item(s, StudyRelation.LEADER, null, s.getReason(), userId)));
-
-        for (StudyApplication a : applications.findByApplicantIdOrderByCreatedAtDesc(userId)) {
-            Study s = studies.findById(a.getStudyId()).orElse(null);
-            if (s == null || s.getStatus() == StudyStatus.FINISHED) continue;
-            StudyRelation rel = switch (a.getStatus()) {
-                case APPROVED -> StudyRelation.MEMBER;
-                case PENDING  -> StudyRelation.APPLIED;
-                case REJECTED -> StudyRelation.REJECTED;
-            };
-            items.add(item(s, rel, a.getId(), a.getReason(), userId));
-        }
-
-        return new MyStudyList(items);
-    }
-
-    private MyStudyItem item(Study s, StudyRelation relation, String applicationId,
-                             String reason, String userId) {
-        Member leader = members.findById(s.getLeaderId()).orElse(null);
-        boolean ongoing = s.getStatus() == StudyStatus.ONGOING;
-
-        Integer pending = relation == StudyRelation.LEADER && s.getStatus() == StudyStatus.RECRUITING
-                ? applications.countByStudyIdAndStatus(s.getId(), ApplicationStatus.PENDING)
-                : null;
-
-        Integer weeksTaken = null, weeksTotal = null, myAttended = null;
-        if (ongoing) {
-            weeksTaken = (int) weeks.countByStudyIdAndTakenAtNotNull(s.getId());
-            weeksTotal = (int) weeks.countByStudyId(s.getId());
-            if (relation == StudyRelation.MEMBER) {
-                List<String> weekIds = weeks.findByStudyIdOrderByWeekNoAsc(s.getId()).stream()
-                        .map(StudyWeek::getId).toList();
-                myAttended = weekIds.isEmpty() ? 0
-                        : (int) attendance.countByWeekIdInAndMemberId(weekIds, userId);
-            }
-        }
-
-        return new MyStudyItem(s.getId(), s.getTitle(), s.getFields(), s.getStatus(), relation,
-                leader == null ? null : leader.getName(),
-                leader == null ? null : leader.getGen(),
-                s.getSchedule(), applicationId, reason,
-                pending, weeksTaken, weeksTotal, myAttended);
+    private Integer pendingCount(Study s) {
+        if (s.getStatus() != StudyStatus.RECRUITING) return null;
+        return applications.countByStudyIdAndStatus(s.getId(), ApplicationStatus.PENDING);
     }
 ```
 
-`StudyService` 생성자에 `StudyAttendanceRepository attendance` 를 더하고 필드로 둔다.
-`import java.util.ArrayList;` 를 더한다.
+import 가 필요하면 더한다: `com.jaram.be.study.ApplicationStatus` 는 같은 패키지라 필요 없고, `StudyStatus` 도 같은 패키지다. **새 import 는 없다.**
 
-- [ ] **Step 7: 컨트롤러의 반환형을 바꾼다**
-
-`StudyController#my` 를 바꾼다:
-
-```java
-    // UC-T4: 내 스터디. 관계(LEADER/MEMBER/APPLIED/REJECTED)가 화면의 축이다.
-    @GetMapping("/my")
-    public MyStudyList my(@AuthenticationPrincipal CurrentMember me) {
-        return service.myStudies(me.id());
-    }
-```
-
-- [ ] **Step 8: 옛 DTO 를 쓰던 테스트를 고친다**
+- [ ] **Step 5: 테스트가 통과하는 것을 본다**
 
 ```bash
-grep -rln 'MyActivity\|MyApp\b\|MyStudy\b' src/test src/main
+export JAVA_HOME=/home/ksb/.local/jdk-21
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
+  --tests 'com.jaram.be.study.StudyTest'
 ```
 
-나오는 자리를 전부 새 이름으로 맞춘다. ① 의 `StudyTest` 에 `/api/studies/my` 응답을
-`apps`/`studies` 로 읽는 단언이 있으면 `items` + `relation` 으로 고친다.
+Expected: PASS. 새 테스트 하나와 기존 `StudyTest` 전부가 초록이다. 기존 `myActivityReturnsAppsAndLedStudies` 가 깨지면 레코드에 필드를 더한 것이 아니라 순서를 바꾼 것이다.
 
-- [ ] **Step 9: 전체 스위트를 돌린다**
+- [ ] **Step 6: 계약 검사까지 돌린다**
 
 ```bash
-./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test
+export JAVA_HOME=/home/ksb/.local/jdk-21
+export PATH="$JAVA_HOME/bin:$PATH"
+./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
+  --tests 'com.jaram.be.contract.StudyContractTest' \
+  --tests 'com.jaram.be.study.StudyDetailTest'
 ```
 
-Expected: 실패 0. 계약 테스트는 **Task 1 이 머지된 뒤에만** 통과한다 — 아직이면
-그 테스트만 빨간 것이 정상이고, 다른 것이 빨가면 진짜 회귀다.
+Expected: PASS. `OpenApiValidationFilter` 는 **선언되지 않은 응답 필드를 거부한다** — Task 1 의 계약이 머지되어 있지 않으면 여기서 `pendingApplicants` 때문에 깨진다. 깨지면 계약 PR 부터 머지한다.
 
-- [ ] **Step 10: 커밋한다**
+- [ ] **Step 7: 커밋한다**
 
-```
-feat(study): 내 스터디를 관계 축으로 다시 세운다
-
-화면의 모든 분기가 관계 x 상태로 결정되므로 관계를 파생시켜 화면에 던지지
-않고 서버가 StudyRelation 으로 붙여 내려보낸다. 옛 MyActivity 의 두
-배열(apps·studies)을 items 하나로 접는 것이 그 결과다 — 나뉜 채로 두면
-화면이 받아서 다시 합쳐야 하고, 카드가 쓸 숫자 셋을 둘 중 어디에 붙일지
-매번 정해야 한다.
-
-FINISHED 는 어느 관계로도 오지 않는다. 끝난 것이 계속 쌓이면 이 화면이
-이력 목록이 된다.
-
-nullable 필드는 관계와 상태가 정한다. 늘 채우면 화면이 0 과 "해당 없음"을
-구분하지 못한다 — 대기 신청 0건과 대기 신청이라는 개념이 없는 카드는
-다른 것이다.
-
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
+```bash
+git add src/main/java/com/jaram/be/study/dto/MyStudy.java src/main/java/com/jaram/be/study/StudyService.java src/test/java/com/jaram/be/study/StudyTest.java
 ```
 
----
+커밋 메시지 본문:
+
+```
+feat(study): 내 스터디 카드가 쓸 대기 신청 수를 싣는다
+
+스터디장이 카드만 보고 지금 할 일이 있는지 아는 유일한 값이다. 모달을
+열어야 보이면 모집 중 카드가 전부 똑같이 생긴다.
+
+RECRUITING 이 아니면 0 이 아니라 null 이다. 0 은 "대기 중인 신청이 없다"
+이고 null 은 "셀 단계가 아니다" 라, 화면이 둘을 다르게 읽어야 한다.
+```
+
 
 ## Task 10: FE — 배선과 '내 스터디' 화면
 
@@ -3139,26 +2813,23 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 - Delete: `src/features/study/views/MyActivityView.jsx`
 
 **Interfaces:**
-- Consumes: Task 9 의 `GET /api/studies/my` → `{ items: MyStudyItem[] }`, Task 8 의 `DELETE /api/studies/applicants/{id}`
+- Consumes: Task 9 의 `GET /api/studies/my` → `MyActivity{apps[], studies[]}` (`studies[].pendingApplicants` 가 새로 들어 있다), Task 8 의 `DELETE /api/studies/applicants/{id}`
 - Produces:
-  - `api.listMyStudies() → { items }`, `api.deleteApplication({ applicationId })`
+  - `api.deleteApplication({ applicationId })`
   - `api.listStudyApplicants({ studyId })`, `api.attendanceBoard({ studyId })`, `api.myAttendance({ studyId })`, `api.saveAttendance({ studyId, weekNo, present })`, `api.addWeek({ studyId, title, content })`, `api.editWeek({ studyId, weekNo, title, content })`, `api.deleteWeek({ studyId, weekNo })`, `api.closeRecruiting({ studyId })`, `api.finishStudy({ studyId })`
   - `studyKeys.my`, `studyKeys.applicantsOf(studyId)`, `studyKeys.attendance(studyId)`, `studyKeys.myAttendance(studyId)`
-  - `useMyStudies()`, `useDeleteApplication(options)`
+  - `useDeleteApplication(options)` — `useMyActivity()` 는 그대로 쓴다
+  - `toMyStudyItems(myActivity, browseItems) → item[]` — 두 배열과 둘러보기 목록을 카드 한 벌로 합친다
   - `<MyStudyView items onManage onAttendance onDelete />`, `<MyStudyCard item onManage onAttendance onDelete />`
   - `RELATION_CHIP`, `RELATION_ACTION`, `ATTENDANCE_LABEL`, `relationLine(item)` — Task 11·12 가 다시 쓴다
 
+**서버 응답 모양은 ① 그대로다**(D24). 관계는 화면이 두 배열에서 읽고, 분야·일정은 이 페이지가 어차피 부르는 `useStudies()` 에서 붙인다. `study.api.js` 의 `listMyActivity` 와 `study.queries.js` 의 `useMyActivity` 는 **지우지 않는다**.
+
 - [ ] **Step 1: `study.api.js` 에 함수를 더한다**
 
-`listMyActivity` 를 지우고 넣는다:
+`listMyActivity` 는 그대로 둔다 — 경로도 응답 모양도 안 바뀐다. 아래를 더하기만 한다:
 
 ```js
-// 내 스터디 — { items: MyStudyItem[] }
-export async function listMyStudies() {
-  const { data } = await client.get('/api/studies/my');
-  return data;
-}
-
 // 그 스터디의 신청 목록 — { pending, approved }
 export async function listStudyApplicants({ studyId }) {
   const { data } = await client.get(`/api/studies/${studyId}/applicants`);
@@ -3234,13 +2905,9 @@ export const studyKeys = {
 };
 ```
 
-`useMyActivity` 를 지우고 넣는다:
+`useMyActivity` 는 그대로 둔다. 아래를 더한다:
 
 ```js
-export function useMyStudies() {
-  return useQuery({ queryKey: studyKeys.my, queryFn: api.listMyStudies });
-}
-
 /** studyId 가 없으면 돌지 않는다 — 모달이 닫혀 있을 때 부르지 않기 위해서다. */
 export function useStudyApplicants(studyId) {
   return useQuery({
@@ -3318,7 +2985,79 @@ export function useRejectApplicant(studyId, options) {
 `StudyPage.jsx` 의 기존 호출 두 곳에 `null` 을 넘긴다(관리 탭은 스터디별 목록을
 쓰지 않는다): `useApproveApplicant(null, { … })`.
 
-- [ ] **Step 3: `study.data.js` 에 관계 표를 더한다**
+- [ ] **Step 3: `study.data.js` 에 관계 표와 합치는 함수를 더한다**
+
+먼저 두 배열을 카드 한 벌로 합치는 순수 함수다. 서버가 관계를 내려보내지 않으므로
+(D23) 여기가 관계를 정하는 유일한 자리다.
+
+```js
+/**
+ * /my 의 두 배열을 '내 스터디' 카드 한 벌로 합친다.
+ *
+ * 서버는 관계를 내려보내지 않는다 — 두 배열이 이미 관계를 말하고 있어서, 같은 뜻을
+ * 서버에도 두면 두 곳이 어긋날 자리만 는다(② D23).
+ *
+ * 분야·일정·스터디장과 '신청한 스터디의 현재 상태'는 둘러보기 목록(`useStudies`)에서
+ * 붙인다. 그 목록은 RECRUITING·ONGOING 을 다 싣고 이 페이지가 어차피 부른다.
+ * 내가 개설한 PENDING·REJECTED 스터디는 그 목록에 없지만, 그 카드가 쓰는 값
+ * (제목·상태·반려 사유)은 전부 `MyStudy` 안에 있다.
+ *
+ * @param my   { apps, studies } — GET /api/studies/my
+ * @param browse StudyResponse[] — GET /api/studies 의 items
+ */
+export function toMyStudyItems(my, browse = []) {
+  const byId = new Map(browse.map((s) => [s.id, s]));
+  const detail = (id) => byId.get(id) ?? {};
+
+  const led = (my?.studies ?? []).map((s) => ({
+    ...detail(s.id),
+    id: s.id,
+    title: s.title,
+    status: s.status,           // MyStudy 가 권위다. 둘러보기 목록보다 최신이다
+    reason: s.reason,
+    pendingApplicants: s.pendingApplicants,
+    relation: 'LEADER',
+    applicationId: null,
+  }));
+
+  const applied = (my?.apps ?? []).map((a) => {
+    const d = detail(a.studyId);
+    return {
+      ...d,
+      id: a.studyId,
+      title: a.title ?? d.title,
+      // 신청의 상태(PENDING/APPROVED/REJECTED)가 아니라 스터디의 상태다.
+      // 목록에 없으면(= 종료·삭제) 카드가 상태 배지를 그리지 않는다.
+      status: d.status ?? null,
+      reason: a.reason,
+      pendingApplicants: null,
+      relation: { APPROVED: 'MEMBER', PENDING: 'APPLIED', REJECTED: 'REJECTED' }[a.status],
+      applicationId: a.id,      // 삭제하기가 쓰는 id — 스터디 id 가 아니다
+    };
+  });
+
+  return [...led, ...applied].filter(keep);
+}
+
+/**
+ * 종료된 스터디는 어느 관계로도 '내 스터디'에 오지 않는다(① §14). 끝난 것이 계속
+ * 쌓이면 이 화면이 이력 목록이 된다.
+ *
+ * 서버는 /my 에서 거르지 않으므로(② D24 로 응답을 안 건드렸다) 여기서 거른다.
+ * 둘러보기 목록이 RECRUITING·ONGOING 만 실으므로, 신청 카드의 status 가 null 이면
+ * 그 스터디는 종료됐거나 사라진 것이다.
+ */
+function keep(item) {
+  if (item.status === 'FINISHED') return false;
+  // 반려된 신청은 이력이라 남긴다 — 지워야 그 스터디에 다시 신청할 수 있다.
+  if (item.relation === 'REJECTED') return true;
+  if (item.relation !== 'LEADER' && item.status == null) return false;
+  return true;
+}
+```
+
+**`applicationId` 는 신청 id 다.** 카드의 `id` 는 스터디 id 라 둘이 다르다. 삭제하기가
+스터디 id 를 보내면 서버가 언제나 `403` 을 준다(② §12 가 짚은 것과 같은 자리다).
 
 ```js
 /**
@@ -3343,12 +3082,13 @@ export function relationLine(item) {
         ? `신청 ${item.pendingApplicants}건이 기다리고 있습니다`
         : '새 신청이 없습니다';
     }
-    if (status === 'ONGOING') {
-      return `${item.weeksTaken}주차까지 출석을 기록했습니다 (전체 ${item.weeksTotal}주)`;
-    }
+    // 진행 중 카드에는 숫자가 없다. 출석 수·기록된 주차 수를 실으려면 /my 에 필드가
+    // 셋 더 붙어야 하는데 이번 단계는 pendingApplicants 하나만 더했다(② D24).
+    // 숫자는 '관리하기'를 열면 나온다.
+    if (status === 'ONGOING') return '진행 중입니다';
   }
   if (relation === 'MEMBER') {
-    if (status === 'ONGOING') return `출석 ${item.myAttended}회 / 기록된 ${item.weeksTaken}주차`;
+    if (status === 'ONGOING') return '참여 중입니다';
     return '참여가 확정됐습니다. 곧 시작합니다';
   }
   if (relation === 'APPLIED') return '신청이 검토 중입니다';
@@ -3468,17 +3208,18 @@ import { EmptyState } from './parts';
 import { MyStudyCard } from './MyStudyCard';
 
 /**
- * 내가 할 일이 있는 것부터. 대기 신청이 있는 스터디장 카드 → 안 찍은 주차가 있는
- * 스터디장 카드 → 나머지 스터디장 → 참여 중 → 신청 대기.
+ * 내가 할 일이 있는 것부터. 대기 신청이 있는 스터디장 카드 → 나머지 스터디장 →
+ * 참여 중 → 신청 대기.
+ *
+ * 주차를 안 찍은 스터디를 위로 올리려면 weeksTaken 이 있어야 하는데 카드가 그 값을
+ * 받지 않는다(② §9).
  */
 function rank(item) {
   if (item.relation === 'LEADER') {
-    if (item.status === 'RECRUITING' && item.pendingApplicants > 0) return 0;
-    if (item.status === 'ONGOING' && item.weeksTaken < item.weeksTotal) return 1;
-    return 2;
+    return item.status === 'RECRUITING' && item.pendingApplicants > 0 ? 0 : 1;
   }
-  if (item.relation === 'MEMBER') return 3;
-  return 4;   // APPLIED
+  if (item.relation === 'MEMBER') return 2;
+  return 3;   // APPLIED
 }
 
 function Section({ title, children }) {
@@ -3556,9 +3297,19 @@ rm src/features/study/views/MyActivityView.jsx
 
 1. `SUB_NAV` 의 두 번째 항목 라벨을 바꾼다: `{ key: 'mine', label: '내 스터디' }`
 2. 페이지 제목 아래 설명은 그대로 둔다 — 첫 탭(둘러보기)의 것이다.
-3. import 를 바꾼다: `useMyActivity` → `useMyStudies`, `MyActivityView` → `MyStudyView`,
-   그리고 `useDeleteApplication` 을 더한다.
-4. 쿼리를 바꾼다: `const myStudiesQ = useMyStudies();`
+3. import 를 바꾼다: `MyActivityView` → `MyStudyView`, 그리고 `useDeleteApplication`
+   과 `toMyStudyItems` 를 더한다. **`useMyActivity` 는 그대로 쓴다.**
+4. 쿼리는 그대로다 — `studiesQ`·`myActivityQ` 둘 다 이미 이 페이지에 있다. 합치는
+   줄만 더한다:
+
+```jsx
+  const myItems = useMemo(
+    () => toMyStudyItems(myActivityQ.data, studiesQ.data?.items ?? []),
+    [myActivityQ.data, studiesQ.data],
+  );
+```
+
+`useMemo` 가 import 되어 있지 않으면 `react` import 에 더한다.
 5. 삭제 확인 상태와 뮤테이션을 더한다:
 
 ```jsx
@@ -3579,13 +3330,13 @@ rm src/features/study/views/MyActivityView.jsx
 
 ```jsx
         {view === 'mine' && (
-          myStudiesQ.isLoading ? (
+          myActivityQ.isLoading || studiesQ.isLoading ? (
             <Notice>불러오는 중…</Notice>
-          ) : myStudiesQ.isError ? (
+          ) : myActivityQ.isError ? (
             <Notice>내 스터디를 불러오지 못했습니다.</Notice>
           ) : (
             <MyStudyView
-              items={myStudiesQ.data?.items ?? []}
+              items={myItems}
               onManage={setManaging}
               onAttendance={setViewingAttendance}
               onDelete={setDeleting}
@@ -4253,22 +4004,24 @@ FE 의 화면 커밋(Task 10·11·12)은 계약 PR(Task 1)과 **다른 PR** 이�
 | 6 | Task 6 | be | 주차 편집 |
 | 7 | Task 7 | be | 스터디장 신청 목록 |
 | 8 | Task 8 | be | 반려 신청 삭제 · `isApplicant` |
-| 9 | Task 9 | be | `/my` 재설계 (BE PR 여기까지) |
+| 9 | Task 9 | be | `/my` 에 `pendingApplicants` (BE PR 여기까지) |
 | 10 | Task 10 | fe | 배선 + '내 스터디' 화면 |
 | 11 | Task 11 | fe | 관리하기 모달 |
 | 12 | Task 12 | fe | 내 출석 모달 (FE 화면 PR 여기까지) |
 
-Task 2~5 는 순서를 지켜야 한다(뒤가 앞의 타입을 쓴다). Task 6·7·8 은 서로 독립이라
-순서를 바꿔도 된다. Task 9 는 Task 2 의 리포지토리를 쓴다. Task 10 은 Task 9 가,
-Task 11 은 Task 4~7 이, Task 12 는 Task 5 가 머지되어 있어야 화면이 실제로 돈다.
+Task 2~5 는 순서를 지켜야 한다(뒤가 앞의 타입을 쓴다). Task 6·7·8·9 는 서로 독립이라
+순서를 바꿔도 된다 — Task 9 가 쓰는 `countByStudyIdAndStatus` 는 ① 이 이미 만들어
+두었다. Task 10 은 Task 9 가, Task 11 은 Task 4~7 이, Task 12 는 Task 5 가
+머지되어 있어야 화면이 실제로 돈다.
 
 ## 자체 검토
 
-**스펙 대조.** §3 관계 → Task 9. §4 출석 모델 → Task 2. §5 쓰기 모양 → Task 4.
+**스펙 대조.** §3 관계 → Task 10(화면이 두 배열에서 읽는다. 서버 일급 값이 아니다).
+§4 출석 모델 → Task 2. §5 쓰기 모양 → Task 4.
 §6 편집 창 → Task 3. §7 주차 편집 → Task 6. §8 반려 삭제 → Task 8. §9 화면 →
 Task 10. §10 모달 셋 → Task 11(A·B)·Task 12(C). §11 엔드포인트 8개 → Task 4(1)·
-Task 5(2)·Task 6(3)·Task 7(1)·Task 8(1). §12 권한 → Task 5(`isMember`)·
-Task 8(`isApplicant`). §13 계약 → Task 1. §14 이행 없음 → 머지 전 체크리스트.
+Task 5(2)·Task 6(3)·Task 7(1)·Task 8(1). `/my` 의 `pendingApplicants` → Task 9.
+§12 권한 → Task 5(`isMember`)·Task 8(`isApplicant`). §13 계약 → Task 1. §14 이행 없음 → 머지 전 체크리스트.
 §15 테스트 → 각 과제의 테스트 단계. 빠진 요구는 없다.
 
 **D26 이 §11 표에 8개로 적혀 있고 과제에도 8개가 있다.** `GET /{id}/applicants`,
@@ -4284,3 +4037,11 @@ Task 8(`isApplicant`). §13 계약 → Task 1. §14 이행 없음 → 머지 전
 
 **테스트가 실제로 실패하는 지점.** Task 2·3 은 컴파일 실패로, Task 4~9 는 404
 또는 단언 실패로 시작한다. 각 과제의 Step 2 에 그 문구를 적어 두었다.
+
+**철회한 것.** 초안의 D23(`StudyRelation` 을 서버 일급 값으로)과 D24(`/my` 를
+`MyStudyList{items[]}` 로 교체, `MyActivity`·`MyApp`·`MyStudy` 폐기)를 걷어냈다.
+이번 단계가 ① 이 굳힌 계약 스키마를 깨는 곳은 한 군데도 없다 — `MyStudy` 에
+`pendingApplicants` 가 붙는 것이 전부이고, 그것도 nullable 필드 추가다.
+그 대가로 진행 중 카드에서 출석 숫자가 빠졌다(§9). 필요해지면 `weeksTaken`·
+`weeksTotal`·`myAttended` 를 같은 방식으로 얹을 수 있고, 필드 추가라 계약이
+깨지지 않는다.
