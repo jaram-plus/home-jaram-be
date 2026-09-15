@@ -48,6 +48,21 @@ public class StudyAccess {
                 .orElse(false);
     }
 
+    /**
+     * 승인된 신청자이거나 스터디장. 출석 조회의 소유자 조건이다.
+     *
+     * 스터디장을 포함하는 이유는 출석 대상에 포함하는 이유와 같다 — 스터디장도
+     * 자기 스터디에 나오고, 자기 출석을 본다.
+     */
+    public boolean isMember(String studyId, Authentication auth) {
+        String me = idOf(auth);
+        if (me == null) return false;
+        if (studies.findById(studyId).map(s -> me.equals(s.getLeaderId())).orElse(false)) return true;
+        return applications.findByStudyIdAndApplicantId(studyId, me)
+                .map(a -> a.getStatus() == ApplicationStatus.APPROVED)
+                .orElse(false);
+    }
+
     private String idOf(Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof CurrentMember me)) return null;
         return me.id();

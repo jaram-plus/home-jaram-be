@@ -1,14 +1,24 @@
 package com.jaram.be.study;
 
 import com.jaram.be.common.ApiException;
+import com.jaram.be.member.Member;
+import com.jaram.be.member.MemberRepository;
+import com.jaram.be.study.dto.AttendanceBoard;
+import com.jaram.be.study.dto.AttendanceMember;
+import com.jaram.be.study.dto.AttendanceWeek;
+import com.jaram.be.study.dto.MyAttendance;
+import com.jaram.be.study.dto.MyAttendanceWeek;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 출석 읽기와 쓰기. 편집 창 판정은 AttendanceWindow 한 곳에만 있다.
@@ -23,17 +33,78 @@ public class StudyAttendanceService {
     private final StudyWeekRepository weeks;
     private final StudyAttendanceRepository attendance;
     private final StudyApplicationRepository applications;
+    private final MemberRepository members;
     private final AttendanceWindow window;
 
     public StudyAttendanceService(StudyRepository studies, StudyWeekRepository weeks,
                                   StudyAttendanceRepository attendance,
                                   StudyApplicationRepository applications,
+                                  MemberRepository members,
                                   AttendanceWindow window) {
         this.studies = studies;
         this.weeks = weeks;
         this.attendance = attendance;
         this.applications = applications;
+        this.members = members;
         this.window = window;
+    }
+
+    @Transactional(readOnly = true)
+    public AttendanceBoard board(String studyId, boolean officer) {
+        Study study = loadStudy(studyId);
+        List<StudyWeek> all = weeks.findByStudyIdOrderByWeekNoAsc(studyId);
+        Instant now = Instant.now();
+
+        List<AttendanceWeek> weekRows = all.stream()
+                .map(w -> new AttendanceWeek(w.getWeekNo(), w.getTitle(), w.getTakenAt(),
+                        window.isOpen(w, officer, now)))
+                .toList();
+
+        Map<String, Integer> weekNoById = all.stream()
+                .collect(Collectors.toMap(StudyWeek::getId, StudyWeek::getWeekNo));
+        Map<String, List<Integer>> presentByMember = attendance
+                .findByWeekIdIn(weekNoById.keySet()).stream()
+                .collect(Collectors.groupingBy(StudyAttendance::getMemberId,
+                        Collectors.mapping(a -> weekNoById.get(a.getWeekId()),
+                                Collectors.toList())));
+
+        List<AttendanceMember> memberRows = members.findAllById(memberIdsOf(study)).stream()
+                .sorted(memberOrder(study.getLeaderId()))
+                .map(m -> new AttendanceMember(m.getId(), m.getName(), m.getGen(),
+                        m.getId().equals(study.getLeaderId()),
+                        presentByMember.getOrDefault(m.getId(), List.of()).stream().sorted().toList()))
+                .toList();
+
+        return new AttendanceBoard(weekRows, memberRows);
+    }
+
+    @Transactional(readOnly = true)
+    public MyAttendance mine(String studyId, String userId) {
+        loadStudy(studyId);
+        List<StudyWeek> all = weeks.findByStudyIdOrderByWeekNoAsc(studyId);
+        Set<String> myWeekIds = attendance
+                .findByWeekIdIn(all.stream().map(StudyWeek::getId).toList()).stream()
+                .filter(a -> a.getMemberId().equals(userId))
+                .map(StudyAttendance::getWeekId)
+                .collect(Collectors.toSet());
+
+        List<MyAttendanceWeek> rows = all.stream().map(w -> new MyAttendanceWeek(
+                w.getWeekNo(), w.getTitle(),
+                w.getTakenAt() == null ? AttendanceState.NOT_TAKEN
+                        : myWeekIds.contains(w.getId()) ? AttendanceState.PRESENT
+                        : AttendanceState.ABSENT)).toList();
+
+        int taken = (int) all.stream().filter(w -> w.getTakenAt() != null).count();
+        int attended = (int) rows.stream().filter(r -> r.state() == AttendanceState.PRESENT).count();
+        return new MyAttendance(attended, taken, rows);
+    }
+
+    /** 스터디장이 맨 앞, 나머지는 기수 → 이름. StudyService.roster 와 같은 규칙이다. */
+    private static Comparator<Member> memberOrder(String leaderId) {
+        return Comparator
+                .comparing((Member m) -> m.getId().equals(leaderId) ? 0 : 1)
+                .thenComparing(Member::getGen, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(Member::getName, Comparator.nullsLast(Comparator.naturalOrder()));
     }
 
     @Transactional

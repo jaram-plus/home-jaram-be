@@ -2,7 +2,9 @@ package com.jaram.be.study;
 
 import com.jaram.be.security.CurrentMember;
 import com.jaram.be.security.authz.Permission;
+import com.jaram.be.study.dto.AttendanceBoard;
 import com.jaram.be.study.dto.AttendanceUpdate;
+import com.jaram.be.study.dto.MyAttendance;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,6 +18,26 @@ public class StudyAttendanceController {
     private final StudyAttendanceService service;
 
     public StudyAttendanceController(StudyAttendanceService service) { this.service = service; }
+
+    @GetMapping("/attendance")
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")
+    public AttendanceBoard board(@PathVariable String id,
+                                 @AuthenticationPrincipal CurrentMember me) {
+        return service.board(id, me.can(Permission.STUDY_EDIT));
+    }
+
+    /**
+     * 자기 출석. 게이트가 isMember 다 — 같은 스터디 사람만 본다.
+     *
+     * /attendance/me 가 /attendance 보다 먼저 선언될 필요는 없다. Spring 은 리터럴
+     * 세그먼트를 경로 변수보다 먼저 맞추고, 여기에는 겹치는 경로 변수가 없다.
+     */
+    @GetMapping("/attendance/me")
+    @PreAuthorize("@studyAccess.isMember(#id, authentication)")
+    public MyAttendance mine(@PathVariable String id,
+                             @AuthenticationPrincipal CurrentMember me) {
+        return service.mine(id, me.id());
+    }
 
     /**
      * 그 주차의 출석을 통째로 바꾼다.
