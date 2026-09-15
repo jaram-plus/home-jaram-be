@@ -4,7 +4,7 @@
 
 **Goal:** 스터디가 굴러가는 동안 일어나는 일 — 신청을 받고, 출석을 찍고, 커리큘럼을 조정하고, 그것을 보는 '내 스터디' 화면 — 을 전부 만든다.
 
-**Architecture:** 출석은 `study_attendance` 행의 **존재**로 표현하고 `weekId` 에 맨다. 스터디장의 편집 권한은 `StudyWeek.takenAt + 24h` 라는 창 하나로 출석 저장과 주차 삭제를 함께 가르며, 그 판정은 `AttendanceWindow` 한 곳에만 있다. 화면은 `relation`(LEADER/MEMBER/APPLIED/REJECTED)을 서버가 붙여 내려보내고, '내 스터디'는 그 값 하나로 카드와 모달을 가른다.
+**Architecture:** 출석은 `study_attendance` 행의 **존재**로 표현하고 `weekId` 에 맨다. 스터디장의 편집 권한은 `StudyWeek.takenAt + 24h` 라는 창 하나로 출석 저장과 주차 삭제를 함께 가르며, 그 판정은 `AttendanceWindow` 한 곳에만 있다. 관계(LEADER/MEMBER/APPLIED/REJECTED)는 서버가 아니라 화면이 `/my` 의 두 배열에서 읽고, '내 스터디'는 그 값 하나로 카드와 모달을 가른다.
 
 **Tech Stack:** Spring Boot 3 · JPA(`ddl-auto: update`) · PostgreSQL 16 · JUnit 5 + RestAssured + Testcontainers · React 19 + react-query + Vite
 
@@ -99,7 +99,7 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 |---|---|
 | `features/study/study.api.js` | 새 엔드포인트 함수 추가. `listMyActivity` 는 그대로 |
 | `features/study/study.queries.js` | 새 쿼리 키와 훅, 무효화 대상 갱신 |
-| `features/study/study.data.js` | `relationOf()`(두 배열 → 관계), `RELATION_CHIP`, `RELATION_ACTION`, `ATTENDANCE_LABEL`, `relationLine()` 추가 |
+| `features/study/study.data.js` | `toMyStudyItems()`(두 배열 + 둘러보기 목록 → 카드), `RELATION_CHIP`, `RELATION_ACTION`, `ATTENDANCE_LABEL`, `relationLine()` 추가 |
 | `features/study/StudyPage.jsx` | 탭 `내 활동` → `내 스터디`, `MyActivityView` → `MyStudyView`, 모달 배선 |
 
 ### FE — 지우는 파일
@@ -121,11 +121,11 @@ FE 는 `pnpm` 이 PATH 에 없다. `./node_modules/.bin/eslint .` 과 `./node_mo
 
 **기존 스키마를 지우지 않는다.** `MyActivity`·`MyApp`·`MyStudy` 는 ① 이 굳힌 계약이고 그대로 둔다 (D24). 이 과제는 **더하기만** 한다.
 
-- [ ] **Step 1: 브랜치를 판다**
+- [x] **Step 1: 브랜치를 판다**
 
 `home-jaram-fe` 에서 `develop` 을 최신으로 당긴 뒤 `feat/study-operations` 브랜치를 만든다. 브랜치 이름은 BE 와 같아야 한다 — 계약 CI 가 이름으로 짝을 찾는다.
 
-- [ ] **Step 2: `MyStudy` 스키마를 찾는다**
+- [x] **Step 2: `MyStudy` 스키마를 찾는다**
 
 ```bash
 grep -n '    MyApp:\|    MyStudy:\|    MyActivity:' docs/api/openapi.yaml
@@ -133,7 +133,7 @@ grep -n '    MyApp:\|    MyStudy:\|    MyActivity:' docs/api/openapi.yaml
 
 Expected: 세 이름이 각각 한 번씩 나온다. 지우지 않는다 — `MyStudy` 에 필드를 더할 자리를 찾는 것이다.
 
-- [ ] **Step 3: `MyStudy` 에 `pendingApplicants` 를 더한다**
+- [x] **Step 3: `MyStudy` 에 `pendingApplicants` 를 더한다**
 
 `MyStudy` 의 `properties:` 아래에 넣는다. `required` 는 건드리지 않는다 — nullable 이다.
 
@@ -146,7 +146,7 @@ Expected: 세 이름이 각각 한 번씩 나온다. 지우지 않는다 — `My
 
 `/api/studies/my` 의 응답 `$ref` 는 `MyActivity` 그대로 둔다. `summary` 만 `내 활동` → `내 스터디` 로 바꾼다 — 탭 이름이 바뀌었다(D22).
 
-- [ ] **Step 4: 새 경로 7개를 `paths:` 에 더한다**
+- [x] **Step 4: 새 경로 7개를 `paths:` 에 더한다**
 
 ```yaml
   /api/studies/{id}/applicants:
@@ -286,7 +286,7 @@ sed -n '/^  responses:/,/^  schemas:/p' docs/api/openapi.yaml | grep -n '^    [A
 
 없는 이름이 있으면 그 응답만 인라인으로 쓴다 — 기존 `/api/studies/{id}/close-recruiting` 의 `'409'` 선언 모양을 그대로 베낀다.
 
-- [ ] **Step 5: 새 스키마 10개를 `components/schemas` 에 더한다**
+- [x] **Step 5: 새 스키마 10개를 `components/schemas` 에 더한다**
 
 ```yaml
     AttendanceState:
@@ -379,7 +379,7 @@ sed -n '/^  responses:/,/^  schemas:/p' docs/api/openapi.yaml | grep -n '^    [A
         content: { type: string, nullable: true }
 ```
 
-- [ ] **Step 6: 파싱과 내용을 확인한다**
+- [x] **Step 6: 파싱과 내용을 확인한다**
 
 ```bash
 python3 - <<'PY'
@@ -409,7 +409,7 @@ new paths      : ['/api/studies/{id}/applicants', '/api/studies/{id}/attendance'
 my response    : {'$ref': '#/components/schemas/MyActivity'}
 ```
 
-- [ ] **Step 7: 린트가 그대로인지 본다**
+- [x] **Step 7: 린트가 그대로인지 본다**
 
 ```bash
 ./node_modules/.bin/eslint .
@@ -417,7 +417,7 @@ my response    : {'$ref': '#/components/schemas/MyActivity'}
 
 Expected: exit 0. YAML 만 고쳤으므로 달라질 것이 없다 — 달라지면 다른 것을 건드린 것이다.
 
-- [ ] **Step 8: 커밋하고 PR 을 연다**
+- [x] **Step 8: 커밋하고 PR 을 연다**
 
 커밋 메시지 본문:
 
@@ -468,7 +468,7 @@ https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
   - `StudyWeek.markTaken(Instant now)` — 첫 저장에만 박는다, `StudyWeek.getTakenAt() → Instant`
   - `StudyWeekRepository`: `findByStudyIdAndWeekNo(String, int)`, `findFirstByStudyIdOrderByWeekNoDesc(String)`, `countByStudyId(String)`
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyAttendanceRepositoryTest.java`:
 
@@ -566,7 +566,7 @@ class StudyAttendanceRepositoryTest extends PostgresTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 export JAVA_HOME=/home/ksb/.local/jdk-21
@@ -577,7 +577,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Expected: 컴파일 실패 — `StudyAttendance`, `StudyAttendanceRepository`, `markTaken`, `getTakenAt`, `findFirstByStudyIdOrderByWeekNoDesc` 가 없다.
 
-- [ ] **Step 3: `StudyAttendance` 를 만든다**
+- [x] **Step 3: `StudyAttendance` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -630,7 +630,7 @@ public class StudyAttendance {
 }
 ```
 
-- [ ] **Step 4: `StudyAttendanceRepository` 를 만든다**
+- [x] **Step 4: `StudyAttendanceRepository` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -648,7 +648,7 @@ public interface StudyAttendanceRepository extends JpaRepository<StudyAttendance
 }
 ```
 
-- [ ] **Step 5: `StudyWeek` 에 `takenAt` 을 더한다**
+- [x] **Step 5: `StudyWeek` 에 `takenAt` 을 더한다**
 
 `private String content;` 선언 바로 아래에 넣는다:
 
@@ -677,7 +677,7 @@ public interface StudyAttendanceRepository extends JpaRepository<StudyAttendance
 
 `import java.time.Instant;` 를 더한다.
 
-- [ ] **Step 6: `StudyWeekRepository` 에 조회 셋을 더한다**
+- [x] **Step 6: `StudyWeekRepository` 에 조회 셋을 더한다**
 
 ```java
 package com.jaram.be.study;
@@ -695,7 +695,7 @@ public interface StudyWeekRepository extends JpaRepository<StudyWeek, String> {
 }
 ```
 
-- [ ] **Step 7: 통과를 확인한다**
+- [x] **Step 7: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -704,7 +704,7 @@ public interface StudyWeekRepository extends JpaRepository<StudyWeek, String> {
 
 Expected: PASS (4개)
 
-- [ ] **Step 8: 커밋한다**
+- [x] **Step 8: 커밋한다**
 
 `git add` 대상: 새 파일 둘, `StudyWeek.java`, `StudyWeekRepository.java`, 새 테스트.
 
@@ -740,7 +740,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 
 출석 저장(Task 4)과 주차 삭제(Task 6)가 같은 규칙을 쓴다. 두 곳에 같은 조건문을 쓰면 한쪽만 고쳐지는 날이 온다.
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/AttendanceWindowTest.java`:
 
@@ -819,7 +819,7 @@ class AttendanceWindowTest {
 
 `ApiException` 의 게터 이름이 `getStatus()`/`getCode()` 가 아니면 실제 이름으로 맞춘다 — `cat src/main/java/com/jaram/be/common/ApiException.java` 로 먼저 본다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -828,7 +828,7 @@ class AttendanceWindowTest {
 
 Expected: 컴파일 실패 — `AttendanceWindow` 가 없다.
 
-- [ ] **Step 3: `AttendanceWindow` 를 만든다**
+- [x] **Step 3: `AttendanceWindow` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -875,7 +875,7 @@ public class AttendanceWindow {
 }
 ```
 
-- [ ] **Step 4: 통과를 확인한다**
+- [x] **Step 4: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -884,7 +884,7 @@ public class AttendanceWindow {
 
 Expected: PASS (6개)
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```
 feat(study): 편집 창 판정을 한 곳에 둔다
@@ -917,7 +917,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
   - `StudyAttendanceService.save(String studyId, int weekNo, List<String> present, boolean officer)`
   - `StudyAttendanceService.memberIdsOf(Study study) → List<String>` — 출석 대상(승인 신청자 + 스터디장). Task 5 가 다시 쓴다.
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyAttendanceTest.java`:
 
@@ -1115,7 +1115,7 @@ class StudyAttendanceTest extends PostgresTest {
 
 `Actors.tokenFor(Member, Role)` 의 시그니처를 먼저 확인한다: `cat src/test/java/com/jaram/be/support/Actors.java`. 역할을 주는 오버로드 이름이 다르면 그 이름으로 맞춘다 — `ACADEMIC_LEAD` 가 `STUDY_EDIT` 을 갖는다는 것은 ① 이 정해 둔 것이다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -1124,7 +1124,7 @@ class StudyAttendanceTest extends PostgresTest {
 
 Expected: 컴파일 실패 — `AttendanceUpdate`·서비스·컨트롤러가 없다.
 
-- [ ] **Step 3: `AttendanceUpdate` 를 만든다**
+- [x] **Step 3: `AttendanceUpdate` 를 만든다**
 
 ```java
 package com.jaram.be.study.dto;
@@ -1144,7 +1144,7 @@ import java.util.List;
 public record AttendanceUpdate(@NotNull List<String> present) { }
 ```
 
-- [ ] **Step 4: `StudyAttendanceService` 의 쓰기 부분을 만든다**
+- [x] **Step 4: `StudyAttendanceService` 의 쓰기 부분을 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -1240,7 +1240,7 @@ public class StudyAttendanceService {
 }
 ```
 
-- [ ] **Step 5: `StudyAttendanceController` 를 만든다**
+- [x] **Step 5: `StudyAttendanceController` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -1283,7 +1283,7 @@ public class StudyAttendanceController {
 
 `Permission.STUDY_EDIT` 의 정확한 이름은 `grep -n 'STUDY_' src/main/java/com/jaram/be/security/authz/Permission.java` 로 확인한다.
 
-- [ ] **Step 6: 통과를 확인한다**
+- [x] **Step 6: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -1293,7 +1293,7 @@ public class StudyAttendanceController {
 
 Expected: 둘 다 PASS. 권한 그물이 같이 도는 이유는, 새 핸들러가 게이트 없이 들어오면 **그 테스트가 깨지는 것이 설계**이기 때문이다 — 지금 통과한다는 것이 게이트가 붙었다는 증거다.
 
-- [ ] **Step 7: 커밋한다**
+- [x] **Step 7: 커밋한다**
 
 ```
 feat(study): 주차 출석을 통째로 바꾸는 손잡이를 만든다
@@ -1341,7 +1341,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
   - `MyAttendanceWeek(int weekNo, String title, AttendanceState state)`
   - `StudyAccess.isMember(String studyId, Authentication auth) → boolean`
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyAttendanceReadTest.java`:
 
@@ -1493,7 +1493,7 @@ class StudyAttendanceReadTest extends PostgresTest {
 
 `Member.setGen(int)` 이 없으면 `grep -n 'gen' src/main/java/com/jaram/be/member/Member.java` 로 실제 설정 방법을 확인해 맞춘다.
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -1502,7 +1502,7 @@ class StudyAttendanceReadTest extends PostgresTest {
 
 Expected: 컴파일 실패 — 응답 DTO 와 `isMember` 가 없다.
 
-- [ ] **Step 3: 열거형과 DTO 를 만든다**
+- [x] **Step 3: 열거형과 DTO 를 만든다**
 
 `AttendanceState.java`:
 
@@ -1581,7 +1581,7 @@ import java.util.List;
 public record MyAttendance(int attended, int taken, List<MyAttendanceWeek> weeks) { }
 ```
 
-- [ ] **Step 4: `StudyAccess.isMember` 를 더한다**
+- [x] **Step 4: `StudyAccess.isMember` 를 더한다**
 
 `isLeaderOfApplication` 아래에 넣는다:
 
@@ -1602,7 +1602,7 @@ public record MyAttendance(int attended, int taken, List<MyAttendanceWeek> weeks
     }
 ```
 
-- [ ] **Step 5: 서비스에 읽기 둘을 더한다**
+- [x] **Step 5: 서비스에 읽기 둘을 더한다**
 
 `StudyAttendanceService` 에 `MemberRepository members` 를 생성자 주입으로 더하고(기존 필드 아래, 생성자 인자 끝에), 다음 두 메서드를 넣는다:
 
@@ -1669,7 +1669,7 @@ public record MyAttendance(int attended, int taken, List<MyAttendanceWeek> weeks
 import 를 더한다: `com.jaram.be.member.Member`, `com.jaram.be.member.MemberRepository`,
 `java.util.Comparator`, `java.util.Set`, `java.util.stream.Collectors`.
 
-- [ ] **Step 6: 컨트롤러에 읽기 둘을 더한다**
+- [x] **Step 6: 컨트롤러에 읽기 둘을 더한다**
 
 `StudyAttendanceController` 에 넣는다:
 
@@ -1697,7 +1697,7 @@ import 를 더한다: `com.jaram.be.member.Member`, `com.jaram.be.member.MemberR
 
 import 에 `com.jaram.be.study.dto.AttendanceBoard`, `com.jaram.be.study.dto.MyAttendance` 를 더한다.
 
-- [ ] **Step 7: 통과를 확인한다**
+- [x] **Step 7: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -1708,7 +1708,7 @@ import 에 `com.jaram.be.study.dto.AttendanceBoard`, `com.jaram.be.study.dto.MyA
 
 Expected: 셋 다 PASS
 
-- [ ] **Step 8: 커밋한다**
+- [x] **Step 8: 커밋한다**
 
 ```
 feat(study): 출석 격자와 자기 출석을 읽는 길을 낸다
@@ -1758,7 +1758,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 | 삭제 | 마지막 한 주차는 못 자른다 (D5) | `409 WEEK_MIN` |
 | 전부 | `FINISHED` 는 읽기 전용 | `409 STUDY_FINISHED` |
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyWeekEditTest.java`:
 
@@ -1947,7 +1947,7 @@ class StudyWeekEditTest extends PostgresTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -1956,7 +1956,7 @@ class StudyWeekEditTest extends PostgresTest {
 
 Expected: 컴파일 실패 — `WeekUpsert`·`StudyWeekService`·`StudyWeekController` 가 없다.
 
-- [ ] **Step 3: `WeekUpsert` 를 만든다**
+- [x] **Step 3: `WeekUpsert` 를 만든다**
 
 ```java
 package com.jaram.be.study.dto;
@@ -1972,7 +1972,7 @@ import jakarta.validation.constraints.NotBlank;
 public record WeekUpsert(@NotBlank String title, String content) { }
 ```
 
-- [ ] **Step 4: `StudyWeekService` 를 만든다**
+- [x] **Step 4: `StudyWeekService` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -2065,7 +2065,7 @@ public class StudyWeekService {
 }
 ```
 
-- [ ] **Step 5: `StudyWeekController` 를 만든다**
+- [x] **Step 5: `StudyWeekController` 를 만든다**
 
 ```java
 package com.jaram.be.study;
@@ -2119,7 +2119,7 @@ public class StudyWeekController {
 `@RequestMapping("/api/studies/{id}/weeks")` 에 `@PutMapping("/{weekNo}")` 를 갖는다.
 두 패턴은 세그먼트 수가 달라 겹치지 않는다. Step 6 이 그것을 실제로 확인한다.
 
-- [ ] **Step 6: 통과를 확인한다**
+- [x] **Step 6: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -2131,7 +2131,7 @@ public class StudyWeekController {
 Expected: 셋 다 PASS. `StudyAttendanceTest` 를 같이 도는 이유는 경로 충돌이 있으면
 기동 시점에 `IllegalStateException: Ambiguous mapping` 으로 터지기 때문이다.
 
-- [ ] **Step 7: 커밋한다**
+- [x] **Step 7: 커밋한다**
 
 ```
 feat(study): 커리큘럼 주차를 도중에 늘리고 줄인다
@@ -2169,7 +2169,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
   - `StudyApplicantList(List<StudyApplicantEntry> pending, List<StudyApplicantEntry> approved)`
   - `StudyService.applicantsOf(String studyId) → StudyApplicantList`
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyApplicantListTest.java`:
 
@@ -2282,7 +2282,7 @@ class StudyApplicantListTest extends PostgresTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -2291,7 +2291,7 @@ class StudyApplicantListTest extends PostgresTest {
 
 Expected: 404 또는 컴파일 실패 — 엔드포인트가 없다.
 
-- [ ] **Step 3: DTO 둘을 만든다**
+- [x] **Step 3: DTO 둘을 만든다**
 
 `dto/StudyApplicantEntry.java`:
 
@@ -2322,7 +2322,7 @@ public record StudyApplicantList(List<StudyApplicantEntry> pending,
                                  List<StudyApplicantEntry> approved) { }
 ```
 
-- [ ] **Step 4: `StudyService.applicantsOf` 를 더한다**
+- [x] **Step 4: `StudyService.applicantsOf` 를 더한다**
 
 `applicants()`(임원용 전체 목록) 바로 아래에 넣는다:
 
@@ -2364,7 +2364,7 @@ public record StudyApplicantList(List<StudyApplicantEntry> pending,
 숨긴 승인 상태가 순서에서 새는 것을 막기 위해서였는데, 이 목록은 승인 상태가 이미
 두 묶음으로 드러나 있으므로 그 이유가 없다. 먼저 신청한 사람을 먼저 보는 편이 낫다.
 
-- [ ] **Step 5: `StudyController` 에 핸들러를 더한다**
+- [x] **Step 5: `StudyController` 에 핸들러를 더한다**
 
 `applicants()` 아래에 넣는다:
 
@@ -2381,7 +2381,7 @@ public record StudyApplicantList(List<StudyApplicantEntry> pending,
 `/api/studies/applicants`(리터럴)와 `/api/studies/{id}/applicants`(세그먼트 3개)는
 길이가 달라 겹치지 않는다.
 
-- [ ] **Step 6: 통과를 확인한다**
+- [x] **Step 6: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -2391,7 +2391,7 @@ public record StudyApplicantList(List<StudyApplicantEntry> pending,
 
 Expected: 둘 다 PASS
 
-- [ ] **Step 7: 커밋한다**
+- [x] **Step 7: 커밋한다**
 
 ```
 feat(study): 스터디장에게 자기 스터디의 신청 목록을 준다
@@ -2424,7 +2424,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
   - `StudyAccess.isApplicant(String applicationId, Authentication auth) → boolean`
   - `StudyService.deleteApplication(String applicationId)`
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyApplicationDeleteTest.java`:
 
@@ -2542,7 +2542,7 @@ class StudyApplicationDeleteTest extends PostgresTest {
 }
 ```
 
-- [ ] **Step 2: 실패를 확인한다**
+- [x] **Step 2: 실패를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -2551,7 +2551,7 @@ class StudyApplicationDeleteTest extends PostgresTest {
 
 Expected: 실패 — 엔드포인트가 없다.
 
-- [ ] **Step 3: `StudyAccess.isApplicant` 를 더한다**
+- [x] **Step 3: `StudyAccess.isApplicant` 를 더한다**
 
 `isMember` 아래에 넣는다:
 
@@ -2572,7 +2572,7 @@ Expected: 실패 — 엔드포인트가 없다.
     }
 ```
 
-- [ ] **Step 4: `StudyService.deleteApplication` 을 더한다**
+- [x] **Step 4: `StudyService.deleteApplication` 을 더한다**
 
 ```java
     /**
@@ -2593,7 +2593,7 @@ Expected: 실패 — 엔드포인트가 없다.
     }
 ```
 
-- [ ] **Step 5: `StudyController` 에 핸들러를 더한다**
+- [x] **Step 5: `StudyController` 에 핸들러를 더한다**
 
 `rejectApplicant` 아래에 넣는다:
 
@@ -2607,7 +2607,7 @@ Expected: 실패 — 엔드포인트가 없다.
     }
 ```
 
-- [ ] **Step 6: 통과를 확인한다**
+- [x] **Step 6: 통과를 확인한다**
 
 ```bash
 ./gradlew --no-daemon -I "$CLAUDE_JOB_DIR/tmp/docker-api.init.gradle" test \
@@ -2620,7 +2620,7 @@ Expected: 셋 다 PASS. `StudyTest` 를 같이 도는 이유는 ① 의
 `rejectedApplicantSeesApplyClosedNotOpen` 이 여전히 살아 있어야 하기 때문이다 —
 **신청을 지우지 않은** 반려자는 그대로 `CLOSED` 다.
 
-- [ ] **Step 7: 커밋한다**
+- [x] **Step 7: 커밋한다**
 
 ```
 feat(study): 반려된 신청을 지워 재신청을 연다
@@ -2658,7 +2658,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 
 **지우는 것도 새 파일도 없다.** 이 과제는 레코드 한 줄, 서비스 한 줄, 테스트 하나다.
 
-- [ ] **Step 1: 실패하는 테스트를 쓴다**
+- [x] **Step 1: 실패하는 테스트를 쓴다**
 
 `src/test/java/com/jaram/be/study/StudyTest.java` 의 `myActivityReturnsAppsAndLedStudies` 바로 아래에 더한다. 기존 테스트는 손대지 않는다 — `pendingApplicants` 가 없던 자리는 `null` 이라 기존 단언이 그대로 통과한다.
 
@@ -2695,7 +2695,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 
 `nullValue()` 는 이미 쓸 수 있다 — `StudyTest` 가 `import static org.hamcrest.Matchers.*;` 를 갖고 있다. 새 import 는 없다.
 
-- [ ] **Step 2: 테스트가 실패하는 것을 본다**
+- [x] **Step 2: 테스트가 실패하는 것을 본다**
 
 ```bash
 export JAVA_HOME=/home/ksb/.local/jdk-21
@@ -2706,7 +2706,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Expected: FAIL. `pendingApplicants` 가 응답에 없으므로 `find{}.pendingApplicants` 가 `null` 이고, 첫 단언이 `Expected: <2> but: was null` 로 깨진다.
 
-- [ ] **Step 3: `MyStudy` 에 필드를 더한다**
+- [x] **Step 3: `MyStudy` 에 필드를 더한다**
 
 `src/main/java/com/jaram/be/study/dto/MyStudy.java` 전문:
 
@@ -2727,7 +2727,7 @@ public record MyStudy(
 }
 ```
 
-- [ ] **Step 4: `myActivity` 가 그 값을 채우게 한다**
+- [x] **Step 4: `myActivity` 가 그 값을 채우게 한다**
 
 `StudyService.myActivity` 의 `myStudies` 를 만드는 대목만 바꾼다. 나머지(`apps` 를 만드는 부분, 반환문)는 그대로 둔다.
 
@@ -2756,7 +2756,7 @@ public record MyStudy(
 
 import 가 필요하면 더한다: `com.jaram.be.study.ApplicationStatus` 는 같은 패키지라 필요 없고, `StudyStatus` 도 같은 패키지다. **새 import 는 없다.**
 
-- [ ] **Step 5: 테스트가 통과하는 것을 본다**
+- [x] **Step 5: 테스트가 통과하는 것을 본다**
 
 ```bash
 export JAVA_HOME=/home/ksb/.local/jdk-21
@@ -2767,7 +2767,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Expected: PASS. 새 테스트 하나와 기존 `StudyTest` 전부가 초록이다. 기존 `myActivityReturnsAppsAndLedStudies` 가 깨지면 레코드에 필드를 더한 것이 아니라 순서를 바꾼 것이다.
 
-- [ ] **Step 6: 계약 검사까지 돌린다**
+- [x] **Step 6: 계약 검사까지 돌린다**
 
 ```bash
 export JAVA_HOME=/home/ksb/.local/jdk-21
@@ -2779,7 +2779,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Expected: PASS. `OpenApiValidationFilter` 는 **선언되지 않은 응답 필드를 거부한다** — Task 1 의 계약이 머지되어 있지 않으면 여기서 `pendingApplicants` 때문에 깨진다. 깨지면 계약 PR 부터 머지한다.
 
-- [ ] **Step 7: 커밋한다**
+- [x] **Step 7: 커밋한다**
 
 ```bash
 git add src/main/java/com/jaram/be/study/dto/MyStudy.java src/main/java/com/jaram/be/study/StudyService.java src/test/java/com/jaram/be/study/StudyTest.java
@@ -2825,7 +2825,7 @@ RECRUITING 이 아니면 0 이 아니라 null 이다. 0 은 "대기 중인 신�
 
 **서버 응답 모양은 ① 그대로다**(D24). 관계는 화면이 두 배열에서 읽고, 분야·일정은 이 페이지가 어차피 부르는 `useStudies()` 에서 붙인다. `study.api.js` 의 `listMyActivity` 와 `study.queries.js` 의 `useMyActivity` 는 **지우지 않는다**.
 
-- [ ] **Step 1: `study.api.js` 에 함수를 더한다**
+- [x] **Step 1: `study.api.js` 에 함수를 더한다**
 
 `listMyActivity` 는 그대로 둔다 — 경로도 응답 모양도 안 바뀐다. 아래를 더하기만 한다:
 
@@ -2889,7 +2889,7 @@ export async function finishStudy({ studyId }) {
  */
 ```
 
-- [ ] **Step 2: `study.queries.js` 에 키와 훅을 더한다**
+- [x] **Step 2: `study.queries.js` 에 키와 훅을 더한다**
 
 `studyKeys` 를 바꾼다:
 
@@ -2985,7 +2985,7 @@ export function useRejectApplicant(studyId, options) {
 `StudyPage.jsx` 의 기존 호출 두 곳에 `null` 을 넘긴다(관리 탭은 스터디별 목록을
 쓰지 않는다): `useApproveApplicant(null, { … })`.
 
-- [ ] **Step 3: `study.data.js` 에 관계 표와 합치는 함수를 더한다**
+- [x] **Step 3: `study.data.js` 에 관계 표와 합치는 함수를 더한다**
 
 먼저 두 배열을 카드 한 벌로 합치는 순수 함수다. 서버가 관계를 내려보내지 않으므로
 (D23) 여기가 관계를 정하는 유일한 자리다.
@@ -3109,7 +3109,7 @@ export const ATTENDANCE_LABEL = {
 };
 ```
 
-- [ ] **Step 4: `MyStudyCard` 를 만든다**
+- [x] **Step 4: `MyStudyCard` 를 만든다**
 
 `src/features/study/views/MyStudyCard.jsx`:
 
@@ -3197,7 +3197,7 @@ export function MyStudyCard({ item, onManage, onAttendance, onDelete }) {
 }
 ```
 
-- [ ] **Step 5: `MyStudyView` 를 만든다**
+- [x] **Step 5: `MyStudyView` 를 만든다**
 
 `src/features/study/views/MyStudyView.jsx`:
 
@@ -3279,7 +3279,7 @@ export function MyStudyView({ items = [], onManage, onAttendance, onDelete, onBr
 }
 ```
 
-- [ ] **Step 6: `views/index.js` 를 갈아 끼운다**
+- [x] **Step 6: `views/index.js` 를 갈아 끼운다**
 
 `export { MyActivityView } from './MyActivityView';` 를 지우고 넣는다:
 
@@ -3293,7 +3293,7 @@ export { MyStudyView } from './MyStudyView';
 rm src/features/study/views/MyActivityView.jsx
 ```
 
-- [ ] **Step 7: `StudyPage.jsx` 를 배선한다**
+- [x] **Step 7: `StudyPage.jsx` 를 배선한다**
 
 1. `SUB_NAV` 의 두 번째 항목 라벨을 바꾼다: `{ key: 'mine', label: '내 스터디' }`
 2. 페이지 제목 아래 설명은 그대로 둔다 — 첫 탭(둘러보기)의 것이다.
@@ -3380,7 +3380,7 @@ rm src/features/study/views/MyActivityView.jsx
 
 8. `useApproveApplicant`/`useRejectApplicant` 호출에 첫 인자 `null` 을 넣는다(Step 2).
 
-- [ ] **Step 8: 린트·타입·빌드를 돌린다**
+- [x] **Step 8: 린트·타입·빌드를 돌린다**
 
 ```bash
 cd /home/ksb/Dev/home-jaram/home-jaram-fe
@@ -3391,7 +3391,7 @@ cd /home/ksb/Dev/home-jaram/home-jaram-fe
 
 Expected: 셋 다 성공. `MyActivityView` 를 참조하는 자리가 남아 있으면 여기서 잡힌다.
 
-- [ ] **Step 9: 커밋한다**
+- [x] **Step 9: 커밋한다**
 
 ```
 feat(study): 내 스터디 화면을 관계 축으로 다시 그린다
@@ -3429,7 +3429,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 
 상태가 무엇을 열지 정한다. `RECRUITING` 이면 신청 관리, `ONGOING` 이면 출석/정보 탭.
 
-- [ ] **Step 1: `ManageStudyModal` 을 만든다**
+- [x] **Step 1: `ManageStudyModal` 을 만든다**
 
 `src/features/study/views/ManageStudyModal.jsx`:
 
@@ -3781,13 +3781,13 @@ export function ManageStudyModal({ study, onClose, onToast }) {
 }
 ```
 
-- [ ] **Step 2: `views/index.js` 에 내보낸다**
+- [x] **Step 2: `views/index.js` 에 내보낸다**
 
 ```js
 export { ManageStudyModal } from './ManageStudyModal';
 ```
 
-- [ ] **Step 3: `StudyPage.jsx` 에 배선한다**
+- [x] **Step 3: `StudyPage.jsx` 에 배선한다**
 
 `<Toast …/>` 위에 넣는다:
 
@@ -3803,7 +3803,7 @@ export { ManageStudyModal } from './ManageStudyModal';
 
 import 에 `ManageStudyModal` 을 더한다.
 
-- [ ] **Step 4: 린트·타입·빌드를 돌린다**
+- [x] **Step 4: 린트·타입·빌드를 돌린다**
 
 ```bash
 ./node_modules/.bin/eslint .
@@ -3813,7 +3813,7 @@ import 에 `ManageStudyModal` 을 더한다.
 
 Expected: 셋 다 성공
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```
 feat(study): 스터디장의 관리하기 모달을 만든다
@@ -3847,7 +3847,7 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 - Consumes: Task 10 의 `useMyAttendance`, `ATTENDANCE_LABEL`, `ModalShell`
 - Produces: `<MyAttendanceModal study onClose />`
 
-- [ ] **Step 1: `MyAttendanceModal` 을 만든다**
+- [x] **Step 1: `MyAttendanceModal` 을 만든다**
 
 `src/features/study/views/MyAttendanceModal.jsx`:
 
@@ -3916,13 +3916,13 @@ function Note({ children }) {
 }
 ```
 
-- [ ] **Step 2: `views/index.js` 에 내보낸다**
+- [x] **Step 2: `views/index.js` 에 내보낸다**
 
 ```js
 export { MyAttendanceModal } from './MyAttendanceModal';
 ```
 
-- [ ] **Step 3: `StudyPage.jsx` 에 배선한다**
+- [x] **Step 3: `StudyPage.jsx` 에 배선한다**
 
 ```jsx
       {viewingAttendance && (
@@ -3935,7 +3935,7 @@ export { MyAttendanceModal } from './MyAttendanceModal';
 
 import 에 `MyAttendanceModal` 을 더한다.
 
-- [ ] **Step 4: 린트·타입·빌드를 돌린다**
+- [x] **Step 4: 린트·타입·빌드를 돌린다**
 
 ```bash
 ./node_modules/.bin/eslint .
@@ -3945,7 +3945,7 @@ import 에 `MyAttendanceModal` 을 더한다.
 
 Expected: 셋 다 성공
 
-- [ ] **Step 5: 로컬 스택에서 눈으로 본다**
+- [ ] **Step 5: 로컬 스택에서 눈으로 본다** — BE 배포 뒤에 남겨 둔다
 
 ```bash
 docker build -t jaram-fe:study-operations /home/ksb/Dev/home-jaram/home-jaram-fe
@@ -3959,7 +3959,7 @@ docker compose -f /home/ksb/Dev/home-jaram/docker-compose.yml up -d --no-build -
 
 확인할 것: '내 스터디' 탭이 보이고, 관계 칩이 카드마다 다르고, 콘솔 오류가 0이다.
 
-- [ ] **Step 6: 커밋하고 PR 을 연다**
+- [x] **Step 6: 커밋하고 PR 을 연다**
 
 ```
 feat(study): 참여 멤버가 자기 출석을 보는 모달을 만든다
@@ -3975,6 +3975,45 @@ Claude-Session: https://claude.ai/code/session_01DjcT8p1MYNVFgszzEAMPJq
 FE 의 화면 커밋(Task 10·11·12)은 계약 PR(Task 1)과 **다른 PR** 이다. 계약은 BE 보다
 먼저 머지되어야 하고 화면은 BE 가 머지된 뒤에 의미가 있다. Task 1 의 브랜치를
 `feat/study-operations` 로, 화면을 `feat/study-operations-ui` 로 나눈다.
+
+---
+
+## 실행하며 드러난 편차
+
+계획대로 돌렸을 때 실제 코드가 계획과 달랐던 자리다. 다음에 같은 문서를 쓸 때
+미리 확인할 것들이기도 하다.
+
+**계약(Task 1) — 파일 관례가 셋 달랐다.**
+- `nullable: true` 가 아니라 `type: [integer, 'null']` 이다. 이 파일은 OpenAPI 3.1 이고
+  3.1 은 `nullable` 키워드를 버렸다. 그대로 썼으면 조용히 무시되어 `null` 이 거부됐다.
+- 공용 응답 이름이 `UnprocessableEntity` 가 아니라 `Validation` 이다.
+- 모든 작업이 `security: [{ bearerAuth: [] }]` 와 `'401'`·`'5XX'` 를 선언하고,
+  `id` 경로 변수는 `$ref: '#/components/parameters/StudyId'`·`ApplicantId` 를 쓴다.
+
+**Task 4 — 출석 교체 저장이 유니크 제약에 걸렸다.** `deleteByWeekId` 뒤에 바로
+`save` 를 부르면, Hibernate 가 한 플러시 안에서 insert 를 delete 보다 먼저 내보내
+이전 명단과 새 명단에 같이 있는 사람이 `(week_id, member_id)` 를 두 번 쓰게 된다.
+`attendance.flush()` 를 삭제 직후에 넣어야 한다. `savingAgainReplacesTheWholeWeek`
+테스트가 이것을 잡았다.
+
+**Task 4 — `Actors` 에 `tokenFor(Member, Role)` 오버로드가 없다.** 역할을 가진
+행위자는 `actors.token(Role.ACADEMIC_LEAD)` 로 만든다(저장까지 해 준다).
+
+**Task 10 — 미사용 상태를 미리 선언할 수 없다.** `managing`·`viewingAttendance` 를
+Task 11·12 용으로 자리만 잡아 두면 `@typescript-eslint/no-unused-vars` 가 잡는다.
+`_` 접두사로 두었다가 모달을 붙일 때 이름을 되돌린다.
+
+**Task 11 — `useEditWeek` 는 쓰이지 않는다.** 모달의 '정보' 탭이 주차 추가·삭제만
+하고 제목 수정 UI 가 없다. import 에 남기면 린트가 잡는다. (수정 엔드포인트는
+계약과 BE 에 있으므로, 제목 수정 UI 는 나중에 붙이면 된다.)
+
+**Task 11 — `q.data?.weeks ?? []` 는 매 렌더 새 배열이다.** 그대로 `useMemo` 의
+의존성에 넣으면 `react-hooks/exhaustive-deps` 가 경고하고 메모가 무의미해진다.
+`weeks`·`members` 를 각각 `useMemo` 로 감싼다.
+
+**Task 12 Step 5(로컬 스택 육안 확인)는 돌리지 않았다.** BE 가 아직 배포되지
+않아 화면이 부를 경로가 없고, 사용자의 로컬 컨테이너를 재시작하는 일이라
+남겨 둔다.
 
 ---
 
