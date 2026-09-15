@@ -296,6 +296,38 @@ public class StudyService {
         }).toList();
     }
 
+    /**
+     * 그 스터디의 신청 목록. ① 이 스터디장에게 승인·반려 손잡이는 주고 목록은 주지
+     * 않아, 누구를 승인할지 모르는 채로 승인 버튼만 있었다.
+     *
+     * 반려는 싣지 않는다. 스터디장이 이미 내린 판단이고, 다시 보여 주면 그 목록이
+     * 길어지기만 한다 — 신청자 본인은 자기 '내 스터디'에서 반려 사유를 본다.
+     */
+    @Transactional(readOnly = true)
+    public StudyApplicantList applicantsOf(String studyId) {
+        loadStudy(studyId);
+        return new StudyApplicantList(
+                entries(studyId, ApplicationStatus.PENDING, true),
+                entries(studyId, ApplicationStatus.APPROVED, false));
+    }
+
+    private List<StudyApplicantEntry> entries(String studyId, ApplicationStatus status,
+                                              boolean withMotive) {
+        List<StudyApplication> rows = applications.findByStudyIdAndStatus(studyId, status);
+        Map<String, Member> byId = members.findAllById(
+                        rows.stream().map(StudyApplication::getApplicantId).toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+        return rows.stream()
+                .filter(a -> byId.containsKey(a.getApplicantId()))
+                .sorted(Comparator.comparing(StudyApplication::getCreatedAt))
+                .map(a -> {
+                    Member m = byId.get(a.getApplicantId());
+                    return new StudyApplicantEntry(a.getId(), m.getName(), m.getGen(),
+                            withMotive ? a.getMotive() : null);
+                })
+                .toList();
+    }
+
     // ── UC-T8: 신청자 승인/거절 ──
     @Transactional
     public void approveApplicant(String applicationId) {

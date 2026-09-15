@@ -59,6 +59,14 @@ public class StudyController {
     @PreAuthorize("hasAuthority('STUDY_APPLICANT_MANAGE')")
     public List<Applicant> applicants() { return service.applicants(); }
 
+    // 그 스터디의 신청 목록. 임원 전체 목록(/applicants)과 달리 스터디장이 자기 것만 본다.
+    @GetMapping("/{id}/applicants")
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication)"
+            + " or hasAuthority('STUDY_APPLICANT_MANAGE')")
+    public StudyApplicantList applicantsOf(@PathVariable String id) {
+        return service.applicantsOf(id);
+    }
+
     // UC-T9: 상세. 지원 인원 명단이 붙으므로 로그인 필수다.
     // SecurityConfig 에 GET /api/studies/* 를 permitAll 로 넣지 않는다 — 그 와일드카드가
     // /my·/pending·/applicants 까지 한 세그먼트로 잡는다.
