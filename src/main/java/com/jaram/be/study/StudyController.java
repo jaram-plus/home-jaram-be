@@ -122,4 +122,12 @@ public class StudyController {
     public void rejectApplicant(@PathVariable String id, @Valid @RequestBody RejectRequest req) {
         service.rejectApplicant(id, req.reason());
     }
+
+    // 반려된 내 신청을 지운다. 지우면 그 스터디에 다시 신청할 수 있다 (D11).
+    @DeleteMapping("/applicants/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@studyAccess.isApplicant(#id, authentication)")
+    public void deleteApplication(@PathVariable String id) {
+        service.deleteApplication(id);
+    }
 }

@@ -328,6 +328,23 @@ public class StudyService {
                 .toList();
     }
 
+    /**
+     * 반려된 자기 신청을 하드 삭제한다(D11). (studyId, applicantId) 유니크가 풀려
+     * 재신청이 열린다 — deriveApply 가 신청 기록을 보고 CLOSED 를 내던 것이 기록이
+     * 사라지면 저절로 OPEN 이 된다. 새 분기가 생기지 않는다.
+     */
+    @Transactional
+    public void deleteApplication(String applicationId) {
+        StudyApplication a = applications.findById(applicationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "신청을 찾을 수 없습니다."));
+        if (a.getStatus() != ApplicationStatus.REJECTED) {
+            // 승인된 신청을 본인이 지울 수 있으면 그것은 탈퇴이고, 탈퇴는 이 단계에 없다.
+            throw new ApiException(HttpStatus.CONFLICT, "NOT_REJECTED",
+                    "반려된 신청만 삭제할 수 있습니다.");
+        }
+        applications.delete(a);
+    }
+
     // ── UC-T8: 신청자 승인/거절 ──
     @Transactional
     public void approveApplicant(String applicationId) {
