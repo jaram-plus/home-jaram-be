@@ -221,10 +221,23 @@ public class StudyService {
         }).toList();
 
         List<MyStudy> myStudies = studies.findByLeaderIdOrderByCreatedAtDesc(userId).stream()
-                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason()))
+                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason(),
+                        pendingCount(s)))
                 .toList();
 
         return new MyActivity(apps, myStudies);
+    }
+
+    /**
+     * 모집 중인 스터디의 대기 신청 수. 그 외에는 null 이다.
+     *
+     * '내 스터디' 카드가 스터디장에게 "지금 할 일이 있는가"를 말하는 유일한 값이다(② §9).
+     * RECRUITING 이 아닐 때 0 을 주면 화면이 "대기 0건"으로 읽어 버린다 — 셀 단계가
+     * 아니라는 뜻이므로 null 이어야 한다.
+     */
+    private Integer pendingCount(Study s) {
+        if (s.getStatus() != StudyStatus.RECRUITING) return null;
+        return applications.countByStudyIdAndStatus(s.getId(), ApplicationStatus.PENDING);
     }
 
     // ── UC-T5: 개설 대기 목록 ──
