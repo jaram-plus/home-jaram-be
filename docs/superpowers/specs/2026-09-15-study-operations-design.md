@@ -44,8 +44,8 @@
 | D20 | 출석률 분모 | **`takenAt != null` 인 주차 수.** 아직 안 찍은 주차는 결석이 아니다 |
 | D21 | 출석 대상 | 승인된 신청자 **+ 스터디장** |
 | D22 | 탭 | '내 활동' 을 **'내 스터디'** 로 개명하고 카드 화면으로 다시 그린다. 탭 수는 셋 그대로 |
-| D23 | 관계 | `LEADER`/`MEMBER`/`APPLIED`/`REJECTED` 를 **일급 값**으로 응답에 싣는다 |
-| D24 | `/my` 응답 | 두 배열(`apps`·`studies`)을 **단일 `items` 배열**로 접는다. `MyApp`·`MyStudy` 폐기 |
+| D23 | 관계 | `LEADER`/`MEMBER`/`APPLIED`/`REJECTED` 는 **화면이 계산한다.** 서버는 내려보내지 않는다 |
+| D24 | `/my` 응답 | **모양을 그대로 둔다.** `MyStudy` 에 `pendingApplicants` 한 필드만 는다 |
 | D25 | 반려 신청 삭제 | `DELETE /api/studies/applicants/{id}`. 본인만, `REJECTED` 만 |
 | D26 | 스터디장의 신청 목록 | `GET /api/studies/{id}/applicants` **신설** |
 | D27 | 이행 SQL | **없다.** 새 테이블은 빈 신설이고 새 컬럼은 nullable 이다 |
@@ -53,24 +53,28 @@
 ## 3. 관계 — 이 단계의 축
 
 '내 스터디'의 모든 분기는 **내가 이 스터디와 무슨 사이인가** × **스터디가 지금
-어디인가** 둘로 결정된다. 그래서 관계를 파생시켜 화면에 던지지 않고, 서버가 이름을
-붙여 내려보낸다(D23).
+어디인가** 둘로 결정된다. 관계는 이 화면의 구조지만 **서버가 내려보내는 값이
+아니다**(D23). `/my` 가 이미 주는 두 배열이 관계를 그대로 말하고 있어서, 화면이
+읽어 내면 된다.
 
-| 값 | 뜻 | 어디서 나오나 |
+| 값 | 뜻 | 화면이 어디서 읽나 |
 |---|---|---|
-| `LEADER` | 내가 개설했다 | `study.leader_id == me` |
-| `MEMBER` | 내 신청이 승인됐다 | `study_application.status == APPROVED` |
+| `LEADER` | 내가 개설했다 | `MyActivity.studies[]` 에 있다 |
+| `MEMBER` | 내 신청이 승인됐다 | `MyActivity.apps[].status == APPROVED` |
 | `APPLIED` | 내 신청이 대기 중이다 | `… == PENDING` |
 | `REJECTED` | 내 신청이 반려됐다 | `… == REJECTED` |
+
+**서버에 `StudyRelation` 열거형을 만들지 않는다.** 네 값이 전부 기존 응답에서
+기계적으로 읽히므로, 같은 뜻을 서버에도 두면 두 곳이 어긋날 자리만 는다.
 
 한 사람이 한 스터디에 대해 갖는 관계는 **언제나 하나**다. 개설자는 자기 스터디에
 지원할 수 없고(① `LEADER_SELF`), 신청은 `(studyId, applicantId)` 유니크다.
 
 `ApplyState`(① §5)와 헷갈리지 않아야 한다. `ApplyState` 는 **둘러보기 화면에서
-신청 버튼이 무엇을 말할지**를 정하는 값이고, `relation` 은 **내 스터디 화면에서
-이 카드가 무엇을 보여줄지**를 정하는 값이다. 뜻이 겹치는 자리가 있지만
+신청 버튼이 무엇을 말할지**를 정하는 서버 값이고, 관계는 **내 스터디 화면에서
+이 카드가 무엇을 보여줄지**를 정하는 화면 값이다. 뜻이 겹치는 자리가 있지만
 (`JOINED` ⊃ `LEADER`+`MEMBER`), 합치면 한쪽의 필요가 다른 쪽을 왜곡한다 —
-`ApplyState` 는 스터디장과 참여자를 구분할 이유가 없고, `relation` 은 반드시 구분한다.
+`ApplyState` 는 스터디장과 참여자를 구분할 이유가 없고, 관계는 반드시 구분한다.
 
 **`FINISHED` 스터디는 어느 관계든 '내 스터디'에 오지 않는다**(① §14). 끝난 것이
 계속 쌓이면 이 화면이 이력 목록이 된다.
@@ -235,11 +239,20 @@ DELETE /api/studies/applicants/{id}  → 204
 | `LEADER` | `PENDING` | 개설 승인을 기다리는 중입니다 | — |
 | `LEADER` | `REJECTED` | 반려 사유 | — |
 | `LEADER` | `RECRUITING` | 신청 **N건**이 기다리고 있습니다 / 새 신청이 없습니다 | **관리하기** |
-| `LEADER` | `ONGOING` | **N주차**까지 출석을 기록했습니다 (전체 M주) | **관리하기** |
+| `LEADER` | `ONGOING` | 진행 중입니다 | **관리하기** |
 | `MEMBER` | `RECRUITING` | 참여가 확정됐습니다. 곧 시작합니다 | — |
-| `MEMBER` | `ONGOING` | 출석 **N회** / 기록된 M주차 | **출석 보기** |
+| `MEMBER` | `ONGOING` | 참여 중입니다 | **출석 보기** |
 | `APPLIED` | `RECRUITING` | 신청이 검토 중입니다 | — |
 | `REJECTED` | — | 반려 사유 | **삭제하기** |
+
+**진행 중 카드에는 숫자가 없다.** 출석 수·기록된 주차 수를 카드에 실으려면 `/my` 에
+필드가 셋 더 붙어야 하는데, 이번 단계는 `pendingApplicants` 하나만 더한다(D24).
+숫자는 모달을 열면 나온다(§10). 나중에 필요하면 `weeksTaken`·`weeksTotal`·
+`myAttended` 를 같은 방식으로 얹으면 되고, 필드 추가라 계약이 깨지지 않는다.
+
+**대기 신청 수만 카드에 남는 이유.** 스터디장이 카드만 보고 *지금 내가 할 일이
+있는가* 를 아는 유일한 값이다. 이것까지 모달 안에 숨기면 모든 모집 중 카드가
+똑같이 생겨서, 화면을 다시 그린 이유가 사라진다.
 
 **버튼 이름이 관계에 따라 다르다.** 멤버에게 '관리하기'는 거짓말이다 — 관리할 것이
 없고 자기 출석을 볼 뿐이다. 모달 컴포넌트는 하나지만 이름은 둘이다.
@@ -247,8 +260,9 @@ DELETE /api/studies/applicants/{id}  → 204
 ### 배치 — 두 구역
 
 **위: 내 스터디** — `LEADER`·`MEMBER`·`APPLIED`. 지금 살아 있는 관계다. 정렬은
-**내가 할 일이 있는 것부터**: 대기 신청이 있는 `LEADER` → 안 찍은 주차가 있는
-`LEADER` → 나머지 `LEADER` → `MEMBER` → `APPLIED`. 같은 묶음 안에서는 최신순.
+**내가 할 일이 있는 것부터**: 대기 신청이 있는 `LEADER` → 나머지 `LEADER` →
+`MEMBER` → `APPLIED`. 같은 묶음 안에서는 최신순. 주차를 안 찍은 스터디를 위로
+올리려면 `weeksTaken` 이 있어야 하는데 카드가 그 값을 받지 않으므로 넣지 않는다.
 
 **아래: 지난 신청** — `REJECTED` 만. 반려된 신청은 내 스터디가 아니라 이력이라,
 같은 그리드에 섞으면 탭 이름이 거짓이 된다. 각 카드에 **삭제하기**(§8) — 확인
@@ -318,7 +332,7 @@ DELETE /api/studies/applicants/{id}  → 204
 
 | 경로 | 변경 |
 |---|---|
-| `GET /api/studies/my` | 응답이 `MyActivity{apps[],studies[]}` → `MyStudyList{items[]}` (D24) |
+| `GET /api/studies/my` | `MyStudy` 에 `pendingApplicants` 필드 하나가 는다. 모양은 그대로 (D24) |
 
 ## 12. 권한 — 새 Permission 은 없다
 
@@ -342,39 +356,47 @@ public boolean isApplicant(String applicationId, Authentication auth)
 더하지 않는다 — 8개 전부 게이트를 갖는다.
 
 `GET /api/studies/my` 는 이미 `AUTHENTICATED_ONLY` 에 `StudyController#my` 로 적혀
-있다. 응답 모양만 바뀌므로 그대로 둔다.
+있다. 필드 하나만 느는 것이라 그대로 둔다.
 
 ## 13. 계약 응답 스키마
 
 계약 PR 이 BE 보다 먼저 머지되어야 하므로(§14) 응답 이름을 여기서 굳힌다.
 
-### `MyStudyList` — `GET /api/studies/my` (D24)
+### `MyStudy` — `GET /api/studies/my` (D24)
+
+응답 모양은 ① 이 만든 그대로다. `MyStudy` 에 필드 하나가 붙는다.
 
 ```json
-{ "items": [
-  { "id": "…", "title": "알고리즘 스터디", "fields": ["알고리즘", "Python"],
-    "status": "RECRUITING", "relation": "LEADER",
-    "leader": "이준호", "leaderGen": 40, "schedule": "매주 화 19:00",
-    "applicationId": null, "reason": null,
-    "pendingApplicants": 2,
-    "weeksTaken": null, "weeksTotal": 8, "myAttended": null }
-] }
+{ "apps": [
+    { "id": "…", "studyId": "…", "title": "알고리즘 스터디",
+      "status": "PENDING", "reason": null } ],
+  "studies": [
+    { "id": "…", "title": "알고리즘 스터디", "status": "RECRUITING",
+      "reason": null, "pendingApplicants": 2 } ] }
 ```
 
 | 필드 | 타입 | 채워지는 때 |
 |---|---|---|
-| `relation` | `LEADER\|MEMBER\|APPLIED\|REJECTED` | 언제나 |
-| `applicationId` | `string?` | `APPLIED`·`REJECTED` — 삭제하기가 쓰는 id |
-| `reason` | `string?` | 개설 반려(`LEADER` + 상태 `REJECTED`) 또는 신청 반려(`REJECTED`) |
-| `pendingApplicants` | `int?` | `LEADER` + `RECRUITING` |
-| `weeksTaken`·`weeksTotal` | `int?` | `ONGOING` |
-| `myAttended` | `int?` | `MEMBER` + `ONGOING` |
+| `pendingApplicants` | `int?` | `RECRUITING` 인 내 스터디. 그 외에는 `null` |
 
-**두 배열을 한 배열로 접는 이유.** 화면이 관계 하나로 정렬하고 분기하는데(§9),
-응답이 `apps`·`studies` 로 나뉘어 오면 화면이 받아서 다시 합쳐야 한다. 그리고 카드에
-필요한 숫자(대기 신청 수, 기록된 주차 수, 내 출석 수)를 지금 응답이 하나도 주지
-않는다 — 세 개를 두 배열에 나눠 붙이는 것보다 관계를 일급으로 올리는 편이 짧다.
-`MyApp`·`MyStudy` 는 폐기하고 `MyStudyItem` 하나가 대신한다.
+**왜 이 하나뿐인가.** 카드가 쓰는 나머지 값은 이미 어딘가에 있다.
+
+| 카드의 값 | 출처 |
+|---|---|
+| 관계 칩 | `apps`·`studies` 두 배열이 그대로 말한다(§3) |
+| 반려 사유 · 개설 승인 대기 | `MyStudy.reason` · `MyStudy.status` |
+| 분야 칩 · 일정 · 스터디장 | `GET /api/studies` 가 `RECRUITING`+`ONGOING` 을 싣고(`StudyService#list`) `fields`·`schedule`·`leader` 를 준다. 화면이 id 로 붙인다 |
+| 신청 카드의 스터디 상태 | 같은 목록에서 `studyId` 로 붙인다 |
+
+`pendingApplicants` 만 어디에도 없다. `study_application` 을 세야 나오는 값이고,
+이것 하나가 스터디장 카드의 가운데 줄 전부다(§9).
+
+**`MyApp` 에는 필드를 더하지 않는다.** 신청 카드가 쓰는 값은 전부 위 표에서 나온다.
+
+**`MyActivity`·`MyApp`·`MyStudy` 를 폐기하지 않는다.** 초안은 셋을 지우고
+`MyStudyItem` 하나로 접으려 했다. 화면 하나를 다시 그리자고 ① 이 굳힌 계약 스키마
+셋을 깨는 것은 값이 맞지 않는다 — 화면이 두 배열을 합치는 일은 관계를 읽는 일과
+같은 일이고, 어차피 화면이 해야 한다.
 
 ### `StudyApplicantList` — `GET /api/studies/{id}/applicants` (D26)
 
@@ -471,9 +493,10 @@ Hibernate 의 `SchemaUpdate` 가 그 예외를 로그 한 줄로 삼킨 뒤 기�
 | `FINISHED` | 주차·출석 쓰기가 전부 `409 STUDY_FINISHED` |
 | 반려 삭제 | 본인+`REJECTED` 성공 → 같은 스터디에 재신청 성공 / `PENDING` 은 `409` / 남의 신청은 `403` |
 | `isApplicant` | 경로 변수가 신청 id 임을 확인한다 — 스터디 id 로 읽으면 언제나 `false` 가 되는 자리 |
-| `relation` | 네 관계가 각각 맞게 나오고, 한 스터디에 관계가 둘 붙지 않는다 |
-| `FINISHED` 제외 | 종료된 스터디가 `/my` 의 어느 관계로도 오지 않는다 |
-| 계약 | 새 응답 4종이 스펙과 맞는다. `OpenApiValidationFilter` 가 응답 **본문 모양**은 보지 않으므로(① 의 발견) 배열/객체 단언을 테스트가 직접 쓴다 |
+| `pendingApplicants` | 대기 신청 수가 맞고, `RECRUITING` 이 아닌 스터디는 `null` 이다 |
+| `FINISHED` 제외 | 종료된 스터디가 `/my` 의 `apps`·`studies` 어느 쪽으로도 오지 않는다 |
+| 관계 계산 | 화면 쪽 단위 테스트다 — 두 배열에서 네 관계가 각각 맞게 읽히고, 한 스터디에 둘이 붙지 않는다 |
+| 계약 | 새 응답 3종이 스펙과 맞는다. `OpenApiValidationFilter` 가 응답 **본문 모양**은 보지 않으므로(① 의 발견) 배열/객체 단언을 테스트가 직접 쓴다 |
 
 ## 16. 범위 밖
 
