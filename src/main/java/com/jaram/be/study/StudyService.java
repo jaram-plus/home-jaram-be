@@ -221,10 +221,23 @@ public class StudyService {
         }).toList();
 
         List<MyStudy> myStudies = studies.findByLeaderIdOrderByCreatedAtDesc(userId).stream()
-                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason()))
+                .map(s -> new MyStudy(s.getId(), s.getTitle(), s.getStatus(), s.getReason(),
+                        pendingCount(s)))
                 .toList();
 
         return new MyActivity(apps, myStudies);
+    }
+
+    /**
+     * 모집 중인 스터디의 대기 신청 수. 그 외에는 null 이다.
+     *
+     * '내 스터디' 카드가 스터디장에게 "지금 할 일이 있는가"를 말하는 유일한 값이다(② §9).
+     * RECRUITING 이 아닐 때 0 을 주면 화면이 "대기 0건"으로 읽어 버린다 — 셀 단계가
+     * 아니라는 뜻이므로 null 이어야 한다.
+     */
+    private Integer pendingCount(Study s) {
+        if (s.getStatus() != StudyStatus.RECRUITING) return null;
+        return applications.countByStudyIdAndStatus(s.getId(), ApplicationStatus.PENDING);
     }
 
     // ── UC-T5: 개설 대기 목록 ──
@@ -294,6 +307,55 @@ public class StudyService {
                     m == null ? null : m.getStudentId(),
                     a.getMotive(), a.getCreatedAt().toString());
         }).toList();
+    }
+
+    /**
+     * 그 스터디의 신청 목록. ① 이 스터디장에게 승인·반려 손잡이는 주고 목록은 주지
+     * 않아, 누구를 승인할지 모르는 채로 승인 버튼만 있었다.
+     *
+     * 반려는 싣지 않는다. 스터디장이 이미 내린 판단이고, 다시 보여 주면 그 목록이
+     * 길어지기만 한다 — 신청자 본인은 자기 '내 스터디'에서 반려 사유를 본다.
+     */
+    @Transactional(readOnly = true)
+    public StudyApplicantList applicantsOf(String studyId) {
+        loadStudy(studyId);
+        return new StudyApplicantList(
+                entries(studyId, ApplicationStatus.PENDING, true),
+                entries(studyId, ApplicationStatus.APPROVED, false));
+    }
+
+    private List<StudyApplicantEntry> entries(String studyId, ApplicationStatus status,
+                                              boolean withMotive) {
+        List<StudyApplication> rows = applications.findByStudyIdAndStatus(studyId, status);
+        Map<String, Member> byId = members.findAllById(
+                        rows.stream().map(StudyApplication::getApplicantId).toList()).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+        return rows.stream()
+                .filter(a -> byId.containsKey(a.getApplicantId()))
+                .sorted(Comparator.comparing(StudyApplication::getCreatedAt))
+                .map(a -> {
+                    Member m = byId.get(a.getApplicantId());
+                    return new StudyApplicantEntry(a.getId(), m.getName(), m.getGen(),
+                            withMotive ? a.getMotive() : null);
+                })
+                .toList();
+    }
+
+    /**
+     * 반려된 자기 신청을 하드 삭제한다(D11). (studyId, applicantId) 유니크가 풀려
+     * 재신청이 열린다 — deriveApply 가 신청 기록을 보고 CLOSED 를 내던 것이 기록이
+     * 사라지면 저절로 OPEN 이 된다. 새 분기가 생기지 않는다.
+     */
+    @Transactional
+    public void deleteApplication(String applicationId) {
+        StudyApplication a = applications.findById(applicationId).orElseThrow(() ->
+                new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "신청을 찾을 수 없습니다."));
+        if (a.getStatus() != ApplicationStatus.REJECTED) {
+            // 승인된 신청을 본인이 지울 수 있으면 그것은 탈퇴이고, 탈퇴는 이 단계에 없다.
+            throw new ApiException(HttpStatus.CONFLICT, "NOT_REJECTED",
+                    "반려된 신청만 삭제할 수 있습니다.");
+        }
+        applications.delete(a);
     }
 
     // ── UC-T8: 신청자 승인/거절 ──
