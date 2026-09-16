@@ -48,6 +48,36 @@ public class StudyAccess {
                 .orElse(false);
     }
 
+    /**
+     * 승인된 신청자이거나 스터디장. 출석 조회의 소유자 조건이다.
+     *
+     * 스터디장을 포함하는 이유는 출석 대상에 포함하는 이유와 같다 — 스터디장도
+     * 자기 스터디에 나오고, 자기 출석을 본다.
+     */
+    public boolean isMember(String studyId, Authentication auth) {
+        String me = idOf(auth);
+        if (me == null) return false;
+        if (studies.findById(studyId).map(s -> me.equals(s.getLeaderId())).orElse(false)) return true;
+        return applications.findByStudyIdAndApplicantId(studyId, me)
+                .map(a -> a.getStatus() == ApplicationStatus.APPROVED)
+                .orElse(false);
+    }
+
+    /**
+     * 그 신청의 본인. 반려된 자기 신청을 지우는 소유자 조건이다.
+     *
+     * 경로 변수가 스터디 id 가 아니라 **신청 id** 다 — isLeaderOfApplication 과 같은
+     * 함정이다. 스터디 id 로 착각하면 언제나 false 가 되어 아무도 자기 신청을 지우지
+     * 못하고, 403 만 나오고 이유는 안 보인다.
+     */
+    public boolean isApplicant(String applicationId, Authentication auth) {
+        String me = idOf(auth);
+        if (me == null) return false;
+        return applications.findById(applicationId)
+                .map(a -> me.equals(a.getApplicantId()))
+                .orElse(false);
+    }
+
     private String idOf(Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof CurrentMember me)) return null;
         return me.id();

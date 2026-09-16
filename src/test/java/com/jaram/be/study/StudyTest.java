@@ -291,6 +291,35 @@ class StudyTest extends PostgresTest {
                 .body("studies[0].status", equalTo("PENDING"));
     }
 
+    @Test
+    void myActivityCountsPendingApplicantsOnRecruitingStudies() {
+        Member leader = member("l", "리더", "2023000001", "leader@hanyang.ac.kr");
+        Member a1 = member("a1", "지원1", "2023000002", "a1@hanyang.ac.kr");
+        Member a2 = member("a2", "지원2", "2023000003", "a2@hanyang.ac.kr");
+        Member a3 = member("a3", "지원3", "2023000004", "a3@hanyang.ac.kr");
+
+        Study recruiting = approvedStudy(leader.getId(), 5);
+        applications.save(StudyApplication.create(recruiting.getId(), a1.getId(), "동기1"));
+        applications.save(StudyApplication.create(recruiting.getId(), a2.getId(), "동기2"));
+        StudyApplication approved = StudyApplication.create(recruiting.getId(), a3.getId(), "동기3");
+        approved.approve();
+        applications.save(approved);
+
+        // 아직 승인 전인 스터디는 신청을 받을 수 없으므로 셀 것도 없다
+        Study pending = studies.save(Study.create(
+                "대기스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
+
+        given().header("Authorization", "Bearer " + token(leader))
+                .when().get("/api/studies/my").then().statusCode(200)
+                .body("studies.size()", equalTo(2))
+                // 승인 대기 2건만 센다. 승인된 1건은 빠진다
+                .body("studies.find { it.id == '" + recruiting.getId() + "' }.pendingApplicants",
+                        equalTo(2))
+                // RECRUITING 이 아니면 null — "0건 대기"와 "셀 수 없음"은 다르다
+                .body("studies.find { it.id == '" + pending.getId() + "' }.pendingApplicants",
+                        nullValue());
+    }
+
     // ── UC-T5 개설 대기 목록 ──
 
     @Test

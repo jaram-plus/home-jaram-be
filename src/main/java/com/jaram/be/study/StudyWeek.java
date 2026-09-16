@@ -2,6 +2,7 @@ package com.jaram.be.study;
 
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -29,6 +30,13 @@ public class StudyWeek {
     @Column(length = 2000)
     private String content;   // nullable
 
+    /**
+     * 이 주차의 출석을 **처음** 저장한 시각. null 이면 아직 한 번도 찍지 않았다.
+     * 편집 창(+24h)의 기점이고, 출석률의 분모를 가르는 값이기도 하다.
+     */
+    @Column(name = "taken_at")
+    private Instant takenAt;
+
     protected StudyWeek() { }
 
     public static StudyWeek create(String studyId, int weekNo, String title, String content) {
@@ -48,4 +56,14 @@ public class StudyWeek {
     public void setTitle(String v) { this.title = v; }
     public String getContent() { return content; }
     public void setContent(String v) { this.content = v; }
+
+    /**
+     * 첫 저장에만 박는다. 두 번째 저장에 갱신하면 편집 창이 저장할 때마다
+     * 24시간씩 밀려 사실상 무한히 열린다.
+     */
+    public void markTaken(Instant now) {
+        if (takenAt == null) takenAt = now;
+    }
+
+    public Instant getTakenAt() { return takenAt; }
 }
