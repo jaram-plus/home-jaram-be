@@ -16,6 +16,7 @@ import com.jaram.be.study.Study;
 import com.jaram.be.study.StudyApplication;
 import com.jaram.be.study.StudyApplicationRepository;
 import com.jaram.be.study.StudyRepository;
+import com.jaram.be.study.StudyStatus;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -296,6 +297,9 @@ public class AdminBatchExecutor {
             switch (k) {
                 case "title" -> actions.add(() -> s.setTitle(str(v)));
                 case "capacity" -> intField(v, errors, k, s::setCapacity, actions);
+                // 되돌릴 손. 스터디장이 '모집 완료'를 잘못 눌렀거나, 졸업으로 스터디장이
+                // 사라졌거나, 학기 말 정리가 필요할 때 상태를 고칠 곳이 여기뿐이다.
+                case "status" -> enumField(StudyStatus.class, v, errors, k, s::setStatus, actions, false);
                 default -> errors.put(k, "수정할 수 없는 필드입니다.");
             }
         });
@@ -324,8 +328,8 @@ public class AdminBatchExecutor {
                 Integer cap = asInt(f.get("capacity"));
                 if (cap == null) { errors.put("capacity", "필수입니다."); return null; }
                 Study s = Study.create(str(f.get("title")), asStringList(f.get("fields")), cap,
-                        str(f.get("schedule")), str(f.get("period")), str(f.get("mode")),
-                        str(f.get("intro")), str(f.get("leaderId")));
+                        str(f.get("schedule")), str(f.get("place")), str(f.get("mode")),
+                        str(f.get("intro")), str(f.get("contact")), str(f.get("leaderId")));
                 return studies.save(s).getId();
             }
         }

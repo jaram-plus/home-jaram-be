@@ -23,6 +23,7 @@ Hibernate 가 메우지 못하는 것 — 데이터 이관, **이미 있는 제�
 | 2026-08-02-contributor-backfill.sql | | | |
 | 2026-08-03-pending-grade-backfill.sql | | | |
 | 2026-09-08-reregister-status-constraint.sql | | | |
+| 2026-09-15-study-lifecycle.sql | | | |
 
 > 위 세 개는 이 파일보다 먼저 있던 것이라 이력이 비어 있다. 다음부터 채운다.
 

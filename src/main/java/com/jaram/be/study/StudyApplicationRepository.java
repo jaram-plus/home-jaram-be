@@ -1,6 +1,7 @@
 package com.jaram.be.study;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,4 +12,5 @@ public interface StudyApplicationRepository extends JpaRepository<StudyApplicati
     int countByStudyIdAndStatus(String studyId, ApplicationStatus status);
     List<StudyApplication> findByStudyIdAndStatus(String studyId, ApplicationStatus status);
     List<StudyApplication> findByStudyId(String studyId);
+    List<StudyApplication> findByStudyIdAndStatusIn(String studyId, Collection<ApplicationStatus> statuses);
 }
