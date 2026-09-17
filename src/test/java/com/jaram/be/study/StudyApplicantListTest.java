@@ -87,14 +87,17 @@ class StudyApplicantListTest extends PostgresTest {
                 .body("approved[0].motive", nullValue());
     }
 
-    /** 학번은 애초에 싣지 않는다 — 가려서 싣는 것보다 짧다. */
+    /**
+     * 학번은 마스킹해 싣는다. 이름과 기수만으로는 동명이인이 갈리지 않는데, 승인·반려·
+     * 내보내기는 사람을 잘못 고르면 되돌리기 어렵다. 규칙은 상세 명단과 같다.
+     */
     @Test
-    void noStudentIdAnywhere() {
+    void studentIdsAreMasked() {
         given().header("Authorization", "Bearer " + leaderToken)
                 .when().get("/api/studies/" + study.getId() + "/applicants")
                 .then().statusCode(200)
-                .body("pending.findAll { it.containsKey('studentId') }", hasSize(0))
-                .body("approved.findAll { it.containsKey('studentId') }", hasSize(0));
+                .body("pending[0].studentId", equalTo("2023*****2"))
+                .body("approved[0].studentId", equalTo("2023*****3"));
     }
 
     @Test

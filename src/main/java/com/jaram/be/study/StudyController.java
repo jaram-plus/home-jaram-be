@@ -1,6 +1,7 @@
 package com.jaram.be.study;
 
 import com.jaram.be.security.CurrentMember;
+import com.jaram.be.security.authz.Permission;
 import com.jaram.be.study.dto.*;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -82,7 +83,25 @@ public class StudyController {
     public StudyDetail update(@PathVariable String id,
                               @Valid @RequestBody StudyUpdateRequest req,
                               @AuthenticationPrincipal CurrentMember me) {
-        return service.update(id, req, me.id());
+        return service.update(id, req, me.id(), me.can(Permission.STUDY_EDIT));
+    }
+
+    /**
+     * 참여 확정된 스터디원을 내보낸다.
+     *
+     * 경로에 스터디 id 를 두는 것은 /applicants/{id} 와 뜻이 달라서다 — 저쪽은 본인이
+     * 자기 반려 신청을 지우는 자리고, 여기는 스터디장이 남을 내보내는 자리다. 게이트가
+     * isLeader(#id) 로 곧장 읽히는 것도 스터디 id 가 경로에 있기 때문이다.
+     *
+     * 권한선은 신청 승인·반려와 같은 STUDY_APPLICANT_MANAGE 다. 명단을 만드는 손과
+     * 명단에서 빼는 손이 다르면 부원이 승인만 하고 되돌리지 못한다.
+     */
+    @DeleteMapping("/{id}/members/{applicationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication)"
+            + " or hasAuthority('STUDY_APPLICANT_MANAGE')")
+    public void removeMember(@PathVariable String id, @PathVariable String applicationId) {
+        service.removeMember(id, applicationId);
     }
 
     // UC-T2: 지원.
