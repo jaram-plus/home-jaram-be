@@ -75,6 +75,16 @@ public class StudyController {
         return service.detail(id, me.id());
     }
 
+    // 정보 수정 — RECRUITING 에서만. 권한선은 close-recruiting 과 같다.
+    // 응답이 StudyDetail 인 것은 화면이 고친 직후 상세를 다시 부르지 않게 하려는 것이다.
+    @PutMapping("/{id}")
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")
+    public StudyDetail update(@PathVariable String id,
+                              @Valid @RequestBody StudyUpdateRequest req,
+                              @AuthenticationPrincipal CurrentMember me) {
+        return service.update(id, req, me.id());
+    }
+
     // UC-T2: 지원.
     @PostMapping("/{id}/apply")
     @ResponseStatus(HttpStatus.CREATED)
