@@ -1,0 +1,346 @@
+package com.jaram.be.admin;
+
+import com.jaram.be.member.*;
+import com.jaram.be.study.Study;
+import com.jaram.be.study.StudyRepository;
+import com.jaram.be.support.Actors;
+import com.jaram.be.support.PostgresTest;
+import io.restassured.RestAssured;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+class AdminResourceTest extends PostgresTest {
+
+    @LocalServerPort int port;
+    @Autowired MemberRepository members;
+    @Autowired StudyRepository studies;
+    @Autowired Actors actors;
+
+    private String officerToken;
+
+    @BeforeEach void setup() {
+        RestAssured.port = port;
+        studies.deleteAll();
+        members.deleteAll();
+        officerToken = actors.officer();
+    }
+
+    private Member approved(String name, String sid) {
+        Member m = Member.newPending(name, sid, name + "@hanyang.ac.kr", "hash");
+        m.setApproval(MemberApproval.APPROVED);
+        m.setGrade(MemberGrade.ASSOCIATE);
+        return members.save(m);
+    }
+
+    // ── A1 목록 ──
+
+    @Test
+    void listPaginatesMembers() {
+        for (int i = 0; i < 10; i++) approved("m" + i, "202300000" + i);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?page=1&size=8")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(8))
+                .body("page", equalTo(1))
+                .body("size", equalTo(8))
+                .body("total", equalTo((int) members.count()));
+    }
+
+    @Test
+    void listFiltersMembersByTabAndQuery() {
+        Member exec = approved("김임원", "2023000001");
+        exec.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 42);
+        members.saveAndFlush(exec);
+        Member contrib = approved("박기여", "2023000002");
+        contrib.setContributor(true);
+        members.saveAndFlush(contrib);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=exec")
+                .then().statusCode(200)
+                .body("items.name", hasItem("김임원"))
+                .body("items.name", not(hasItem("박기여")));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?q=박기여")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("items[0].name", equalTo("박기여"));
+    }
+
+    @Test
+    void listFiltersMembersByGradTab() {
+        Member ob = approved("정졸업", "2023000003");
+        ob.setGrade(MemberGrade.OB);
+        members.saveAndFlush(ob);
+        approved("김재학", "2023000004");   // ASSOCIATE
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=grad")
+                .then().statusCode(200)
+                .body("items.name", hasItem("정졸업"))
+                .body("items.name", not(hasItem("김재학")));
+    }
+
+    @Test
+    void memberRowCarriesContributorAndLastTerm() {
+        // 임기가 끝난 회원 — 마지막으로 끝난 임기가 실린다.
+        Member past = approved("전학술", "2023000041");
+        past.assignTerm(MemberDepartment.ACADEMIC, MemberTitle.LEAD, 40);
+        past.endCurrentTerm(41);
+        members.saveAndFlush(past);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=contrib")
+                .then().statusCode(200)
+                .body("items.find { it.name == '전학술' }.contributor", equalTo(true))
+                .body("items.find { it.name == '전학술' }.termDepartment", equalTo("ACADEMIC"))
+                .body("items.find { it.name == '전학술' }.termTitle", equalTo("LEAD"))
+                .body("items.find { it.name == '전학술' }.termEndGen", equalTo(41));
+    }
+
+    @Test
+    void memberRowCarriesCurrentTermWithoutEndGen() {
+        Member current = approved("현직", "2023000042");
+        current.assignTerm(MemberDepartment.INFRA, MemberTitle.SERVER_ADMIN, 42);
+        members.saveAndFlush(current);
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=exec")
+                .then().statusCode(200)
+                .body("items.find { it.name == '현직' }.termTitle", equalTo("SERVER_ADMIN"))
+                .body("items.find { it.name == '현직' }.termDepartment", equalTo("INFRA"))
+                .body("items.find { it.name == '현직' }.termEndGen", nullValue());
+    }
+
+    @Test
+    void memberRowWithoutAnyTermHasNullTermFields() {
+        approved("임기없음", "2023000043");
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .when().get("/api/admin/members?tab=member")
+                .then().statusCode(200)
+                .body("items.find { it.name == '임기없음' }.contributor", equalTo(false))
+                .body("items.find { it.name == '임기없음' }.termTitle", nullValue())
+                .body("items.find { it.name == '임기없음' }.termDepartment", nullValue())
+                .body("items.find { it.name == '임기없음' }.termEndGen", nullValue());
+    }
+
+    // ── A2 batch ──
+
+    @Test
+    void batchUpdateAppliesFieldAndReportsUpdated() {
+        Member m = approved("수정대상", "2023000001");
+        Map<String, Object> update = new HashMap<>();
+        update.put("id", m.getId());
+        update.put("version", null);
+        update.put("fields", Map.of("grade", "REGULAR", "name", "새이름"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(update)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1))
+                .body("updated[0].id", equalTo(m.getId()))
+                .body("errors.size()", equalTo(0));
+
+        Member reloaded = members.findById(m.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(reloaded.getGrade()).isEqualTo(MemberGrade.REGULAR);
+        org.assertj.core.api.Assertions.assertThat(reloaded.getName()).isEqualTo("새이름");
+    }
+
+    @Test
+    void batchUpdateWithStaleVersionReportsConflict() {
+        Member m = approved("충돌", "2023000001");
+        Map<String, Object> update = new HashMap<>();
+        update.put("id", m.getId());
+        update.put("version", 999);   // stale
+        update.put("fields", Map.of("grade", "REGULAR"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(update)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("conflicts.size()", equalTo(1))
+                .body("conflicts[0].id", equalTo(m.getId()))
+                .body("updated.size()", equalTo(0));
+    }
+
+    @Test
+    void batchUpdateWithBadEnumReportsFieldError() {
+        Member m = approved("검증", "2023000001");
+        Map<String, Object> update = new HashMap<>();
+        update.put("id", m.getId());
+        update.put("fields", Map.of("grade", "BOGUS"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(update)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("errors.size()", equalTo(1))
+                .body("errors[0].id", equalTo(m.getId()))
+                .body("errors[0].fieldErrors.grade", notNullValue())
+                .body("updated.size()", equalTo(0));
+
+        // rejected update must not have partially applied
+        org.assertj.core.api.Assertions.assertThat(
+                members.findById(m.getId()).orElseThrow().getGrade())
+                .isEqualTo(MemberGrade.ASSOCIATE);
+    }
+
+    @Test
+    void batchAppliesGoodRowsWhileReportingConflictRow() {
+        Member ok = approved("정상", "2023000001");
+        Member stale = approved("충돌", "2023000002");
+
+        Map<String, Object> good = new HashMap<>();
+        good.put("id", ok.getId());
+        good.put("version", null);
+        good.put("fields", Map.of("grade", "REGULAR"));
+        Map<String, Object> bad = new HashMap<>();
+        bad.put("id", stale.getId());
+        bad.put("version", 999);
+        bad.put("fields", Map.of("grade", "OB"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(good, bad)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1))
+                .body("updated[0].id", equalTo(ok.getId()))
+                .body("conflicts.size()", equalTo(1))
+                .body("conflicts[0].id", equalTo(stale.getId()));
+
+        // the good row's change is committed independently of the conflict row
+        org.assertj.core.api.Assertions.assertThat(
+                members.findById(ok.getId()).orElseThrow().getGrade()).isEqualTo(MemberGrade.REGULAR);
+        org.assertj.core.api.Assertions.assertThat(
+                members.findById(stale.getId()).orElseThrow().getGrade()).isEqualTo(MemberGrade.ASSOCIATE);
+    }
+
+    @Test
+    void batchDeleteRemovesMember() {
+        Member m = approved("삭제", "2023000001");
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("deletes", List.of(m.getId())))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("deleted", hasItem(m.getId()));
+
+        org.assertj.core.api.Assertions.assertThat(members.findById(m.getId())).isEmpty();
+    }
+
+    @Test
+    void batchDeleteBlockedForStudyLeader() {
+        Member leader = approved("리더", "2023000001");
+        studies.save(Study.create("스터디", List.of("x"), 5, null, null, null, null, null, leader.getId()));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("deletes", List.of(leader.getId())))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("deleted.size()", equalTo(0))
+                .body("errors.size()", equalTo(1))
+                .body("errors[0].id", equalTo(leader.getId()));
+
+        org.assertj.core.api.Assertions.assertThat(members.findById(leader.getId())).isPresent();
+    }
+
+    @Test
+    void batchCreateSeminarMapsTempIdToNewId() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("creates", List.of(
+                        Map.of("tempId", "t1", "fields", Map.of("title", "새 세미나", "capacity", 30)))))
+                .when().patch("/api/admin/seminars:batch")
+                .then().statusCode(200)
+                .body("created.size()", equalTo(1))
+                .body("created[0].tempId", equalTo("t1"))
+                .body("created[0].id", notNullValue());
+    }
+
+    @Test
+    void batchCreateMemberIsUnsupported() {
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("creates", List.of(
+                        Map.of("tempId", "t1", "fields", Map.of("name", "안됨")))))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("created.size()", equalTo(0))
+                .body("errors.size()", equalTo(1))
+                .body("errors[0].id", equalTo("t1"));
+    }
+
+    @Test
+    void batchUpdateTogglesContributorFlag() {
+        Member m = approved("기여토글", "2023000031");
+        assertThat(m.isContributor()).isFalse();
+
+        Map<String, Object> on = new HashMap<>();
+        on.put("id", m.getId());
+        on.put("version", null);
+        on.put("fields", Map.of("contributor", true));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(on)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1))
+                .body("errors.size()", equalTo(0));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isTrue();
+
+        Map<String, Object> off = new HashMap<>();
+        off.put("id", m.getId());
+        off.put("version", null);
+        off.put("fields", Map.of("contributor", false));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(off)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("updated.size()", equalTo(1));
+
+        assertThat(members.findById(m.getId()).orElseThrow().isContributor()).isFalse();
+    }
+
+    @Test
+    void batchUpdateRejectsNonBooleanContributor() {
+        Member m = approved("잘못된값", "2023000032");
+        Map<String, Object> update = new HashMap<>();
+        update.put("id", m.getId());
+        update.put("version", null);
+        update.put("fields", Map.of("contributor", "예"));
+
+        given().header("Authorization", "Bearer " + officerToken)
+                .contentType("application/json")
+                .body(Map.of("updates", List.of(update)))
+                .when().patch("/api/admin/members:batch")
+                .then().statusCode(200)
+                .body("errors.size()", equalTo(1))
+                .body("errors[0].fieldErrors.contributor", notNullValue())
+                .body("updated.size()", equalTo(0));
+    }
+}
