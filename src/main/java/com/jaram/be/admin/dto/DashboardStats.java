@@ -2,8 +2,9 @@ package com.jaram.be.admin.dto;
 
 import java.util.List;
 
-// 계약 DashboardStats. 표시용 집계 — 일부 지표(출석률·deltas·trend)는 FE 대시보드
-// 스펙 미확정으로 best-effort 프록시. 필수: totalMembers/alumniCount/두 출석률.
+// 계약 DashboardStats. 표시용 집계.
+// 출석률은 attendanceTrend 가 덮는 창(최근 6개월) 전체를 묶은 값이고, deltas 의
+// 두 비율은 이번 달과 지난 달의 차(%p), deltas.members 는 이번 학기 가입자 수다.
 public record DashboardStats(
         int totalMembers,
         int alumniCount,

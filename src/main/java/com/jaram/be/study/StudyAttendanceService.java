@@ -137,8 +137,11 @@ public class StudyAttendanceService {
         weeks.save(week);
     }
 
-    /** 출석 대상 — 승인된 신청자 + 스터디장. 스터디장을 빼면 "늘 출석"이라는 암묵 규칙이 생긴다. */
-    List<String> memberIdsOf(Study study) {
+    /**
+     * 출석 대상 — 승인된 신청자 + 스터디장. 스터디장을 빼면 "늘 출석"이라는 암묵 규칙이 생긴다.
+     * 대시보드 출석률의 분모도 이걸 쓴다 — 규칙이 두 곳에 있으면 화면마다 값이 달라진다.
+     */
+    public List<String> memberIdsOf(Study study) {
         List<String> ids = new ArrayList<>();
         ids.add(study.getLeaderId());
         applications.findByStudyIdAndStatus(study.getId(), ApplicationStatus.APPROVED)

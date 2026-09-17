@@ -18,6 +18,11 @@ public record Semester(int year, int term) implements Comparable<Semester> {
         return new Semester(on.getYear() - 1, 2);
     }
 
+    /** 이 학기가 시작한 날. 경계를 autoAt 과 같은 곳에 둬야 둘이 어긋나지 않는다. */
+    public LocalDate start() {
+        return LocalDate.of(year, term == 1 ? 3 : 9, 1);
+    }
+
     @Override
     public int compareTo(Semester o) {
         return year != o.year ? Integer.compare(year, o.year) : Integer.compare(term, o.term);
