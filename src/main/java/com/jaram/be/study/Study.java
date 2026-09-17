@@ -83,6 +83,28 @@ public class Study {
 
     public void finish() { this.status = StudyStatus.FINISHED; }
 
+    /**
+     * 개설 때 적은 여덟 칸을 다시 적는다. 상태·스터디장·커리큘럼은 건드리지 않는다 —
+     * 각각 전이 메서드와 StudyWeek 가 맡는다.
+     *
+     * 낱개 setter 를 여섯 개 더 만들지 않은 것은 부르는 쪽이 하나여서다. 흩어 두면
+     * '모집 중일 때만'이라는 조건이 붙지 않은 채 한 칸만 고치는 길이 생긴다.
+     * fields 는 새 리스트로 갈아 끼운다 — 호출자가 들고 있는 리스트를 그대로 물면
+     * 영속 컬렉션이 트랜잭션 밖에서 바뀔 수 있다.
+     */
+    public void editInfo(String title, List<String> fields, Integer capacity,
+                         String schedule, String place, String mode, String intro,
+                         String contact) {
+        this.title = title;
+        this.fields = new ArrayList<>(fields);
+        this.capacity = capacity;
+        this.schedule = schedule;
+        this.place = place;
+        this.mode = mode;
+        this.intro = intro;
+        this.contact = contact;
+    }
+
     public String getId() { return id; }
     public String getTitle() { return title; }
     public void setTitle(String v) { this.title = v; }

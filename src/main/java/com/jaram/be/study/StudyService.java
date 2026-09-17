@@ -276,6 +276,25 @@ public class StudyService {
     }
 
     /**
+     * 정보 수정 — RECRUITING 에서만.
+     *
+     * 진행 중부터 막는 이유는 전이를 막는 이유와 같지 않다. 여기서 지키는 것은 상태가
+     * 아니라 약속이다 — 신청자는 이 여덟 칸을 보고 지원했고, 승인된 뒤에 일시나 장소가
+     * 말없이 바뀌면 그 지원의 근거가 사라진다. 모집 중에는 아직 아무도 확정되지 않았다.
+     *
+     * 희망 인원은 지금 인원보다 작게도 둘 수 있다. cap 은 상한이 아니라 목표라서,
+     * 줄였다고 이미 승인된 사람을 물릴 이유가 없다.
+     */
+    @Transactional
+    public StudyDetail update(String studyId, StudyUpdateRequest req, String userId) {
+        Study s = loadStudy(studyId);
+        requireState(s, StudyStatus.RECRUITING);
+        s.editInfo(req.title(), req.fields(), req.capacity(),
+                req.schedule(), req.place(), req.mode(), req.intro(), req.contact());
+        return detail(studyId, userId);
+    }
+
+    /**
      * 전이는 한 칸씩만 간다. 건너뛰거나 되돌리는 것은 임원의 일괄 편집으로만 한다 —
      * 되돌릴 손이 하나 있으면 되고, 두 군데에 두면 규칙이 두 벌이 된다.
      */
