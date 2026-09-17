@@ -135,6 +135,33 @@ class StudyUpdateTest extends PostgresTest {
         put(actors.token(Role.ACADEMIC_LEAD), body()).then().statusCode(200);
     }
 
+    /**
+     * 임원은 상태 제약을 넘는다 — 스터디장이 스스로 고칠 수 없게 된 것을 고쳐 줄 손이
+     * 하나는 있어야 한다. 출석 편집 창을 임원이 넘는 것과 같은 자리다.
+     */
+    @Test
+    void officerMayEditAnOngoingStudy() {
+        study.closeRecruiting();
+        studies.save(study);
+
+        put(actors.token(Role.ACADEMIC_LEAD), body()).then().statusCode(200)
+                .body("title", equalTo("알고리즘 심화"))
+                .body("status", equalTo("ONGOING"));
+    }
+
+    /** 끝난 스터디는 임원도 막는다. 그 기록을 근거로 한 것이 전부 흔들린다. */
+    @Test
+    void finishedStudyIsRefusedEvenForOfficer() {
+        study.closeRecruiting();
+        study.finish();
+        studies.save(study);
+
+        put(actors.token(Role.ACADEMIC_LEAD), body()).then()
+                .statusCode(409).body("code", equalTo("STUDY_FINISHED"));
+
+        assertThat(studies.findById(study.getId()).orElseThrow().getTitle()).isEqualTo("알고리즘");
+    }
+
     @Test
     void blankTitleIsRejected() {
         java.util.Map<String, Object> bad = new java.util.HashMap<>(body());

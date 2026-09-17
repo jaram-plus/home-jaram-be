@@ -10,4 +10,7 @@ public interface StudyAttendanceRepository extends JpaRepository<StudyAttendance
     List<StudyAttendance> findByWeekIdIn(Collection<String> weekIds);
     boolean existsByWeekId(String weekId);
     void deleteByWeekId(String weekId);
+
+    /** 스터디원을 내보낼 때 그 사람의 출석을 그 스터디의 모든 주차에서 지운다. */
+    void deleteByWeekIdInAndMemberId(Collection<String> weekIds, String memberId);
 }

@@ -35,16 +35,19 @@ public class StudyService {
     private final StudyRepository studies;
     private final StudyApplicationRepository applications;
     private final StudyWeekRepository weeks;
+    private final StudyAttendanceRepository attendance;
     private final StudyRecruitmentRepository recruitment;
     private final MemberRepository members;
     private final Eligibility eligibility;
 
     public StudyService(StudyRepository studies, StudyApplicationRepository applications,
-                        StudyWeekRepository weeks, StudyRecruitmentRepository recruitment,
+                        StudyWeekRepository weeks, StudyAttendanceRepository attendance,
+                        StudyRecruitmentRepository recruitment,
                         MemberRepository members, Eligibility eligibility) {
         this.studies = studies;
         this.applications = applications;
         this.weeks = weeks;
+        this.attendance = attendance;
         this.recruitment = recruitment;
         this.members = members;
         this.eligibility = eligibility;
@@ -276,19 +279,27 @@ public class StudyService {
     }
 
     /**
-     * 정보 수정 — RECRUITING 에서만.
+     * 정보 수정 — 스터디장은 RECRUITING 에서만, 임원은 종료 전까지.
      *
-     * 진행 중부터 막는 이유는 전이를 막는 이유와 같지 않다. 여기서 지키는 것은 상태가
-     * 아니라 약속이다 — 신청자는 이 여덟 칸을 보고 지원했고, 승인된 뒤에 일시나 장소가
-     * 말없이 바뀌면 그 지원의 근거가 사라진다. 모집 중에는 아직 아무도 확정되지 않았다.
+     * 진행 중부터 스터디장을 막는 이유는 전이를 막는 이유와 같지 않다. 여기서 지키는
+     * 것은 상태가 아니라 약속이다 — 신청자는 이 여덟 칸을 보고 지원했고, 승인된 뒤에
+     * 일시나 장소가 말없이 바뀌면 그 지원의 근거가 사라진다. 모집 중에는 아직 아무도
+     * 확정되지 않았다.
+     *
+     * 임원(STUDY_EDIT)이 그 선을 넘는 것은 출석 편집 창을 넘는 것과 같은 자리다 —
+     * 스터디장이 스스로 고칠 수 없게 된 것을 고쳐 줄 손이 하나는 있어야 한다.
+     * 다만 종료된 스터디는 임원도 막는다. 끝난 기록이 나중에 바뀌면 그 기록을 근거로
+     * 한 것이 전부 흔들린다(출석과 같은 규칙이다).
      *
      * 희망 인원은 지금 인원보다 작게도 둘 수 있다. cap 은 상한이 아니라 목표라서,
      * 줄였다고 이미 승인된 사람을 물릴 이유가 없다.
      */
     @Transactional
-    public StudyDetail update(String studyId, StudyUpdateRequest req, String userId) {
+    public StudyDetail update(String studyId, StudyUpdateRequest req, String userId,
+                              boolean officer) {
         Study s = loadStudy(studyId);
-        requireState(s, StudyStatus.RECRUITING);
+        if (officer) StudyAttendanceService.requireNotFinished(s);
+        else requireState(s, StudyStatus.RECRUITING);
         s.editInfo(req.title(), req.fields(), req.capacity(),
                 req.schedule(), req.place(), req.mode(), req.intro(), req.contact());
         return detail(studyId, userId);
@@ -354,8 +365,8 @@ public class StudyService {
                 .sorted(Comparator.comparing(StudyApplication::getCreatedAt))
                 .map(a -> {
                     Member m = byId.get(a.getApplicantId());
-                    return new StudyApplicantEntry(a.getId(), m.getName(), m.getGen(),
-                            withMotive ? a.getMotive() : null);
+                    return new StudyApplicantEntry(a.getId(), maskStudentId(m.getStudentId()),
+                            m.getName(), m.getGen(), withMotive ? a.getMotive() : null);
                 })
                 .toList();
     }
@@ -373,6 +384,40 @@ public class StudyService {
             // 승인된 신청을 본인이 지울 수 있으면 그것은 탈퇴이고, 탈퇴는 이 단계에 없다.
             throw new ApiException(HttpStatus.CONFLICT, "NOT_REJECTED",
                     "반려된 신청만 삭제할 수 있습니다.");
+        }
+        applications.delete(a);
+    }
+
+    /**
+     * 참여 확정된 스터디원을 내보낸다. 명단은 승인된 신청에서 파생되므로, 내보내기는
+     * 그 행을 지우는 것이다.
+     *
+     * 본인이 자기 반려 신청을 지우는 deleteApplication 과 뜻이 다르다. 저쪽은 다시
+     * 신청할 길을 여는 것이고, 여기는 남을 명단에서 빼는 것이다. 지운 뒤 그 사람이
+     * 다시 신청할 수 있게 되는 것은 결과이지 목적이 아니다.
+     *
+     * 출석도 함께 지운다. 명단에 없는 사람의 출석이 남으면 분모와 분자가 어긋난다 —
+     * 화면에는 안 보이니 어긋난 채로 오래 간다.
+     *
+     * studyId 를 받아 대조하는 것은 권한 게이트가 그 스터디에 대해 판정하기 때문이다.
+     * 신청 id 만 받으면 남의 스터디 신청 id 를 끼워 넣어 지울 수 있다.
+     */
+    @Transactional
+    public void removeMember(String studyId, String applicationId) {
+        Study s = loadStudy(studyId);
+        StudyAttendanceService.requireNotFinished(s);
+        StudyApplication a = loadApplication(applicationId);
+        if (!a.getStudyId().equals(studyId)) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "신청을 찾을 수 없습니다.");
+        }
+        if (a.getStatus() != ApplicationStatus.APPROVED) {
+            throw new ApiException(HttpStatus.CONFLICT, "NOT_APPROVED",
+                    "참여가 확정된 사람만 내보낼 수 있습니다.");
+        }
+        List<String> weekIds = weeks.findByStudyIdOrderByWeekNoAsc(studyId).stream()
+                .map(StudyWeek::getId).toList();
+        if (!weekIds.isEmpty()) {
+            attendance.deleteByWeekIdInAndMemberId(weekIds, a.getApplicantId());
         }
         applications.delete(a);
     }
