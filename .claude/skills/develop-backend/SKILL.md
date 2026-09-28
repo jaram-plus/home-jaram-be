@@ -1,6 +1,6 @@
 ---
 name: develop-backend
-description: Use when implementing or extending any backend feature/endpoint in jaram-be (the Spring Boot app) — adding an API operation, wiring a UC-xx usecase, a controller/service/repository/entity, error handling, or contract tests. Covers the contract-first workflow (which superpowers skills to use when), the OpenAPI sync step, and this repo's layered conventions. Reach for this whenever the task is "build/add/implement <something> in the backend", even if the OpenAPI contract isn't mentioned explicitly.
+description: Use when implementing or extending any backend feature/endpoint in jaram-be (the Spring Boot app) — adding an API operation, wiring a UC-xx usecase, a controller/service/repository/entity, error handling, or contract tests. Covers the contract-first workflow, the OpenAPI sync step, and this repo's layered conventions. Reach for this whenever the task is "build/add/implement <something> in the backend", even if the OpenAPI contract isn't mentioned explicitly.
 ---
 
 # Develop a feature in jaram-be
@@ -11,14 +11,10 @@ single source of truth. That file is a **symlink into the FE repo** (`home-jaram
 frontend authors the contract, the backend conforms to it. You don't invent endpoints or
 payload shapes; you read them from the contract and make the code match exactly.
 
-This skill has two jobs:
-1. **Orchestrate** — point you to the right superpowers skill at each stage (spec → plan → implement → verify).
-2. **Encode this repo's conventions** so the code you write looks like the code that's already here.
+## Workflow
 
-## Workflow: where each superpowers skill fits
-
-Don't do this freehand. The repo already keeps specs in `docs/superpowers/specs/` and phased
-plans in `docs/superpowers/plans/` — follow that grain.
+Specs live in `docs/superpowers/specs/` and phased plans in `docs/superpowers/plans/` (historical
+directory name — keep using it).
 
 1. **Sync the contract first.** Run `./scripts/sync-openapi.sh`. FE may have changed
    `docs/api/openapi.yaml`; the contract tests load a *copy* at
@@ -29,16 +25,12 @@ plans in `docs/superpowers/plans/` — follow that grain.
    `docs/superpowers/specs/2026-06-29-jaram-backend-design.md`. The spec also fixes the
    domain model, enum wire values, error-code map, and validation rules — treat it as binding.
 
-3. **For anything non-trivial, plan before coding.** If there's no plan covering this work,
-   invoke **superpowers:writing-plans** to produce one under `docs/superpowers/plans/`. The
-   existing P1 plan (`2026-06-29-be-p1-foundation-auth.md`) is the template: per-task Files /
-   Interfaces / TDD steps. If you're still deciding *what* to build (not just how), start with
-   **superpowers:brainstorming**.
+3. **For anything non-trivial, plan before coding.** If no plan covers this work, write one under
+   `docs/superpowers/plans/`. The existing P1 plan (`2026-06-29-be-p1-foundation-auth.md`) is the
+   template: per-task Files / Interfaces / TDD steps.
 
-4. **Implement task-by-task with TDD.** Use **superpowers:executing-plans** (or
-   **superpowers:subagent-driven-development**) to work through the plan. Every task is
-   test-first — invoke **superpowers:test-driven-development**. Write the failing test, see it
-   fail, implement, see it pass, commit. See [Conventions](#conventions) and [Testing](#testing).
+4. **Implement task-by-task, test-first.** Write the failing test, see it fail, implement, see it
+   pass, commit. See [Conventions](#conventions) and [Testing](#testing).
 
 5. **Verify against the contract.** Each endpoint needs a contract test (see [Testing](#testing)).
    A feature is done only when its OpenAPI path is implemented AND its contract test passes.
