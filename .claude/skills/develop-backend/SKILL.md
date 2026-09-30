@@ -1,167 +1,43 @@
 ---
 name: develop-backend
-description: Use when implementing or extending any backend feature/endpoint in jaram-be (the Spring Boot app) — adding an API operation, wiring a UC-xx usecase, a controller/service/repository/entity, error handling, or contract tests. Covers the contract-first workflow (which superpowers skills to use when), the OpenAPI sync step, and this repo's layered conventions. Reach for this whenever the task is "build/add/implement <something> in the backend", even if the OpenAPI contract isn't mentioned explicitly.
+description: jaram-be(Spring Boot)에 API 엔드포인트나 기능을 구현·수정하는 절차. 계약 동기화 → 테스트 먼저 → 계층 구현 → 권한 → 스키마 → 검증을 매번 같은 순서로 진행한다.
+when_to_use: 백엔드에 기능·엔드포인트를 추가/구현/수정할 때, 컨트롤러·서비스·엔티티·권한을 건드릴 때, 기존 엔드포인트에 계약·권한 테스트만 추가할 때, FE가 openapi.yaml을 바꿔 BE를 맞춰야 할 때. 이런 요청이면 코드를 탐색하기 전에 먼저 부른다. 로컬 실행·스모크 테스트는 run-backend, 여러 저장소에 걸친 기획은 write-spec을 쓴다.
 ---
 
-# Develop a feature in jaram-be
+# 백엔드 기능 구현 절차
 
-jaram-be is a Spring Boot 3.4 / Java 21 / Gradle backend, package root `com.jaram.be`.
-Its defining rule is **the contract is law**: `docs/api/openapi.yaml` (OpenAPI 3.1) is the
-single source of truth. That file is a **symlink into the FE repo** (`home-jaram-fe`) — the
-frontend authors the contract, the backend conforms to it. You don't invent endpoints or
-payload shapes; you read them from the contract and make the code match exactly.
+규칙(계약 symlink, enum 대소문자, 권한 누락 시 동작, 마이그레이션)은 CLAUDE.md에 있다. 이 skill은 그 규칙을 지키는 순서다.
 
-This skill has two jobs:
-1. **Orchestrate** — point you to the right superpowers skill at each stage (spec → plan → implement → verify).
-2. **Encode this repo's conventions** so the code you write looks like the code that's already here.
+## 1. 시작할 때
+- `./scripts/sync-openapi.sh` → `git diff src/test/resources/openapi/openapi.yaml`로 바뀐 계약을 본다.
+- 바로 `./gradlew test --tests '*ContractTest'`. 모두 `ApiLoadException`으로 실패하면 FE YAML 파싱 오류다. FE에 알리고, 급하면 사본만 최소 수정한다(파싱 안 되는 사본은 커밋하지 않는다).
+- 만들 것: operation은 `docs/api/openapi.yaml`, 결정은 계획 저장소 `home-jaram/specs/<날짜>-<기능>/design.md`, 할 일은 `tasks.md`.
+- 계약·도메인·권한이 바뀌는데 spec이 없으면 멈추고 루트 세션에서 `write-spec`으로 먼저 쓴다.
+- `docs/superpowers/`는 배경 참고용이다. 코드와 다르면 코드가 맞다.
 
-## Workflow: where each superpowers skill fits
+## 2. 테스트 먼저 (task마다)
+- 인수 조건마다 성공 + 에러 분기를 먼저 쓰고 실패를 확인한다.
+- 권한이 걸린 엔드포인트는 허용 역할 하나, 403 역할 하나 이상을 테스트한다.
+- 행위자는 `support.Actors`로 만든다(`token(Role.X)`, `officer()`, `member()`). DB에 없는 id로 찍은 토큰에는 권한이 없다.
+- 새 operation마다 `com.jaram.be.contract`에 계약 테스트를 하나 둔다(`OpenApiValidationFilter("openapi/openapi.yaml")`).
+- 본뜰 예: 저장소 `MemberRepositoryTest`, 엔드포인트 `SignupTest`, 계약 `StudyContractTest`, 순수 단위 `JwtProviderTest`.
 
-Don't do this freehand. The repo already keeps specs in `docs/superpowers/specs/` and phased
-plans in `docs/superpowers/plans/` — follow that grain.
+## 3. 구현
+- Controller: operation과 1:1. 경로·메서드·DTO(`record` + `@Valid`)를 스키마와 똑같이 맞춘다. 201/204는 `void` + `@ResponseStatus`(`AuthController.signup`). 로그인 사용자는 `@AuthenticationPrincipal CurrentMember me`.
+- Service: `@Transactional`. 오류는 모두 `ApiException(status, code, message[, fieldErrors])`로 던진다.
+- 에러 코드는 계약의 에러 응답을 따른다. 기존 코드를 먼저 찾아 쓰고(`grep -rn 'new ApiException' src/main`), 새 코드는 FE 계약에 먼저 넣는다.
+- 신청류 동작은 대상 조회 **전에** `eligibility.requireActive(memberId)`를 부른다. 순서가 바뀌면 재등록 대상에게 403 대신 404가 나간다.
+- Entity: 정적 팩토리(`Member.newPending`), `protected` 기본 생성자, `String id` = UUID, Lombok 없음. 검증 정규식은 `SignupRequest`에서 복사한다.
 
-1. **Sync the contract first.** Run `./scripts/sync-openapi.sh`. FE may have changed
-   `docs/api/openapi.yaml`; the contract tests load a *copy* at
-   `src/main/resources/openapi/openapi.yaml`, and that copy must match. See [Contract sync](#contract-sync).
+## 4. 권한 (핸들러마다)
+- 역할로 판단: `@PreAuthorize("hasAuthority('<Permission>')")`. 새 권한이면 `Permission` 추가 → `Policy` 표에 부여 → 같은 문자열로 애너테이션.
+- 본인 리소스로 판단: 기능 패키지의 `*Access` 빈을 쓴다. 예: `@PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")`.
+- 공개·로그인만 필요: `AuthorizationCoverageTest`의 `PUBLIC` / `AUTHENTICATED_ONLY`에 적는다. 공개면 `SecurityConfig`에 `permitAll()` 매처도 추가한다. 역할 매처는 `SecurityConfig`에 두지 않는다.
 
-2. **Read the contract and the design spec.** Find the path(s) you're implementing in
-   `docs/api/openapi.yaml` and the matching usecase (UC-xx) + acceptance criteria in
-   `docs/superpowers/specs/2026-06-29-jaram-backend-design.md`. The spec also fixes the
-   domain model, enum wire values, error-code map, and validation rules — treat it as binding.
+## 5. 스키마
+- 데이터 이관, 제약 변경, 기존 컬럼 NOT NULL이 필요하면 `docs/migrations/`에 SQL을 두고 `design.md`에 배포 전/후 실행 시점을 적는다.
+- 구현 중 설계가 바뀌면 코드보다 `design.md`를 먼저 고친다.
 
-3. **For anything non-trivial, plan before coding.** If there's no plan covering this work,
-   invoke **superpowers:writing-plans** to produce one under `docs/superpowers/plans/`. The
-   existing P1 plan (`2026-06-29-be-p1-foundation-auth.md`) is the template: per-task Files /
-   Interfaces / TDD steps. If you're still deciding *what* to build (not just how), start with
-   **superpowers:brainstorming**.
-
-4. **Implement task-by-task with TDD.** Use **superpowers:executing-plans** (or
-   **superpowers:subagent-driven-development**) to work through the plan. Every task is
-   test-first — invoke **superpowers:test-driven-development**. Write the failing test, see it
-   fail, implement, see it pass, commit. See [Conventions](#conventions) and [Testing](#testing).
-
-5. **Verify against the contract.** Each endpoint needs a contract test (see [Testing](#testing)).
-   A feature is done only when its OpenAPI path is implemented AND its contract test passes.
-
-## Conventions
-
-Standard Spring Boot layered structure, **package-by-feature**. Each existing feature package
-(`auth`, `admin`, `member`, `security`, `common`) holds its own Controller / Service /
-Repository / entity / `dto/`. New features get their own package (`seminar`, `study`, `people`)
-following the same shape. Keep each layer's responsibility answerable in one line:
-
-```
-Controller  ── 1:1 with an OpenAPI operation. Request/response DTO == OpenAPI schema. @Valid, status codes.
-Service     ── @Transactional. Domain rules: state transitions, authorization, derived fields. Throws ApiException.
-Repository  ── Spring Data JPA interface. Derived query methods.
-Entity      ── Persistence model. Static factory, no Lombok, plain getters.
-```
-
-### Controller
-- `@RestController` + `@RequestMapping("/api/...")`, constructor injection (no field `@Autowired`).
-- One handler per OpenAPI operation; the path/verb must match the contract exactly.
-- Request bodies are `record` DTOs in the feature's `dto/` package, annotated `@Valid`.
-- Return the response DTO directly (Jackson serializes). For 201/204-style operations return
-  `void` and set `@ResponseStatus(HttpStatus.CREATED)` — see `AuthController.signup`.
-- For authenticated endpoints, inject the principal: `@AuthenticationPrincipal CurrentMember me`
-  (`CurrentMember(id, name, email, authority)`, populated by `JwtAuthFilter`).
-
-### Service
-- `@Service`, `@Transactional` on mutating methods, constructor injection.
-- Encodes domain rules and **throws `ApiException(HttpStatus, code, message)`** for every
-  business error — never return error DTOs by hand. The global handler serializes it.
-- Use the field-level form `new ApiException(status, code, message, Map.of("field","msg"))`
-  when the error belongs to a specific input (e.g. duplicate studentId → 422 `VALIDATION`).
-
-### Entity & enums
-- `@Entity` with a static factory (e.g. `Member.newPending(...)`), `protected` no-arg
-  constructor, `String id` = `UUID.randomUUID().toString()`. Plain getters; setters only where
-  state legitimately changes. No Lombok.
-- **Enum wire values are fixed by FE — do not change casing.** Some are UPPER_CASE on the wire
-  (`Authority` = `MEMBER`/`OFFICER`), some lower (`MemberCategory` = `exec`/`contrib`/`grad`).
-  Where the wire value is lowercase, the Java enum constant is *named* lowercase so
-  `@Enumerated(EnumType.STRING)` round-trips without a converter. Check the spec's enum table
-  before adding one.
-
-### Error model (fixed — FE depends on these)
-All errors serialize through `GlobalExceptionHandler` (`@RestControllerAdvice`) into one
-envelope: `{ code, message, fieldErrors }`. `fieldErrors` is non-null only on 422. Status↔code
-map (authoritative copy in the spec §7):
-
-| Situation | HTTP | code |
-|---|---|---|
-| login unregistered | 404 | `NOT_FOUND` |
-| login pending/rejected | 403 | `PENDING` |
-| login bad credentials | 401 | `INVALID` |
-| signup duplicate email | 409 | `EMAIL_TAKEN` |
-| attendance code wrong/closed | 400 | `INVALID_CODE` |
-| token invalid/expired | 401 | `UNAUTHORIZED` |
-| forbidden (wrong role) | 403 | `FORBIDDEN` |
-| bean-validation failure | 422 | `VALIDATION` (+ `fieldErrors`) |
-| uncaught | 5xx | `SERVER` |
-
-### Security & authorization
-- Route authorization lives in `SecurityConfig.filterChain` (declarative `authorizeHttpRequests`),
-  **not** in controllers. When you add an endpoint, add its matcher there: `permitAll()` for
-  public reads, `hasAuthority("OFFICER")` for officer-only, else `authenticated()`.
-- Stateless JWT (HS256) via `JwtAuthFilter`. 401 → `RestAuthEntryPoint`, 403 →
-  `RestAccessDeniedHandler`, both writing the standard envelope.
-- The three-tier model is public / member (`authority=MEMBER`, `status=ACTIVE`) / officer
-  (`authority=OFFICER`) — see spec §5.
-
-### Validation (server is authoritative)
-Bean Validation on DTO records (`@NotBlank`, `@Pattern`, `@Email`). The fixed rules: email =
-format + `@hanyang.ac.kr`; studentId = `^\d{8,10}$`, unique; password = ≥8 chars with ≥1
-letter, ≥1 digit, ≥1 symbol; name/motive required; rejection `reason` required. Copy the exact
-regexes from `SignupRequest` rather than re-deriving them.
-
-## Testing
-
-Three patterns already in the repo — match the closest one:
-
-- **Repository test** — `@DataJpaTest` + `@AutoConfigureTestDatabase(replace = NONE)`, extends
-  `support.PostgresTest` (shared Testcontainers Postgres base). See `MemberRepositoryTest`.
-- **Endpoint / usecase test** — `@SpringBootTest(webEnvironment = RANDOM_PORT)` + RestAssured,
-  extends `PostgresTest`, `@LocalServerPort int port`. One test per acceptance criterion
-  (success + each error branch). See `SignupTest`, `LoginTest`, `SecurityAccessTest`.
-- **Contract test** — lives in `com.jaram.be.contract`. Same `@SpringBootTest` + RestAssured
-  setup, but attaches `new OpenApiValidationFilter("openapi/openapi.yaml")` via `.filter(...)`
-  so the real response is validated against the OpenAPI schema. Add one per new operation. See
-  `AuthContractTest`.
-
-Pure-unit tests (no Spring context) are fine where there's no I/O — see `JwtProviderTest`,
-`GlobalExceptionHandlerTest` (constructs the handler directly).
-
-Run focused: `./gradlew test --tests <ClassName>` ; contract suite: `./gradlew test --tests '*ContractTest'`.
-To run the app locally and smoke-test, use the **run-backend** skill.
-
-## Contract sync
-
-`docs/api/openapi.yaml` is a symlink into the FE repo (the source of truth). The contract tests
-load a copy at `src/main/resources/openapi/openapi.yaml` because a symlink outside the build
-tree isn't reliably on the test classpath. They drift when FE edits the contract.
-
-`./scripts/sync-openapi.sh` copies source → test copy (no-op if already in sync). Run it at the
-start of any backend work and again whenever you hear FE changed the contract. After syncing,
-review `git diff src/main/resources/openapi/openapi.yaml` so you know what changed, then make
-the code conform.
-
-**Always run the contract suite right after a sync** (`./gradlew test --tests '*ContractTest'`).
-The sync is a blind `cp`, so it faithfully propagates any mistake in FE's file — including YAML
-that the Atlassian parser rejects at load time (e.g. an unquoted flow-scalar description
-containing a comma fails with `ApiLoadException ... is unexpected`, and that one bad spec load
-cascades into *every* contract test failing). Two rules when this happens:
-
-- **Don't edit `docs/api/openapi.yaml`** — it's a symlink into the FE repo and FE owns it.
-  Contract bugs get fixed at the source by FE; report them upstream.
-- The test copy (`src/main/resources/openapi/openapi.yaml`) is BE-owned. If you need the build
-  green before FE fixes their file, you may apply the minimal fix to the *copy* only (and note
-  it diverges until FE catches up) — but never commit a copy that fails to parse.
-
-## Definition of done
-
-- OpenAPI path implemented; request/response DTOs match the schema exactly.
-- All acceptance criteria for the usecase covered by tests (success + error branches).
-- Contract test added and passing; full `./gradlew test` green.
-- Route authorization added to `SecurityConfig` if the endpoint isn't public.
-- Conventional Commit per task (DRY / YAGNI; commit when each task's tests pass).
+## 6. 끝낼 때
+- `./gradlew test` 전체 통과(계약 테스트, `AuthorizationCoverageTest` 포함).
+- task 하나당 커밋 하나. 로컬에서 띄워 확인할 때는 `run-backend`.
