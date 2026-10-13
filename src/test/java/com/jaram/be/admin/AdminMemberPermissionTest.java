@@ -40,7 +40,7 @@ class AdminMemberPermissionTest extends PostgresTest {
                 .then().statusCode(200);
     }
 
-    /** 학술부원은 회원 권한이 전혀 없다. */
+    /** 학술부원은 MEMBER_LIST 만 있고 MEMBER_READ 가 없어 대기 목록은 못 본다. */
     @Test
     void academicStaffCannotReadPendingMembers() {
         given().header("Authorization", "Bearer " + actors.token(Role.ACADEMIC_STAFF))

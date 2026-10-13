@@ -60,7 +60,7 @@ public final class Policy {
                 SEMINAR_ROSTER_READ, SEMINAR_ROSTER_EDIT,
                 STUDY_APPLICANT_MANAGE));
 
-        // 홍보부장만 회원 상세를 본다. 나머지는 부장과 부원이 같다.
+        // 홍보부장만 회원 상세를 본다. 그 밖에는 부장과 부원이 같다.
         MATRIX.put(Role.PR_LEAD, officer(
                 SETTINGS_READ, SITE_LINKS_EDIT, SEMINAR_CREATE, MEMBER_READ));
         MATRIX.put(Role.PR_STAFF, officer(

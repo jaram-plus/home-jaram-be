@@ -152,7 +152,7 @@ public class AdminResourceService {
      * 세미나 관리 화면의 행. 표는 이 중 다섯 칸(세미나명·발표자·일시·장소·상태)만 보여주고,
      * 나머지는 상세 모달이 쓴다. 상태·표시용 날짜는 저장값이 아니라 파생값이라 공개 응답과
      * 같은 계산(SeminarService.toResponse)을 그대로 빌려 쓴다 — 두 화면이 갈리지 않게.
-     * attendanceCode는 여기서만 나간다 — 임원 전용 경로(/api/admin/**)이기 때문이다.
+     * attendanceCode는 관리 경로(/api/admin/**)에서만 나가고, 공개 응답에는 없다.
      * includeAttendanceCode가 false면 키는 두고 값만 null이다(SEMINAR_READ 없는 요청자).
      */
     private Map<String, Object> seminarRow(Seminar s, boolean includeAttendanceCode) {

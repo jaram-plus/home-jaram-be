@@ -63,7 +63,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/schedules").permitAll()
                 // 나머지는 전부 인증을 요구하고, 무엇을 할 수 있는지는 핸들러의
                 // @PreAuthorize 가 정한다. 애너테이션을 빠뜨리면 "로그인한 아무나"가
-                // 되므로 AdminAuthorizationCoverageTest 가 누락을 잡는다.
+                // 되므로 AuthorizationCoverageTest 가 누락을 잡는다.
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(entryPoint)
