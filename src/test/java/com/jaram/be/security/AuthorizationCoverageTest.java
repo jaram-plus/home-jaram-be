@@ -1,5 +1,6 @@
 package com.jaram.be.security;
 
+import com.jaram.be.security.authz.Permission;
 import com.jaram.be.support.PostgresTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,9 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -98,5 +102,62 @@ class AuthorizationCoverageTest extends PostgresTest {
         AUTHENTICATED_ONLY.forEach(n -> { if (!live.contains(n)) stale.add(n); });
 
         assertThat(stale).as("없어진 핸들러가 목록에 남아 있다 — 지워라").isEmpty();
+    }
+
+    private static final Pattern HAS_AUTHORITY = Pattern.compile("hasAuthority\\('([^']*)'\\)");
+    private static final Pattern UNSUPPORTED =
+            Pattern.compile("hasAuthority\\(|hasAnyAuthority|hasRole|hasAnyRole");
+
+    /**
+     * R8.1 — 식 안의 hasAuthority('…') 인자는 모두 Permission 상수 이름이어야 한다.
+     * 이름 패턴을 [A-Z_]+ 로 좁히면 'STUDY_Edit' 같은 오타가 매칭되지 않고 통과하므로
+     * 따옴표 안을 통째로 뽑는다. 뽑은 뒤에도 남는 hasAuthority( (큰따옴표 등)와
+     * hasAnyAuthority·hasRole·hasAnyRole 은 검사할 수 없으니 실패로 본다.
+     */
+    @Test
+    void everyAuthorityNameInPreAuthorizeIsAPermission() {
+        Set<String> expressions = new TreeSet<>();
+        mapping.getHandlerMethods().forEach((info, method) -> {
+            if (!method.getBeanType().getPackageName().startsWith("com.jaram.be")) return;
+            PreAuthorize onMethod = method.getMethodAnnotation(PreAuthorize.class);
+            PreAuthorize onType = method.getBeanType().getAnnotation(PreAuthorize.class);
+            if (onMethod != null) expressions.add(onMethod.value());
+            if (onType != null) expressions.add(onType.value());
+        });
+
+        assertThat(authorityProblems(expressions))
+                .as("@PreAuthorize 식에서 Permission 에 없는 이름이거나 검사할 수 없는 형태")
+                .isEmpty();
+    }
+
+    @Test
+    void authorityCheckCatchesTypoAndUnsupportedForms() {
+        assertThat(authorityProblems(Set.of("hasAuthority('STUDY_READ')"))).isEmpty();
+        assertThat(authorityProblems(Set.of("isLeader or hasAuthority('STUDY_READ')"))).isEmpty();
+        assertThat(authorityProblems(Set.of("hasAuthority('STUDY_Read')"))).hasSize(1);
+        assertThat(authorityProblems(Set.of("hasAuthority(\"STUDY_READ\")"))).hasSize(1);
+        assertThat(authorityProblems(Set.of("hasAnyAuthority('STUDY_READ')"))).hasSize(1);
+        assertThat(authorityProblems(Set.of("hasRole('ADMIN')"))).hasSize(1);
+        assertThat(authorityProblems(Set.of("hasAnyRole('ADMIN')"))).hasSize(1);
+    }
+
+    private static List<String> authorityProblems(Set<String> expressions) {
+        Set<String> valid = new java.util.HashSet<>();
+        for (Permission p : Permission.values()) valid.add(p.name());
+
+        List<String> problems = new ArrayList<>();
+        for (String expr : expressions) {
+            Matcher m = HAS_AUTHORITY.matcher(expr);
+            while (m.find()) {
+                if (!valid.contains(m.group(1))) {
+                    problems.add("없는 권한 이름 '" + m.group(1) + "' in " + expr);
+                }
+            }
+            String rest = HAS_AUTHORITY.matcher(expr).replaceAll("");
+            if (UNSUPPORTED.matcher(rest).find()) {
+                problems.add("검사할 수 없는 형태 in " + expr);
+            }
+        }
+        return problems;
     }
 }
