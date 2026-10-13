@@ -9,11 +9,16 @@ package com.jaram.be.security.authz;
  * AdminAuthorizationCoverageTest 가 잡는다.
  */
 public enum Permission {
+    MEMBER_LIST,
+    /** 회원 상세 + 승인 대기 목록. 목록(MEMBER_LIST)과 달리 연락처 같은 개인정보가 나온다. */
     MEMBER_READ,
     MEMBER_APPROVE,
     MEMBER_EDIT,
     TERM_ASSIGN,
 
+    SEMINAR_LIST,
+    /** 엔드포인트 게이트가 아니다. 목록 행의 attendanceCode(BE)와 상세 모달 진입(FE)을 가른다. */
+    SEMINAR_READ,
     SEMINAR_CREATE,
     SEMINAR_APPROVE,
     SEMINAR_ATTENDANCE_MANAGE,
@@ -21,6 +26,8 @@ public enum Permission {
     SEMINAR_ROSTER_EDIT,
     SEMINAR_EDIT,
 
+    STUDY_LIST,
+    STUDY_READ,
     STUDY_APPROVE,
     STUDY_APPLICANT_MANAGE,
     STUDY_EDIT,
