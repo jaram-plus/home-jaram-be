@@ -49,14 +49,14 @@ public class AdminResourceService {
     // ── A1: 목록 ──
     @Transactional(readOnly = true)
     public AdminListResponse list(AdminResource resource, String tab, String q, String sort,
-                                  int page, int size) {
+                                  int page, int size, boolean includeAttendanceCode) {
         List<Map<String, Object>> rows = switch (resource) {
             case members -> members.findAll().stream()
                     .filter(m -> m.getPurgedAt() == null)   // 파기된 회원은 관리 표에도 내지 않는다
                     .filter(m -> matchesMemberTab(m, tab))
                     .map(this::memberRow).toList();
             case seminars -> seminars.findAllByOrderByStartsAtDesc().stream()
-                    .map(this::seminarRow).toList();
+                    .map(s -> seminarRow(s, includeAttendanceCode)).toList();   // 비움은 정렬·검색보다 앞 — 순서·일치로 코드가 새지 않게
             case studies -> studies.findAll().stream()
                     .map(this::studyRow).toList();
         };
@@ -112,7 +112,7 @@ public class AdminResourceService {
             case members -> members.findAll().stream()
                     .filter(m -> m.getPurgedAt() == null)
                     .map(this::memberRow).toList();
-            case seminars -> seminars.findAllByOrderByStartsAtDesc().stream().map(this::seminarRow).toList();
+            case seminars -> seminars.findAllByOrderByStartsAtDesc().stream().map(s -> seminarRow(s, true)).toList();   // 내보내기는 항상 코드를 싣는다
             case studies -> studies.findAll().stream().map(this::studyRow).toList();
         };
     }
@@ -153,8 +153,9 @@ public class AdminResourceService {
      * 나머지는 상세 모달이 쓴다. 상태·표시용 날짜는 저장값이 아니라 파생값이라 공개 응답과
      * 같은 계산(SeminarService.toResponse)을 그대로 빌려 쓴다 — 두 화면이 갈리지 않게.
      * attendanceCode는 여기서만 나간다 — 임원 전용 경로(/api/admin/**)이기 때문이다.
+     * includeAttendanceCode가 false면 키는 두고 값만 null이다(SEMINAR_READ 없는 요청자).
      */
-    private Map<String, Object> seminarRow(Seminar s) {
+    private Map<String, Object> seminarRow(Seminar s, boolean includeAttendanceCode) {
         // 일시가 비면 상태도 표시용 날짜도 파생할 수 없다(배치 생성은 startsAt 없이도 통과한다).
         SeminarResponse v = s.getStartsAt() == null ? null : seminarService.toResponse(s, null);
         Map<String, Object> r = new LinkedHashMap<>();
@@ -172,7 +173,7 @@ public class AdminResourceService {
         r.put("status", v == null ? null : v.status().name());
         r.put("description", s.getDescription());
         r.put("materialUrl", s.getMaterialUrl());
-        r.put("attendanceCode", s.getAttendanceCode());
+        r.put("attendanceCode", includeAttendanceCode ? s.getAttendanceCode() : null);
         r.put("attendanceClosesAt", v == null ? null : v.attendanceClosesAt());
         r.put("attendanceClosedAt", s.getAttendanceClosedAt() == null ? null : s.getAttendanceClosedAt().toString());
         r.put("capacity", s.getCapacity());
