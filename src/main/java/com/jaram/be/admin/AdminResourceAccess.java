@@ -18,9 +18,9 @@ public class AdminResourceAccess {
 
     public boolean canList(AdminResource resource, Authentication auth) {
         return Permissions.has(auth, switch (resource) {
-            case members -> Permission.MEMBER_READ;
-            case seminars -> Permission.SEMINAR_EDIT;
-            case studies -> Permission.STUDY_EDIT;
+            case members -> Permission.MEMBER_LIST;
+            case seminars -> Permission.SEMINAR_LIST;
+            case studies -> Permission.STUDY_LIST;
         });
     }
 
