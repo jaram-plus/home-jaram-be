@@ -3,6 +3,7 @@ package com.jaram.be.study;
 import com.jaram.be.member.Member;
 import com.jaram.be.member.MemberApproval;
 import com.jaram.be.member.MemberRepository;
+import com.jaram.be.security.authz.Role;
 import com.jaram.be.support.Actors;
 import com.jaram.be.support.PostgresTest;
 import io.restassured.RestAssured;
@@ -108,6 +109,49 @@ class StudyAttendanceReadTest extends PostgresTest {
         given().header("Authorization", "Bearer " + outsiderToken)
                 .when().get("/api/studies/" + study.getId() + "/attendance")
                 .then().statusCode(403);
+    }
+
+    // ── R5B: STUDY_READ 는 스터디장이 아니어도 격자를 읽게 한다 ──
+
+    /** R5.11·R5.13: 학술부원은 읽기만 된다. 저장은 STUDY_EDIT 가 없어 403. */
+    @Test
+    void academicStaffReadsTheGridButCannotSaveIt() {
+        String token = actors.token(Role.ACADEMIC_STAFF);
+        given().header("Authorization", "Bearer " + token)
+                .when().get("/api/studies/" + study.getId() + "/attendance")
+                .then().statusCode(200)
+                .body("weeks", hasSize(3))
+                .body("members", hasSize(2));
+        given().header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .body(Map.of("present", List.of(joined.getId())))
+                .when().put("/api/studies/" + study.getId() + "/weeks/2/attendance")
+                .then().statusCode(403);
+    }
+
+    /** R5.12: 홍보부원은 STUDY_READ 도 없고 스터디장도 아니다. */
+    @Test
+    void prStaffCannotReadTheGrid() {
+        given().header("Authorization", "Bearer " + actors.token(Role.PR_STAFF))
+                .when().get("/api/studies/" + study.getId() + "/attendance")
+                .then().statusCode(403);
+    }
+
+    /** R5.11: 회장과 학술부장도 읽는다. */
+    @Test
+    void presidentAndAcademicLeadReadTheGrid() {
+        for (Role role : List.of(Role.PRESIDENT, Role.ACADEMIC_LEAD)) {
+            given().header("Authorization", "Bearer " + actors.token(role))
+                    .when().get("/api/studies/" + study.getId() + "/attendance")
+                    .then().statusCode(200).body("weeks", hasSize(3));
+        }
+    }
+
+    /** R5.12: 토큰이 없으면 401. */
+    @Test
+    void anonymousCannotReadTheGrid() {
+        given().when().get("/api/studies/" + study.getId() + "/attendance")
+                .then().statusCode(401);
     }
 
     /** 분모는 기록된 주차 수다. 전체 주차로 나누면 1주차를 마친 모두가 33%로 보인다. */

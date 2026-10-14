@@ -4,6 +4,9 @@ import com.jaram.be.member.MemberDepartment;
 import com.jaram.be.member.MemberTitle;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 import static com.jaram.be.security.authz.Permission.*;
@@ -21,50 +24,115 @@ class PolicyMatrixTest {
                 .containsExactlyInAnyOrder(Permission.values());
     }
 
+    /** 부회장이 받는 권한. 새 Permission 을 추가하면 여기나 VP_EXCLUDED 중 한쪽에 넣어야 한다(R8.4). */
+    private static final Set<Permission> VP_GRANTED = EnumSet.of(
+            MEMBER_LIST, MEMBER_READ, MEMBER_APPROVE, MEMBER_EDIT, TERM_ASSIGN,
+            SEMINAR_LIST, SEMINAR_READ, SEMINAR_CREATE, SEMINAR_APPROVE,
+            SEMINAR_ATTENDANCE_MANAGE, SEMINAR_ROSTER_READ, SEMINAR_ROSTER_EDIT, SEMINAR_EDIT,
+            STUDY_LIST, STUDY_READ, STUDY_APPROVE, STUDY_APPLICANT_MANAGE, STUDY_EDIT,
+            SCHEDULE_MANAGE,
+            SETTINGS_READ, SETTINGS_EDIT, SITE_LINKS_EDIT,
+            DASHBOARD_READ);
+
+    /** 부회장이 받지 못하는 권한. 되돌리기 어려운 기수 전환과 개인정보 반출이다. */
+    private static final Set<Permission> VP_EXCLUDED = EnumSet.of(SETTINGS_ROLLOVER, EXPORT_RUN);
+
+    /** 일반 회원을 뺀 모든 임기 직책의 공통 권한. Policy 의 상수가 아니라 spec 에서 적은 값이다. */
+    private static final Set<Permission> OFFICER_BASE = EnumSet.of(
+            MEMBER_LIST, SEMINAR_LIST, STUDY_LIST, DASHBOARD_READ);
+
+    private static Set<Permission> withBase(Permission... extra) {
+        EnumSet<Permission> set = EnumSet.copyOf(OFFICER_BASE);
+        set.addAll(List.of(extra));
+        return set;
+    }
+
     @Test
-    void vicePresidentLacksRolloverAndExport() {
-        assertThat(Policy.permissionsOf(Role.VICE_PRESIDENT))
-                .doesNotContain(SETTINGS_ROLLOVER, EXPORT_RUN)
-                .hasSize(Permission.values().length - 2);
+    void vicePresidentPermissionsAreDeclaredExplicitly() {
+        assertThat(VP_GRANTED).doesNotContainAnyElementsOf(VP_EXCLUDED);
+        Set<Permission> all = EnumSet.copyOf(VP_GRANTED);
+        all.addAll(VP_EXCLUDED);
+        assertThat(all).containsExactlyInAnyOrder(Permission.values());
+        assertThat(Policy.permissionsOf(Role.VICE_PRESIDENT)).isEqualTo(VP_GRANTED);
     }
 
     @Test
     void serverAdminManagesSettingsAndExportOnly() {
-        assertThat(Policy.permissionsOf(Role.SERVER_ADMIN)).containsExactlyInAnyOrder(
-                SETTINGS_READ, SETTINGS_EDIT, EXPORT_RUN, DASHBOARD_READ, MEMBER_READ);
+        assertThat(Policy.permissionsOf(Role.SERVER_ADMIN)).isEqualTo(withBase(
+                SETTINGS_READ, SETTINGS_EDIT, EXPORT_RUN, MEMBER_READ));
     }
 
     @Test
     void academicLeadOwnsSeminarsAndStudies() {
-        assertThat(Policy.permissionsOf(Role.ACADEMIC_LEAD)).containsExactlyInAnyOrder(
+        assertThat(Policy.permissionsOf(Role.ACADEMIC_LEAD)).isEqualTo(withBase(
+                MEMBER_READ, SEMINAR_READ, STUDY_READ,
                 SEMINAR_CREATE, SEMINAR_APPROVE, SEMINAR_ATTENDANCE_MANAGE,
                 SEMINAR_ROSTER_READ, SEMINAR_ROSTER_EDIT, SEMINAR_EDIT,
                 STUDY_APPROVE, STUDY_APPLICANT_MANAGE, STUDY_EDIT,
-                SCHEDULE_MANAGE, DASHBOARD_READ);
+                SCHEDULE_MANAGE));
     }
 
     @Test
     void academicStaffRunsSeminarsButCannotApprove() {
-        assertThat(Policy.permissionsOf(Role.ACADEMIC_STAFF)).containsExactlyInAnyOrder(
+        assertThat(Policy.permissionsOf(Role.ACADEMIC_STAFF)).isEqualTo(withBase(
+                SEMINAR_READ, STUDY_READ,
                 SEMINAR_CREATE, SEMINAR_ATTENDANCE_MANAGE,
                 SEMINAR_ROSTER_READ, SEMINAR_ROSTER_EDIT,
-                STUDY_APPLICANT_MANAGE, DASHBOARD_READ);
+                STUDY_APPLICANT_MANAGE));
     }
 
+    /** 홍보부장만 회원 상세(MEMBER_READ)를 본다. */
     @Test
-    void prLeadAndStaffShareTheSameSet() {
-        Set<Permission> expected = Set.of(
-                SETTINGS_READ, SITE_LINKS_EDIT, SEMINAR_CREATE, DASHBOARD_READ);
-        assertThat(Policy.permissionsOf(Role.PR_LEAD)).isEqualTo(expected);
-        assertThat(Policy.permissionsOf(Role.PR_STAFF)).isEqualTo(expected);
+    void prLeadAndStaffDifferOnlyByMemberRead() {
+        Set<Permission> staff = withBase(SETTINGS_READ, SITE_LINKS_EDIT, SEMINAR_CREATE);
+        assertThat(Policy.permissionsOf(Role.PR_STAFF)).isEqualTo(staff);
+        Set<Permission> lead = EnumSet.copyOf(staff);
+        lead.add(MEMBER_READ);
+        assertThat(Policy.permissionsOf(Role.PR_LEAD)).isEqualTo(lead);
     }
 
     @Test
     void financeHasMemberPermissionsOnly() {
         assertThat(Policy.permissionsOf(Role.FINANCE_LEAD))
-                .containsExactlyInAnyOrder(MEMBER_READ, MEMBER_APPROVE, DASHBOARD_READ);
+                .isEqualTo(withBase(MEMBER_READ, MEMBER_APPROVE));
         assertThat(Policy.permissionsOf(Role.FINANCE_STAFF))
-                .containsExactlyInAnyOrder(MEMBER_READ, DASHBOARD_READ);
+                .isEqualTo(withBase(MEMBER_READ));
+    }
+
+    @Test
+    void seminarReadAndStudyReadBelongToExactlyFourRoles() {
+        Set<Role> expected = Set.of(Role.PRESIDENT, Role.VICE_PRESIDENT,
+                Role.ACADEMIC_LEAD, Role.ACADEMIC_STAFF);
+        for (Permission p : List.of(SEMINAR_READ, STUDY_READ)) {
+            assertThat(Arrays.stream(Role.values())
+                    .filter(r -> Policy.permissionsOf(r).contains(p)).toList())
+                    .as(p.name())
+                    .containsExactlyInAnyOrderElementsOf(expected);
+        }
+    }
+
+    /** R1.6 — 상세 권한은 목록 권한을, 운영 권한은 상세 권한을 포함한다. */
+    @Test
+    void everyRoleKeepsTheListReadInclusion() {
+        for (Role role : Role.values()) {
+            Set<Permission> p = Policy.permissionsOf(role);
+            if (p.contains(SEMINAR_EDIT) || p.contains(SEMINAR_ATTENDANCE_MANAGE)
+                    || p.contains(SEMINAR_ROSTER_READ) || p.contains(SEMINAR_ROSTER_EDIT)) {
+                assertThat(p).as(role + " seminar ops -> SEMINAR_READ").contains(SEMINAR_READ);
+            }
+            if (p.contains(SEMINAR_READ)) {
+                assertThat(p).as(role + " SEMINAR_READ -> SEMINAR_LIST").contains(SEMINAR_LIST);
+            }
+            if (p.contains(STUDY_EDIT) || p.contains(STUDY_APPLICANT_MANAGE)) {
+                assertThat(p).as(role + " study ops -> STUDY_READ").contains(STUDY_READ);
+            }
+            if (p.contains(STUDY_READ)) {
+                assertThat(p).as(role + " STUDY_READ -> STUDY_LIST").contains(STUDY_LIST);
+            }
+            if (p.contains(MEMBER_READ)) {
+                assertThat(p).as(role + " MEMBER_READ -> MEMBER_LIST").contains(MEMBER_LIST);
+            }
+        }
     }
 
     /** 임기 없는 회원은 권한이 없다. 조회·출석·신청은 인증과 자격으로 통과한다. */
@@ -76,8 +144,7 @@ class PolicyMatrixTest {
     @Test
     void rolesAreAdditive() {
         assertThat(Policy.permissionsOf(Set.of(Role.FINANCE_STAFF, Role.PR_STAFF)))
-                .containsExactlyInAnyOrder(
-                        MEMBER_READ, DASHBOARD_READ, SETTINGS_READ, SITE_LINKS_EDIT, SEMINAR_CREATE);
+                .isEqualTo(withBase(MEMBER_READ, SETTINGS_READ, SITE_LINKS_EDIT, SEMINAR_CREATE));
     }
 
     @Test

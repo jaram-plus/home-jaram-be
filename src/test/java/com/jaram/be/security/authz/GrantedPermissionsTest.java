@@ -20,6 +20,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -59,6 +60,17 @@ class GrantedPermissionsTest extends PostgresTest {
                 // 부원은 승인권이 없다 — 이번 변경에서 실제로 잃는 권한이다
                 .body("permissions", not(hasItem("SEMINAR_APPROVE")))
                 .body("permissions", not(hasItem("MEMBER_APPROVE")));
+    }
+
+    /** R6.1: 학술부원은 목록·조회 권한 다섯 개를 받고 MEMBER_READ 는 받지 않는다. */
+    @Test
+    void academicStaffGetsTheReadSplitPermissions() {
+        given().header("Authorization", "Bearer " + tokenFor(MemberDepartment.ACADEMIC, MemberTitle.STAFF))
+                .when().get("/api/me")
+                .then().statusCode(200)
+                .body("permissions", hasItems("MEMBER_LIST", "SEMINAR_LIST", "SEMINAR_READ",
+                        "STUDY_LIST", "STUDY_READ"))
+                .body("permissions", not(hasItem("MEMBER_READ")));
     }
 
     @Test

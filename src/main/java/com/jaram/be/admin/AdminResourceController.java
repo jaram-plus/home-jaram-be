@@ -4,6 +4,7 @@ import com.jaram.be.admin.dto.AdminBatchRequest;
 import com.jaram.be.admin.dto.AdminBatchResponse;
 import com.jaram.be.admin.dto.AdminListResponse;
 import com.jaram.be.security.CurrentMember;
+import com.jaram.be.security.authz.Permission;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -24,8 +25,9 @@ public class AdminResourceController {
                                   @RequestParam(required = false) String q,
                                   @RequestParam(required = false) String sort,
                                   @RequestParam(defaultValue = "1") int page,
-                                  @RequestParam(defaultValue = "8") int size) {
-        return service.list(resource, tab, q, sort, page, size);
+                                  @RequestParam(defaultValue = "8") int size,
+                                  @AuthenticationPrincipal CurrentMember me) {
+        return service.list(resource, tab, q, sort, page, size, me.can(Permission.SEMINAR_READ));
     }
 
     // UC-A2: 변경분 일괄 저장 (부분 성공). 콜론 경로 {resource}:batch.

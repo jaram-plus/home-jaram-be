@@ -20,7 +20,7 @@ public class StudyAttendanceController {
     public StudyAttendanceController(StudyAttendanceService service) { this.service = service; }
 
     @GetMapping("/attendance")
-    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_EDIT')")
+    @PreAuthorize("@studyAccess.isLeader(#id, authentication) or hasAuthority('STUDY_READ')")
     public AttendanceBoard board(@PathVariable String id,
                                  @AuthenticationPrincipal CurrentMember me) {
         return service.board(id, me.can(Permission.STUDY_EDIT));
