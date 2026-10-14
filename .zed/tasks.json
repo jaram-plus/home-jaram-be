@@ -1,0 +1,34 @@
+// Zed task definitions for jaram-be.
+// Open the command palette -> "task: spawn" (or bind a key) to run these.
+[
+  {
+    "label": "Backend: Run (Docker DB)",
+    "command": "./scripts/dev-run.sh",
+    "args": [],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Backend: Start DB",
+    "command": "./scripts/dev-run.sh",
+    "args": ["db:up"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "Backend: Stop DB",
+    "command": "./scripts/dev-run.sh",
+    "args": ["db:down"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  },
+  {
+    "label": "Backend: Tests",
+    "command": "./gradlew",
+    "args": ["test"],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always"
+  }
+]
